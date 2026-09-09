@@ -111,6 +111,12 @@ Wave 已通过导入 Elements、Grid、Canvas 参数面板、Undo/Redo、Save/Lo
 消费。Stripe 已通过导入 Elements、Grid、Save/Load、Undo/Redo、source safety 和全量
 回归，不改变 Raster/Canvas/Grid 基础链路。
 
+### Shared Field Gate D — CheckerField
+
+`CheckerField` 在旋转后的世界坐标中按格宽/格高交替输出 0～1 标量，支持偏移和反转。
+它只通过通用 Size/Rotation Modifier 影响 Geometry，已覆盖 Grid、Save/Load、Undo/Redo、
+source safety 和完整回归；Spiral 不在本 Gate 范围内。
+
 ## 启动实验台
 
 ```powershell

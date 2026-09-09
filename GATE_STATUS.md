@@ -1,6 +1,6 @@
 # Gate 状态（2026-09-09）
 
-- Current Gate: C — StripeField
+- Current Gate: D — CheckerField
 - Status: PASS — 不自动进入 Wave Gate B
 - Current Branch: feature/shared-fields-nightly-20260909-1630
 - Pre-change Snapshot Commit: b685af304241541a21a123bf7b86f2b995266e01
@@ -36,6 +36,14 @@
 - Gate C 定向测试：4/4 PASS；与前序共享字段专项合计 43/43 PASS。
 - 全量回归：148/148 PASS，0 skip，152.819 秒；证据 `work/shared-fields-nightly-gate-c-regression.log`。
 - 当前 Last Known Good：待本 Gate 提交后以 `git rev-parse HEAD` 记录；不得在此之前进入 Gate D。
+
+## Gate D 完成记录（2026-09-09）
+
+- 新增 `CheckerField`：格宽、格高、旋转、偏移和反转均使用世界坐标，输出确定性 0～1 标量。
+- Checker 通过通用 Size/Rotation Modifier、Document Evaluate、Grid、Save/Load、Undo/Redo 与 source safety。
+- Gate D 定向测试：4/4 PASS；与前序共享字段专项合计 47/47 PASS。
+- 全量回归：152/152 PASS，0 skip，197.783 秒；证据 `work/shared-fields-nightly-gate-d-regression.log`。
+- 当前 Last Known Good：待本 Gate 提交后以 `git rev-parse HEAD` 记录；不得在此之前进入 Gate E。
 
 ## Gate 1 完成记录（2026-09-09）
 

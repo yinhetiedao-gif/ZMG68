@@ -1,5 +1,17 @@
 # 更新记录
 
+## 1.6.29 — Shared Field Gate D：CheckerField（2026-09-09）
+
+### Added
+
+- 新增 `CheckerField`，以世界坐标格宽、格高、旋转、偏移和反转输出交替 0～1 标量。
+- Checker 复用通用 Size/Rotation Modifier，支持 Grid、Save/Load 和 Undo/Redo。
+- 新增相邻单元交替、旋转、偏移、反转、Document Evaluate 与 source safety 测试。
+
+### Scope
+
+- 本 Gate 未修改 Raster、GridAnalyzer、Canvas 交互或旧 `ppg`；Spiral 仍待后续独立 Gate。
+
 ## 1.6.28 — Shared Field Gate C：StripeField（2026-09-09）
 
 ### Added
