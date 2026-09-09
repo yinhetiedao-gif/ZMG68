@@ -1,15 +1,26 @@
 # Gate 状态（2026-09-09）
 
 - Current Gate: 0 — 版本管理和基线验证
-- Status: BLOCKED / DO NOT CONTINUE
+- Status: PASS — 基线已修复，允许本次用户授权的 Shared Field Gate 1
 - Current Branch: feature/safety-baseline
 - Pre-change Snapshot Commit: b685af304241541a21a123bf7b86f2b995266e01
 - Protected Snapshot Branch: backup/pre-safety-snapshot
-- Stable Baseline Commit: NONE — 全量回归存在失败，未创建 backup/stable-baseline
-- Last Known Good Commit: NONE
+- Stable Baseline Commit: 本次验证提交由 backup/stable-baseline 保护（提交后创建，不覆盖）
+- Last Known Good Commit: 使用 `git rev-parse backup/stable-baseline` 获取验证提交
 - Current Commit: 运行 `git rev-parse HEAD`（状态文件不能包含自己的提交哈希）
 
 ## Regression
+
+### 2026-09-09 基线修复后复验（当前有效）
+
+- 全量 unittest：108/108 PASS，0 skip，191.715 秒。
+- Pattern Lab self-test：6/6 PASS。
+- 证据：`work/shared-field-gate1/baseline-regression.log`、`baseline-self-test.log`。
+- 仅更新 tests/test_phase1.py：Pillow 像素枚举改用已安装版本支持的 getdata；
+  导入后检查真实 EditablePatternDocument 及项目持久化 payload；另外主动填入旧
+  reference_elements 列表继续验证非哈希列表缓存场景。未降低像素、编辑或保存断言。
+- 未修改或启动旧版产品供用户使用；独立测试窗口退出，用户现有应用不关闭。
+- 下表和 Known Issues 是先前失败记录，不代表本次状态。
 
 | 检查 | 结果 | 证据范围 |
 | --- | --- | --- |
@@ -32,8 +43,7 @@
 3. `test_phase1.PhaseOneTests.test_reference_analysis_apply_updates_field_canvas_after_editable_elements`：
    tests/test_phase1.py:235，reference_elements 数量为 0，期望大于 0。
 
-这些问题存在于本轮改业务代码之前（本轮未改业务代码）。仍阻止 Stable Baseline。
-后续先在本 feature 分支修复失败并重新验证；不得删除测试或伪造 PASS。
+这些历史失败已按上面的复验记录解决；业务代码没有因此改动。
 
 ## Changes
 

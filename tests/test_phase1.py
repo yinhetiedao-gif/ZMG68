@@ -192,7 +192,7 @@ class PhaseOneTests(unittest.TestCase):
                 self.assertEqual(len(app.canvas.find_all()), 1)
 
                 def dark_pixels(region):
-                    return sum(1 for pixel in region.get_flattened_data() if max(pixel) < 180)
+                    return sum(1 for pixel in region.getdata() if max(pixel) < 180)
 
                 # 原图与参数化结果必须分别完整存在于两侧；不依赖固定像素位置，
                 # 因此窗口尺寸、系统 DPI 或画布缩放变化不会制造脆弱的假失败。
@@ -232,13 +232,22 @@ class PhaseOneTests(unittest.TestCase):
                 app.update_idletasks(); app.update()
                 self.assertEqual(app.vars["active_generator"].get(), "field")
                 self.assertEqual(app.vars["reference_compare_mode"].get(), "左右对比")
-                self.assertGreater(len(app.project.settings.reference_elements), 0)
+                # Detection now persists EditablePatternDocument, not the old
+                # generator's reference_elements list. Check the real objects
+                # and their persisted payload, then explicitly retain the old
+                # non-hashable settings/cache regression below.
+                self.assertIsNotNone(app._editable_pattern_document)
+                self.assertGreater(len(app._editable_pattern_document.elements), 0)
+                self.assertEqual(app.project.editable_pattern_document,
+                                 app._editable_pattern_document.to_dict())
+                app.project.settings.reference_elements = [{"type": "circle", "x": 25, "y": 25, "radius": 4}]
+                app.update_preview(); app.update_idletasks(); app.update()
                 preview = ImageTk.getimage(app._preview_photo).convert("RGB")
                 split = preview.width // 2
                 self.assertGreater(preview.width, 300)
                 self.assertEqual(len(app.canvas.find_all()), 1)
-                self.assertGreater(sum(1 for px in preview.crop((0, 0, split, preview.height)).get_flattened_data() if max(px) < 180), 500)
-                self.assertGreater(sum(1 for px in preview.crop((split, 0, preview.width, preview.height)).get_flattened_data() if max(px) < 180), 100)
+                self.assertGreater(sum(1 for px in preview.crop((0, 0, split, preview.height)).getdata() if max(px) < 180), 500)
+                self.assertGreater(sum(1 for px in preview.crop((split, 0, preview.width, preview.height)).getdata() if max(px) < 180), 100)
                 self.assertNotIn("unhashable", app.status.get())
             finally:
                 app.on_close()
@@ -264,7 +273,7 @@ class PhaseOneTests(unittest.TestCase):
                 self.assertIsNotNone(app._reference2d_document)
                 self.assertEqual(len(app._reference2d_document.geometry_layer.dots), 12)
                 preview = ImageTk.getimage(app._preview_photo).convert("RGB")
-                self.assertGreater(sum(1 for pixel in preview.get_flattened_data() if max(pixel) < 80), 300)
+                self.assertGreater(sum(1 for pixel in preview.getdata() if max(pixel) < 80), 300)
                 dot = app._reference2d_document.geometry_layer.dots[0]
                 world_x, world_y = dot.x / app._reference2d_document.reference_layer.width * 100, dot.y / app._reference2d_document.reference_layer.height * 100
                 scale, ox, oy = app._last_transform
