@@ -1,10 +1,10 @@
 # Xiaomang Pattern Lab / 小芒图案实验室
 
-## 开发安全（Gate 0）
+## 开发安全与当前 Gate
 
 开发前必须读取仓库根的 `AGENTS.md`、`DEVELOPMENT_SAFETY.md`、`GATE_STATUS.md`。
 源码已纳入本地 Git；新功能仅在 feature/*，保护快照不可覆盖。
-当前全量回归存在 3 个失败/错误，尚未建立 Stable Baseline / Last Known Good。
+Gate 0 已完成并由 `backup/stable-baseline` 保护；当前只执行 Shared Field Engine 的 Gate 1。
 测试通过前不得继续下一 Gate。Git 备份不包含 .venv/.runtime/node_modules。
 独立回退目录需安装 requirements 和构建 external/imagetosvg-mcp（锁文件已纳入 Git）。
 
@@ -42,6 +42,7 @@ xiaomang_pattern_lab/parametric_families.py # Radial / Along Curve / Free Parame
 xiaomang_pattern_lab/evaluation.py # 唯一 Evaluate Pipeline：任一 ParametricModel → Modifier → Local Override → Element
 xiaomang_pattern_lab/placement_assignment.py # PlacementSlot → Prototype Registry → Assignment / Replacement（Gate 1）
 xiaomang_pattern_lab/shared_modifiers.py # Geometry Source 之上的公共 Size/Rotation/Mask/Override 效果层
+xiaomang_pattern_lab/shared_fields.py # Gate 1 纯 Scalar Field / Registry / Mapping / Size Consumer
 xiaomang_pattern_lab/element_debug.py # Element、可渲染性与实心填充统计
 xiaomang_pattern_lab/verification.py # 六图无界面验收和量化指标
 ```
@@ -63,6 +64,19 @@ xiaomang_pattern_lab/verification.py # 六图无界面验收和量化指标
 Grid 继续只负责行列、间距、Basis、旋转和 Origin；导入图片即使没有可靠 Grid，也可以直接应用 Size Field、Rotation Field、Mask 和 Local Override。提取 Grid 后，已有共享效果状态不会被清除。源元素快照写入 metadata，防止连续调整在前一次结果上累乘，并支持 Save/Load。
 
 Core Engine 的任何模块都不会导入 Tk、Pillow、MCP、CLI 或第三方 Skill。具体的 `ImageToSVGVectorizationAdapter` 位于 `ppg.integrations`，实验台的 SVG 预览也使用独立 Adapter；两者均不属于 Core Engine。
+
+### Shared Field Engine — Gate 1
+
+Gate 1 将既有 **Linear X / Linear Y Size** 迁移到同一套可替换的共享参数场内核，
+没有增加第二套元素或画布状态：
+
+`Source Geometry → FieldContext（世界坐标/mm）→ SharedFieldEngine → SizeModifier → 既有 Rotation/Mask → Local Override → Final Elements → Canvas`
+
+- `ConstantField` 与 `LinearField` 都只输出规范化 `0.0～1.0` 标量，绝不永久修改 `source_elements`。
+- `FieldRegistry` 以稳定 `field_id` 管理对象；一个场可被多个 Modifier 引用，且每次 Evaluate 对同一场只计算一次。
+- `FieldMapping` 负责输出范围、反转、钳制、强度、指数 Falloff 与 Linear/Ease/Bell/Step 曲线；Size 的 neutral 值为 `1.0`，所以强度为零不会让图元消失。
+- `PatternDocument.fields[]` 与 `PatternDocument.modifiers[]` 保存 JSON 兼容的声明式图；旧工程没有这些字段时仍可读取。Gate 1 只写入 Linear Size 图，Rotation、Position、Radial、Attractor 和 UI Handle 留待后续 Gate。
+- 已有“应用参数场”控件仍可用，但首次应用现在会捕获源快照；重复应用、Undo/Redo、Save/Load 和停用效果都不会累乘尺寸。
 
 ## 启动实验台
 

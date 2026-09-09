@@ -163,6 +163,11 @@ class PatternDocument:
     groups: List[Group] = field(default_factory=list)
     transforms: Dict[str, Transform] = field(default_factory=dict)
     metadata: Dict[str, Any] = field(default_factory=dict)
+    # Gate 1 stores declarative shared scalar fields and their consumers here.
+    # They are JSON-compatible records instead of UI/renderer objects, keeping
+    # FOUNDATION independent of any particular parametric implementation.
+    fields: List[Dict[str, Any]] = field(default_factory=list)
+    modifiers: List[Dict[str, Any]] = field(default_factory=list)
     schema_version: int = DOCUMENT_SCHEMA_VERSION
 
     def __post_init__(self) -> None:
@@ -184,6 +189,9 @@ class PatternDocument:
             unknown = set(group.element_ids) - known
             if unknown:
                 raise ValueError("Group 引用了不存在的 Element：%s" % sorted(unknown))
+        for label, records in (("fields", self.fields), ("modifiers", self.modifiers)):
+            if not isinstance(records, list) or not all(isinstance(record, dict) for record in records):
+                raise ValueError("PatternDocument.%s 必须为 JSON 对象列表。" % label)
 
     def _sync_transforms(self) -> None:
         active = {element.id for element in self.elements}
@@ -335,6 +343,8 @@ class PatternDocument:
             "groups": [asdict(group) for group in self.groups],
             "transforms": {element_id: asdict(transform) for element_id, transform in self.transforms.items()},
             "metadata": copy.deepcopy(self.metadata),
+            "fields": copy.deepcopy(self.fields),
+            "modifiers": copy.deepcopy(self.modifiers),
         }
 
     @classmethod
@@ -361,6 +371,8 @@ class PatternDocument:
             groups=groups,
             transforms=transforms,
             metadata=copy.deepcopy(payload.get("metadata") or {}),
+            fields=copy.deepcopy(payload.get("fields") or []),
+            modifiers=copy.deepcopy(payload.get("modifiers") or []),
             schema_version=int(payload.get("schema_version", DOCUMENT_SCHEMA_VERSION)),
         )
 

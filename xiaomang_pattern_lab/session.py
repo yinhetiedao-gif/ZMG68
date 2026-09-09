@@ -381,6 +381,11 @@ class PatternLabSession:
         if not stack.source_elements and previous and previous.source_elements:
             stack.source_elements = deepcopy(previous.source_elements)
             stack.source_kind = previous.source_kind
+        elif not stack.source_elements:
+            # The existing UI uses update even for FIRST activation. Capture
+            # the source before materialisation, just as activate does;
+            # otherwise repeated Apply/Save/Load compounds the size effect.
+            stack.source_elements = serialize_elements(document.elements)
 
         def action() -> None:
             stack.enabled = True
@@ -399,6 +404,8 @@ class PatternLabSession:
                 document.elements = stack.source_snapshot()
                 document._sync_transforms()
             document.metadata.pop(SHARED_MODIFIER_METADATA_KEY, None)
+            document.fields = []
+            document.modifiers = []
 
         self._mutate("停用共享参数化效果", action)
 

@@ -16,6 +16,7 @@ from typing import Iterable, Optional, Protocol
 from ppg.foundation.models import ELEMENT_TYPES, Element
 
 from .parametric import ElementPrototype, LocalOverride, MaskModifier
+from .shared_fields import FieldMapping, FieldRegistry, LinearField, SharedFieldEngine, SizeModifier
 
 
 class ParametricModel(Protocol):
@@ -58,6 +59,18 @@ class SizeFieldModifier:
     center_y: float = 0.0
     radius: float = 100.0
     strength: float = 1.0
+
+    def shared_engine(self) -> SharedFieldEngine | None:
+        """Gate 1 compatibility adapter; old UI/project parameters stay authoritative.
+
+        Only Linear Size is migrated. No duplicate persistent field settings,
+        no schema migration, and no changed Rotation/Mask/Grid behaviour.
+        """
+        if self.mode not in (SizeFieldMode.LINEAR_X, SizeFieldMode.LINEAR_Y):
+            return None
+        scalar = LinearField("legacy-linear-size", angle=0.0 if self.mode is SizeFieldMode.LINEAR_X else 90.0)
+        mapping = FieldMapping(min_output=self.min_scale, max_output=self.max_scale, strength=self.strength)
+        return SharedFieldEngine(FieldRegistry([scalar]), [SizeModifier("legacy-size", scalar.id, mapping)])
 
     def to_dict(self) -> dict:
         return {"mode": self.mode.value, "min_scale": self.min_scale, "max_scale": self.max_scale,
@@ -116,8 +129,8 @@ def _apply_override(element: Element, override: LocalOverride | None) -> Element
 def _field_factor(field: SizeFieldModifier, element: Element, bounds: tuple[float, float, float, float]) -> float:
     xmin, ymin, xmax, ymax = bounds
     if field.mode is SizeFieldMode.CONSTANT: return 0.5
-    if field.mode is SizeFieldMode.LINEAR_X: return (element.x - xmin) / max(xmax - xmin, 0.01)
-    if field.mode is SizeFieldMode.LINEAR_Y: return (element.y - ymin) / max(ymax - ymin, 0.01)
+    if field.mode in (SizeFieldMode.LINEAR_X, SizeFieldMode.LINEAR_Y):
+        raise ValueError("Linear Size 必须通过 SharedFieldEngine 计算。")
     return min(1.0, math.hypot(element.x - field.center_x, element.y - field.center_y) / field.radius)
 
 
@@ -126,10 +139,16 @@ def _apply_fields(elements: list[Element], size_field: SizeFieldModifier, rotati
     if not elements: return []
     xmin, xmax = min(item.x for item in elements), max(item.x for item in elements)
     ymin, ymax = min(item.y for item in elements), max(item.y for item in elements)
-    for element in elements:
-        factor = _field_factor(size_field, element, (xmin, ymin, xmax, ymax))
-        scale = size_field.min_scale + (size_field.max_scale - size_field.min_scale) * factor
-        scale = 1.0 + (scale - 1.0) * size_field.strength
+    engine = size_field.shared_engine()
+    values = engine.evaluate_fields(elements) if engine else {}
+    consumer = engine.modifiers[0] if engine else None
+    for index, element in enumerate(elements):
+        if consumer:
+            scale = consumer.scale(values[consumer.field_id][index])
+        else:
+            factor = _field_factor(size_field, element, (xmin, ymin, xmax, ymax))
+            scale = size_field.min_scale + (size_field.max_scale - size_field.min_scale) * factor
+            scale = 1.0 + (scale - 1.0) * size_field.strength
         element.width = max(0.01, element.width * scale); element.height = max(0.01, element.height * scale)
         dx, dy = element.x - rotation_field.center_x, element.y - rotation_field.center_y
         if rotation_field.mode is RotationFieldMode.FACE_CENTER: target = math.degrees(math.atan2(dy, dx))

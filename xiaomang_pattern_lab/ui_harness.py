@@ -93,6 +93,8 @@ class PatternLabApp(tk.Tk):
         self._inspector_after: str | None = None
         self._parameter_after: str | None = None
         self._resize_after: str | None = None
+        self._performance_after: str | None = None
+        self._closing = False
         self._pan_drag: tuple[int, int] | None = None
         self._static_element_items: dict[str, list[int]] = {}
         self._spatial_index = BoundingBoxSpatialIndex()
@@ -129,7 +131,7 @@ class PatternLabApp(tk.Tk):
             try: widget.configure(state="disabled")
             except tk.TclError: pass
         self._load_fixtures()
-        self.after(200, self._refresh_performance_panel)
+        self._performance_after = self.after(200, self._refresh_performance_panel)
 
     def _build(self) -> None:
         toolbar = ttk.Frame(self, padding=8); toolbar.pack(fill="x")
@@ -826,10 +828,27 @@ class PatternLabApp(tk.Tk):
             if 0 <= y <= self.canvas.winfo_height(): self.ruler_y.create_line(34, y, 42, y, fill="#8996a4"); self.ruler_y.create_text(2, y, text="%.0f" % value, anchor="w", fill="#56616f", font=("Arial", 8))
             value += step_y
     def _refresh_performance_panel(self) -> None:
+        self._performance_after = None
+        if self._closing or not self.winfo_exists():
+            return
         self.metrics.svg_serializations = self.session.svg_serialize_count; self.metrics.document_commits = self.session.document_commit_count; self.metrics.undo_records = self.session.undo_record_count
         data = self.metrics.snapshot(); count = len(self.session.document.elements) if self.session.document else 0
         self._perf_text.set("Element: {count}\nFPS: {fps}  Frame: {frame_ms} ms\nRender: {render_ms} ms  Interaction: {interaction_ms} ms\nCommit: {commit_ms} ms\nPointerMove: {pointer_moves}  Interaction Render: {interaction_renders}\nStatic Render: {static_renders}  Full Canvas: {full_canvas_rebuilds}\nDocument Commit: {document_commits}  Undo: {undo_records}\nSVG Serialize: {svg_serializations}  Hit Test: {spatial_queries}".format(count=count, **data))
-        self.after(300, self._refresh_performance_panel)
+        self._performance_after = self.after(300, self._refresh_performance_panel)
+
+    def destroy(self) -> None:
+        """Cancel harness timers before Tcl tears down the test/application root."""
+        if self._closing:
+            return
+        self._closing = True
+        for callback_id in (self._interaction_after, self._inspector_after, self._parameter_after,
+                            self._resize_after, self._performance_after):
+            if callback_id:
+                try:
+                    self.after_cancel(callback_id)
+                except tk.TclError:
+                    pass
+        super().destroy()
     def _set_cursor_status(self, world: tuple[float, float] | None) -> None:
         if world is None: self._status_text.set("X: -- mm    Y: -- mm")
         elif not self._interaction: self._status_text.set("X: %.2f mm    Y: %.2f mm" % world)

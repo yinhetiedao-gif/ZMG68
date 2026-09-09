@@ -1,5 +1,22 @@
 # 更新记录
 
+## 1.6.24 — Shared Field Engine Gate 1（2026-09-09）
+
+### Added
+
+- 新增 `SharedFieldEngine`、`FieldRegistry`、`FieldContext`、`ConstantField`、`LinearField`、`FieldMapping` 与 `SizeModifier`。场只输出标准化标量，Modifier 才消费数据。
+- `PatternDocument` 向后兼容增加 `fields[]` / `modifiers[]` 声明式持久化记录；旧工程缺少这些键时照常读取。
+
+### Changed
+
+- 既有 Linear X/Y Size 通过兼容适配层迁移到 Shared Field Engine，视觉与旧公式、SVG 输出、Tk Canvas 图元坐标保持一致。
+- “应用参数场”首次使用更新入口时会捕获原始元素快照，修复反复应用时可能在已缩放结果上累乘的问题。
+- Pattern Lab 窗口销毁前取消性能/交互定时回调，避免测试或关闭窗口后出现残留 Tcl 回调错误。
+
+### Deliberately deferred
+
+- 不包含 Radial、Elliptical、Attractor、Position、Mask、Random、组合场、Field Handle 或新的 Field UI；这些属于后续独立 Gate。
+
 ## 1.6.23 — 结构路由与 Grid 输入稳定性（2026-09-08）
 
 ### Fixed

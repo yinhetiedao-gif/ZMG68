@@ -1,13 +1,26 @@
 # Gate 状态（2026-09-09）
 
-- Current Gate: 0 — 版本管理和基线验证
-- Status: PASS — 基线已修复，允许本次用户授权的 Shared Field Gate 1
-- Current Branch: feature/safety-baseline
+- Current Gate: 1 — Shared Field Engine 基础 + Linear Size 迁移
+- Status: PASS — 不继续 Gate 2
+- Current Branch: feature/shared-field-gate1
 - Pre-change Snapshot Commit: b685af304241541a21a123bf7b86f2b995266e01
 - Protected Snapshot Branch: backup/pre-safety-snapshot
 - Stable Baseline Commit: 本次验证提交由 backup/stable-baseline 保护（提交后创建，不覆盖）
 - Last Known Good Commit: 使用 `git rev-parse backup/stable-baseline` 获取验证提交
-- Current Commit: 运行 `git rev-parse HEAD`（状态文件不能包含自己的提交哈希）
+- Current Commit: Gate 1 提交后以 `git rev-parse HEAD` 为准（状态文件不自指提交哈希）
+
+## Gate 1 完成记录（2026-09-09）
+
+- `SharedFieldEngine` 已建立；`ConstantField`、`LinearField` 的 `evaluate(element, context)`
+  只产生 `0.0～1.0` 标量，不改写 source geometry。
+- `FieldRegistry` 以稳定 `field_id` 管理场；`FieldMapping` 已支持 output、invert、clamp、strength、falloff 和 remap curve；本 Gate 只接入 Size。
+- 旧的 Linear X/Y Size 通过兼容层调用新引擎；旧项目仍使用原 payload，无需 schema migration。
+- `PatternDocument.fields[]` / `modifiers[]` 已以 JSON 图记录 Linear Size 场和 Modifier 引用，保存/重开保持。
+- 修复“首次从既有应用按钮更新共享效果”未捕获 source snapshot 的累乘缺陷；停用可恢复 source。
+- 修复 Pattern Lab 销毁时未取消性能 refresh timer 的 Tcl 回调残留。
+- Regression：全量 unittest 127/127 PASS，0 skip，156.839 秒；Pattern Lab self-test 6/6 PASS。
+- 证据：`work/shared-field-gate1/final-regression.log`、`final-self-test.log`、`focused-final.log`。
+- Deliberately deferred：Radial/Elliptical/Attractor/Random、Rotation/Position 接入、Handle、Field UI、组合场；未经新 Gate 不得继续。
 
 ## Regression
 
@@ -43,7 +56,7 @@
 3. `test_phase1.PhaseOneTests.test_reference_analysis_apply_updates_field_canvas_after_editable_elements`：
    tests/test_phase1.py:235，reference_elements 数量为 0，期望大于 0。
 
-这些历史失败已按上面的复验记录解决；业务代码没有因此改动。
+这些历史失败已按上面的复验记录解决；Gate 1 回归没有已知失败。
 
 ## Changes
 

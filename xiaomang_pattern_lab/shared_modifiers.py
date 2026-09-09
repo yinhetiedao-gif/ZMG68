@@ -95,6 +95,18 @@ class SharedModifierStack:
             self.source_kind = str(source_kind)
         if source_elements is not None:
             self.source_elements = [asdict(item) for item in source_elements]
+        # Gate 1's Linear Size migration leaves existing projects and controls
+        # compatible while persisting a real, replaceable field→modifier graph
+        # on PatternDocument. Other legacy fields have no SharedField analogue
+        # in this Gate and therefore do not pretend to be one.
+        engine = self.size_field.shared_engine()
+        if engine is not None:
+            graph = engine.to_dict()
+            document.fields = graph["fields"]
+            document.modifiers = graph["modifiers"]
+        else:
+            document.fields = []
+            document.modifiers = []
         document.metadata[SHARED_MODIFIER_METADATA_KEY] = self.to_dict()
 
     @classmethod
@@ -103,4 +115,3 @@ class SharedModifierStack:
         if not isinstance(raw, Mapping) or not bool(raw.get("enabled", True)):
             return None
         return cls.from_dict(raw)
-
