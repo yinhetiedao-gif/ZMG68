@@ -1,5 +1,17 @@
 # 更新记录
 
+## 1.6.25 — Shared Field Gate A：RingField（2026-09-09）
+
+### Added
+
+- 新增 `RingField`：以世界坐标计算环带影响值，支持 `center_x`、`center_y`、`radius`、`ring_width`、`falloff` 与 `invert`。
+- `FieldRegistry` / `SharedFieldEngine.from_dict()` 支持 `type: "ring"`；现有 `SizeModifier` 可直接引用 RingField。
+- 新增 RingField 的峰值、边界、Falloff、Invert、尺寸 Modifier、源数据不变和 JSON 往返测试。
+
+### Scope
+
+- 本 Gate 未新增 Wave、Stripe、Checker、Spiral、Position/Rotation 接入或 Field UI；旧 Raster、Vector、Grid、Canvas、保存和导出逻辑未重构。
+
 ## 1.6.24 — Shared Field Engine Gate 1（2026-09-09）
 
 ### Added

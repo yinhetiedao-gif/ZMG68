@@ -1,7 +1,7 @@
 # Pattern Lab 开发安全与版本回退规范
 
-本规范落实用户 2026-09-09 提供的开发安全要求。Gate 0 已完成；当前已完成
-Shared Field Gate 1，未经新用户授权不得进入 Gate 2。
+本规范落实用户 2026-09-09 提供的开发安全要求。Gate 0 与 Shared Field Gate 1
+已完成；RingField Gate A 已独立验证，未经新用户授权不得进入 Wave Gate B。
 
 ## 源码、运行时与版本
 

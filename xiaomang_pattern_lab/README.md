@@ -78,6 +78,14 @@ Gate 1 将既有 **Linear X / Linear Y Size** 迁移到同一套可替换的共�
 - `PatternDocument.fields[]` 与 `PatternDocument.modifiers[]` 保存 JSON 兼容的声明式图；旧工程没有这些字段时仍可读取。Gate 1 只写入 Linear Size 图，Rotation、Position、Radial、Attractor 和 UI Handle 留待后续 Gate。
 - 已有“应用参数场”控件仍可用，但首次应用现在会捕获源快照；重复应用、Undo/Redo、Save/Load 和停用效果都不会累乘尺寸。
 
+### Shared Field Engine — Gate A: RingField
+
+Gate A 只新增 `RingField`，不新增平行参数化系统。它按元素的世界坐标计算
+“距离指定半径越近，值越高”的环形标量：中心、半径、环宽、Falloff 和 Invert
+都以可序列化字段保存，输出始终为 `0.0～1.0`。已有 `SizeModifier` 可以直接消费
+它；RingField 不修改 source geometry，也不操作 Canvas。Wave、Stripe、Checker、Spiral
+及新的 Field UI 刻意留在后续独立 Gate。
+
 ## 启动实验台
 
 ```powershell

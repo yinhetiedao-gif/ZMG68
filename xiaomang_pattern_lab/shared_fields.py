@@ -1,8 +1,8 @@
-"""Gate 1: pure scalar fields, reusable registry, mappings and a size consumer.
+"""Shared scalar fields, reusable registry, mappings and a size consumer.
 
 No UI, image analysis, source mutation or persistent second geometry list.
 Coordinates and linear start/end distances use the document's world units
-(Pattern Lab: mm). Only Constant/Linear and Size are enabled in this gate.
+(Pattern Lab: mm). Gate A adds Ring without changing the existing consumers.
 """
 from __future__ import annotations
 
@@ -118,6 +118,54 @@ class LinearField:
             "angle": self.angle, "start": self.start, "end": self.end}}
 
 
+@dataclass(frozen=True)
+class RingField:
+    """A radial band whose peak is at ``radius``.
+
+    ``ring_width`` is the full-width support of the band: at
+    ``radius ± ring_width / 2`` the scalar is zero, and at ``radius`` it is
+    one.  The value is computed from element world coordinates, independent of
+    Canvas pixels, element dimensions, or document bounds.
+    """
+
+    id: str
+    center_x: float = 0.0
+    center_y: float = 0.0
+    radius: float = 50.0
+    ring_width: float = 10.0
+    falloff: float = 1.0
+    invert: bool = False
+
+    def __post_init__(self):
+        if not isinstance(self.id, str) or not self.id:
+            raise ValueError("环形场 ID 不能为空。")
+        for name in ("center_x", "center_y", "radius", "ring_width", "falloff"):
+            object.__setattr__(self, name, _finite(getattr(self, name)))
+        if self.radius < 0:
+            raise ValueError("环形场半径不能小于 0。")
+        if self.ring_width <= 0:
+            raise ValueError("环形场宽度必须大于 0。")
+        if self.falloff <= 0:
+            raise ValueError("环形场衰减必须大于 0。")
+        if not isinstance(self.invert, bool):
+            raise ValueError("环形场反转参数必须为布尔值。")
+
+    def evaluate(self, element: Element, context: FieldContext) -> float:
+        del context  # Ring is world-coordinate based and does not need bounds.
+        distance = math.hypot(_finite(element.x) - self.center_x,
+                              _finite(element.y) - self.center_y)
+        half_width = self.ring_width / 2.0
+        support = _unit(1.0 - abs(distance - self.radius) / half_width)
+        value = support ** self.falloff
+        return _unit(1.0 - value if self.invert else value)
+
+    def to_dict(self) -> dict:
+        return {"id": self.id, "type": "ring", "parameters": {
+            "center_x": self.center_x, "center_y": self.center_y,
+            "radius": self.radius, "ring_width": self.ring_width,
+            "falloff": self.falloff, "invert": self.invert}}
+
+
 class FieldRegistry:
     """One definition per ID; consumers reference it without duplicating it."""
 
@@ -141,7 +189,7 @@ class FieldRegistry:
 
     @classmethod
     def from_list(cls, payload: list[dict]) -> "FieldRegistry":
-        constructors = {"constant": ConstantField, "linear": LinearField}
+        constructors = {"constant": ConstantField, "linear": LinearField, "ring": RingField}
         fields = []
         for raw in payload:
             constructor = constructors.get(raw.get("type"))

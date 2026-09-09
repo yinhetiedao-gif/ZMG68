@@ -1,8 +1,8 @@
 # Gate 状态（2026-09-09）
 
-- Current Gate: 1 — Shared Field Engine 基础 + Linear Size 迁移
-- Status: PASS — 不继续 Gate 2
-- Current Branch: feature/shared-field-gate1
+- Current Gate: A — RingField
+- Status: PASS — 不自动进入 Wave Gate B
+- Current Branch: feature/shared-field-ring-gatea
 - Pre-change Snapshot Commit: b685af304241541a21a123bf7b86f2b995266e01
 - Protected Snapshot Branch: backup/pre-safety-snapshot
 - Stable Baseline Commit: 本次验证提交由 backup/stable-baseline 保护（提交后创建，不覆盖）
@@ -21,6 +21,16 @@
 - Regression：全量 unittest 127/127 PASS，0 skip，156.839 秒；Pattern Lab self-test 6/6 PASS。
 - 证据：`work/shared-field-gate1/final-regression.log`、`final-self-test.log`、`focused-final.log`。
 - Deliberately deferred：Radial/Elliptical/Attractor/Random、Rotation/Position 接入、Handle、Field UI、组合场；未经新 Gate 不得继续。
+
+## Gate A 完成记录（2026-09-09）
+
+- 变更：只新增 `RingField` 与 Gate A 测试，并把 Ring 纳入既有 `FieldRegistry` 反序列化；没有建立第二套 Engine。
+- RingField 输出规范化 `0.0～1.0`，使用元素世界坐标；峰值在 `radius`，支持全宽 `ring_width`、Falloff 和 Invert。
+- 现有 `SizeModifier` 直接消费 RingField，source geometry、Canvas 和现有 Modifier 不被永久修改。
+- Gate A 定向测试：27/27 PASS。
+- 完整回归：132/132 PASS，0 skip，257.831 秒；证据 `work/shared-field-ring-gatea-regression.log`。
+- Pattern Lab 自检：6/6 PASS；证据 `work/shared-field-ring-gatea-self-test.log`。
+- 当前用户运行中的窗口未被强制关闭或重启；RingField Gate 在源码中独立验证。
 
 ## Regression
 
