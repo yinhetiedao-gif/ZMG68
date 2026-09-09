@@ -96,6 +96,14 @@ Gate A.5 将 `PatternDocument.fields[] / modifiers[]` 接回唯一的
 旧 Linear X/Y 的输出和 SVG 保持字节级兼容。Ring 现在也可从“参数化效果”面板选择，
 并提供中心、半径、环宽与反转参数。Gate A.5 不新增 Wave、Stripe、Checker 或 Spiral。
 
+### Shared Field Gate B — WaveField
+
+Gate B 在 A.5 桥接上新增 `WaveField`，仍只输出世界坐标上的 `0.0～1.0` 标量，
+由既有 `SizeModifier` 或 `RotationModifier` 消费。角度、波长、相位、振幅、偏移和
+反转均可序列化；同一文档重复 Evaluate 得到相同结果，source geometry 不被改写。
+Wave 已通过导入 Elements、Grid、Canvas 参数面板、Undo/Redo、Save/Load 和 SVG 物化
+回归。Stripe、Checker、Spiral 不在本 Gate 范围内。
+
 ## 启动实验台
 
 ```powershell

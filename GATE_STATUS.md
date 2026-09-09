@@ -1,8 +1,8 @@
 # Gate 状态（2026-09-09）
 
-- Current Gate: A.5 — Shared Field Integration Bridge
+- Current Gate: B — WaveField
 - Status: PASS — 不自动进入 Wave Gate B
-- Current Branch: feature/shared-field-integration-gatea5
+- Current Branch: feature/shared-fields-nightly-20260909-1630
 - Pre-change Snapshot Commit: b685af304241541a21a123bf7b86f2b995266e01
 - Protected Snapshot Branch: backup/pre-safety-snapshot
 - Stable Baseline Commit: 本次验证提交由 backup/stable-baseline 保护（提交后创建，不覆盖）
@@ -20,6 +20,14 @@
   `ui_harness.py`、`tests/test_shared_field_integration.py` 及本记录文档。
 - 全量回归：138/138 PASS，0 skip，188.949 秒；证据 `work/shared-field-integration-gatea5-regression.log`。
 - Pattern Lab self-test：6/6 PASS；证据 `work/shared-field-integration-gatea5-self-test.log`。
+
+## Gate B 完成记录（2026-09-09）
+
+- 新增 `WaveField` 与通用 `RotationModifier`，保持 Field 只输出标量、Modifier 负责解释的架构。
+- Wave 已通过正式 Document Evaluate、Size/Rotation、Grid、UI、Save/Load、Undo/Redo 和 source safety。
+- Gate B 定向测试：5/5 PASS；与 Gate A.5/共享字段专项合计 39/39 PASS。
+- 全量回归：144/144 PASS，0 skip，159.502 秒；证据 `work/shared-fields-nightly-gate-b-regression.log`。
+- 当前 Last Known Good：待本 Gate 提交后以 `git rev-parse HEAD` 记录；不得在此之前进入 Gate C。
 
 ## Gate 1 完成记录（2026-09-09）
 

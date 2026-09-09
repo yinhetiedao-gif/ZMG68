@@ -111,6 +111,34 @@ class SharedFieldIntegrationTests(unittest.TestCase):
             finally:
                 app.destroy()
 
+    def test_tk_shared_field_panel_writes_wave_graph(self) -> None:
+        from unittest.mock import patch
+        from xiaomang_pattern_lab.ui_harness import PatternLabApp
+
+        with TemporaryDirectory() as directory:
+            app = PatternLabApp(directory)
+            try:
+                app.update()
+                source = [CircleElement("left", -10, 0, 4, 4), CircleElement("right", 10, 0, 4, 4)]
+                app.session.document = PatternDocument(Canvas(100, 100), Reference(""), source)
+                app.hide_reference.set(True)
+                app.family_size_mode_var.set("wave")
+                app.family_min_scale_var.set("1")
+                app.family_max_scale_var.set("2")
+                app.family_field_angle_var.set("0")
+                app.family_wavelength_var.set("20")
+                app.family_phase_var.set("0")
+                app.family_amplitude_var.set("1")
+                app.family_offset_var.set("0")
+                with patch("xiaomang_pattern_lab.ui_harness.messagebox.showerror",
+                           side_effect=AssertionError("Wave UI apply failed")):
+                    app.apply_family_fields()
+                    app.update()
+                self.assertEqual(app.session.document.fields[0]["type"], "wave")
+                self.assertNotEqual([item.width for item in app.session.evaluate_elements()], [4.0, 4.0])
+            finally:
+                app.destroy()
+
 
 if __name__ == "__main__":
     unittest.main()

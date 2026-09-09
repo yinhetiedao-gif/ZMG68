@@ -49,7 +49,7 @@ class SharedModifierStack:
     enabled: bool = True
 
     def apply(self, elements: Iterable[Element], *, include_overrides: bool = True,
-              include_size: bool = True) -> list[Element]:
+              include_size: bool = True, include_rotation: bool = True) -> list[Element]:
         """Apply the legacy stack to a source.
 
         ``PatternDocument.fields/modifiers`` is the durable shared-field graph.
@@ -66,6 +66,7 @@ class SharedModifierStack:
             self.mask,
             overrides,
             apply_size=include_size,
+            apply_rotation=include_rotation,
         )
 
     def source_snapshot(self) -> list[Element]:

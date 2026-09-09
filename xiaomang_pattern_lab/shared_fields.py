@@ -166,6 +166,181 @@ class RingField:
             "falloff": self.falloff, "invert": self.invert}}
 
 
+@dataclass(frozen=True)
+class WaveField:
+    """A deterministic sinusoidal scalar in world coordinates.
+
+    ``amplitude`` is the peak-to-peak normalized range and ``offset`` is the
+    lower baseline.  Projection uses millimetre/world coordinates, so Canvas
+    pixels and margins never change the result.
+    """
+
+    id: str
+    angle: float = 0.0
+    wavelength: float = 50.0
+    phase: float = 0.0
+    amplitude: float = 1.0
+    offset: float = 0.0
+    invert: bool = False
+
+    def __post_init__(self):
+        if not isinstance(self.id, str) or not self.id:
+            raise ValueError("波浪场 ID 不能为空。")
+        for name in ("angle", "wavelength", "phase", "amplitude", "offset"):
+            object.__setattr__(self, name, _finite(getattr(self, name)))
+        if self.wavelength <= 0:
+            raise ValueError("波浪场波长必须大于 0。")
+        if not 0 <= self.amplitude <= 1 or not 0 <= self.offset <= 1:
+            raise ValueError("波浪场振幅和偏移必须在 0～1 范围内。")
+        if not isinstance(self.invert, bool):
+            raise ValueError("波浪场反转参数必须为布尔值。")
+
+    def evaluate(self, element: Element, context: FieldContext) -> float:
+        del context
+        angle = math.radians(self.angle)
+        projection = _finite(element.x) * math.cos(angle) + _finite(element.y) * math.sin(angle)
+        phase = (2.0 * math.pi * projection / self.wavelength) + self.phase
+        value = self.offset + self.amplitude * 0.5 * (math.sin(phase) + 1.0)
+        value = _unit(value)
+        return _unit(1.0 - value if self.invert else value)
+
+    def to_dict(self) -> dict:
+        return {"id": self.id, "type": "wave", "parameters": {
+            "angle": self.angle, "wavelength": self.wavelength, "phase": self.phase,
+            "amplitude": self.amplitude, "offset": self.offset, "invert": self.invert}}
+
+
+@dataclass(frozen=True)
+class StripeField:
+    """Periodic banded scalar field with an optional soft edge."""
+
+    id: str
+    angle: float = 0.0
+    period: float = 50.0
+    phase: float = 0.0
+    duty_cycle: float = 0.5
+    smoothness: float = 0.0
+    invert: bool = False
+
+    def __post_init__(self):
+        if not isinstance(self.id, str) or not self.id:
+            raise ValueError("条纹场 ID 不能为空。")
+        for name in ("angle", "period", "phase", "duty_cycle", "smoothness"):
+            object.__setattr__(self, name, _finite(getattr(self, name)))
+        if self.period <= 0 or not 0 <= self.duty_cycle <= 1 or not 0 <= self.smoothness <= 0.5:
+            raise ValueError("条纹场周期、占空比或平滑度参数无效。")
+        if not isinstance(self.invert, bool):
+            raise ValueError("条纹场反转参数必须为布尔值。")
+
+    def evaluate(self, element: Element, context: FieldContext) -> float:
+        del context
+        angle = math.radians(self.angle)
+        projection = _finite(element.x) * math.cos(angle) + _finite(element.y) * math.sin(angle)
+        position = (projection / self.period + self.phase) % 1.0
+        duty = self.duty_cycle
+        if duty <= 0:
+            value = 0.0
+        elif duty >= 1:
+            value = 1.0
+        elif self.smoothness <= 0:
+            value = float(position < duty)
+        else:
+            # Distance to the nearest band boundary, measured on the unit cycle.
+            distance = min(position, 1.0 - position, abs(position - duty))
+            edge = self.smoothness / 2.0
+            if position < duty and distance >= edge:
+                value = 1.0
+            elif distance >= edge:
+                value = 0.0
+            else:
+                t = distance / max(edge, 1e-9)
+                value = t * t * (3.0 - 2.0 * t)
+                if position >= duty:
+                    value = 1.0 - value
+        return _unit(1.0 - value if self.invert else value)
+
+    def to_dict(self) -> dict:
+        return {"id": self.id, "type": "stripe", "parameters": {
+            "angle": self.angle, "period": self.period, "phase": self.phase,
+            "duty_cycle": self.duty_cycle, "smoothness": self.smoothness, "invert": self.invert}}
+
+
+@dataclass(frozen=True)
+class CheckerField:
+    """Alternating world-coordinate cells."""
+
+    id: str
+    cell_width: float = 20.0
+    cell_height: float = 20.0
+    angle: float = 0.0
+    offset_x: float = 0.0
+    offset_y: float = 0.0
+    invert: bool = False
+
+    def __post_init__(self):
+        if not isinstance(self.id, str) or not self.id:
+            raise ValueError("棋盘场 ID 不能为空。")
+        for name in ("cell_width", "cell_height", "angle", "offset_x", "offset_y"):
+            object.__setattr__(self, name, _finite(getattr(self, name)))
+        if self.cell_width <= 0 or self.cell_height <= 0:
+            raise ValueError("棋盘格尺寸必须大于 0。")
+        if not isinstance(self.invert, bool):
+            raise ValueError("棋盘场反转参数必须为布尔值。")
+
+    def evaluate(self, element: Element, context: FieldContext) -> float:
+        del context
+        angle = math.radians(-self.angle)
+        dx, dy = _finite(element.x) - self.offset_x, _finite(element.y) - self.offset_y
+        x = dx * math.cos(angle) - dy * math.sin(angle)
+        y = dx * math.sin(angle) + dy * math.cos(angle)
+        value = float((math.floor(x / self.cell_width) + math.floor(y / self.cell_height)) % 2 == 0)
+        return _unit(1.0 - value if self.invert else value)
+
+    def to_dict(self) -> dict:
+        return {"id": self.id, "type": "checker", "parameters": {
+            "cell_width": self.cell_width, "cell_height": self.cell_height, "angle": self.angle,
+            "offset_x": self.offset_x, "offset_y": self.offset_y, "invert": self.invert}}
+
+
+@dataclass(frozen=True)
+class SpiralField:
+    """Polar spiral scalar field normalized against the source bounds."""
+
+    id: str
+    center_x: float = 0.0
+    center_y: float = 0.0
+    turns: float = 3.0
+    phase: float = 0.0
+    direction: int = 1
+    falloff: float = 1.0
+    invert: bool = False
+
+    def __post_init__(self):
+        if not isinstance(self.id, str) or not self.id:
+            raise ValueError("螺旋场 ID 不能为空。")
+        for name in ("center_x", "center_y", "turns", "phase", "falloff"):
+            object.__setattr__(self, name, _finite(getattr(self, name)))
+        if self.turns < 0 or self.falloff <= 0 or self.direction not in (-1, 1):
+            raise ValueError("螺旋场参数无效。")
+        if not isinstance(self.invert, bool):
+            raise ValueError("螺旋场反转参数必须为布尔值。")
+
+    def evaluate(self, element: Element, context: FieldContext) -> float:
+        dx, dy = _finite(element.x) - self.center_x, _finite(element.y) - self.center_y
+        diagonal = max(math.hypot(context.bounds[2] - context.bounds[0], context.bounds[3] - context.bounds[1]), 1e-9)
+        radial = math.hypot(dx, dy) / diagonal
+        angle = math.atan2(dy, dx) / (2.0 * math.pi)
+        value = (self.direction * (angle + self.turns * radial) + self.phase) % 1.0
+        value = _unit(value ** self.falloff)
+        return _unit(1.0 - value if self.invert else value)
+
+    def to_dict(self) -> dict:
+        return {"id": self.id, "type": "spiral", "parameters": {
+            "center_x": self.center_x, "center_y": self.center_y, "turns": self.turns,
+            "phase": self.phase, "direction": self.direction, "falloff": self.falloff,
+            "invert": self.invert}}
+
+
 class FieldRegistry:
     """One definition per ID; consumers reference it without duplicating it."""
 
@@ -189,7 +364,9 @@ class FieldRegistry:
 
     @classmethod
     def from_list(cls, payload: list[dict]) -> "FieldRegistry":
-        constructors = {"constant": ConstantField, "linear": LinearField, "ring": RingField}
+        constructors = {"constant": ConstantField, "linear": LinearField, "ring": RingField,
+                        "wave": WaveField, "stripe": StripeField, "checker": CheckerField,
+                        "spiral": SpiralField}
         fields = []
         for raw in payload:
             constructor = constructors.get(raw.get("type"))
@@ -266,8 +443,31 @@ class SizeModifier:
                 "mapping": asdict(self.mapping), "enabled": self.enabled}
 
 
+@dataclass(frozen=True)
+class RotationModifier:
+    """Consume a scalar field as a rotation angle in world/degrees."""
+
+    id: str
+    field_id: str
+    mapping: FieldMapping = FieldMapping(-30.0, 30.0)
+    enabled: bool = True
+
+    def __post_init__(self):
+        if not isinstance(self.id, str) or not self.id or not isinstance(self.field_id, str) or not self.field_id:
+            raise ValueError("旋转修饰器及其参数场引用 ID 不能为空。")
+        if not isinstance(self.enabled, bool):
+            raise ValueError("旋转修饰器启用状态必须为布尔值。")
+
+    def angle(self, value: float) -> float:
+        return self.mapping.evaluate(value, neutral=0.0) if self.enabled else 0.0
+
+    def to_dict(self) -> dict:
+        return {"id": self.id, "type": "rotation", "field_id": self.field_id,
+                "mapping": asdict(self.mapping), "enabled": self.enabled}
+
+
 class SharedFieldEngine:
-    def __init__(self, fields: FieldRegistry, modifiers: Iterable[SizeModifier]):
+    def __init__(self, fields: FieldRegistry, modifiers: Iterable[SizeModifier | RotationModifier]):
         self.fields = fields
         self.modifiers = tuple(modifiers)
         if len({modifier.id for modifier in self.modifiers}) != len(self.modifiers):
@@ -292,10 +492,21 @@ class SharedFieldEngine:
         for modifier in self.modifiers:
             if not modifier.enabled: continue
             for element, value in zip(result, values[modifier.field_id]):
-                scale = modifier.scale(value)
-                element.width = max(0.01, element.width * scale)
-                element.height = max(0.01, element.height * scale)
+                if isinstance(modifier, SizeModifier):
+                    scale = modifier.scale(value)
+                    element.width = max(0.01, element.width * scale)
+                    element.height = max(0.01, element.height * scale)
+                elif isinstance(modifier, RotationModifier):
+                    element.rotation += modifier.angle(value)
         return result
+
+    @property
+    def has_size_modifier(self) -> bool:
+        return any(isinstance(modifier, SizeModifier) for modifier in self.modifiers)
+
+    @property
+    def has_rotation_modifier(self) -> bool:
+        return any(isinstance(modifier, RotationModifier) for modifier in self.modifiers)
 
     def to_dict(self) -> dict:
         return {"version": 1, "fields": self.fields.to_list(),
@@ -307,8 +518,13 @@ class SharedFieldEngine:
             raise ValueError("不支持的 SharedFieldEngine 版本。")
         modifiers = []
         for raw in payload.get("modifiers", []):
-            if raw.get("type") != "size":
-                raise ValueError("本 Gate 只支持尺寸修饰器。")
-            modifiers.append(SizeModifier(raw["id"], raw["field_id"],
-                            FieldMapping(**raw.get("mapping", {})), raw.get("enabled", True)))
+            if not isinstance(raw, dict) or not raw.get("id") or not raw.get("field_id"):
+                raise ValueError("SharedFieldEngine 修饰器必须包含非空 id 和 field_id。")
+            mapping = FieldMapping(**raw.get("mapping", {}))
+            if raw.get("type") == "size":
+                modifiers.append(SizeModifier(raw["id"], raw["field_id"], mapping, raw.get("enabled", True)))
+            elif raw.get("type") == "rotation":
+                modifiers.append(RotationModifier(raw["id"], raw["field_id"], mapping, raw.get("enabled", True)))
+            else:
+                raise ValueError("不支持的 SharedFieldEngine 修饰器类型：%s" % raw.get("type"))
         return cls(FieldRegistry.from_list(payload.get("fields", [])), modifiers)

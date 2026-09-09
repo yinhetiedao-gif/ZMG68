@@ -1,5 +1,18 @@
 # 更新记录
 
+## 1.6.27 — Shared Field Gate B：WaveField（2026-09-09）
+
+### Added
+
+- 新增可复用 `WaveField`，按世界坐标、角度、波长、相位、振幅、偏移和反转输出确定性 0～1 标量。
+- `SharedFieldEngine` 新增通用 `RotationModifier`；Wave 可复用现有 Size/Rotation 消费路径。
+- 共享参数场面板加入 Wave 选择和基础波形参数；Grid 与导入 Elements 共用同一 Evaluate 入口。
+- 新增 Wave 的周期、角度、边界、Round-trip、Grid、UI、Undo/Redo、Save/Load 和 source safety 测试。
+
+### Scope
+
+- 本 Gate 未修改 Raster、GridAnalyzer、Canvas 交互或旧 `ppg`；Stripe、Checker、Spiral 仍待后续独立 Gate。
+
 ## 1.6.26 — Shared Field Gate A.5：Integration Bridge（2026-09-09）
 
 ### Added

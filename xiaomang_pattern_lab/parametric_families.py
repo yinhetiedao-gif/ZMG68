@@ -16,7 +16,8 @@ from typing import Iterable, Optional, Protocol
 from ppg.foundation.models import ELEMENT_TYPES, Element
 
 from .parametric import ElementPrototype, LocalOverride, MaskModifier
-from .shared_fields import FieldMapping, FieldRegistry, LinearField, RingField, SharedFieldEngine, SizeModifier
+from .shared_fields import (FieldMapping, FieldRegistry, LinearField, RingField, SharedFieldEngine,
+                             SizeModifier, StripeField, CheckerField, SpiralField, WaveField)
 
 
 class ParametricModel(Protocol):
@@ -42,6 +43,10 @@ class SizeFieldMode(str, Enum):
     RADIAL = "radial"
     ATTRACTOR = "attractor"
     RING = "ring"
+    WAVE = "wave"
+    STRIPE = "stripe"
+    CHECKER = "checker"
+    SPIRAL = "spiral"
 
 
 class RotationFieldMode(str, Enum):
@@ -62,6 +67,18 @@ class SizeFieldModifier:
     strength: float = 1.0
     ring_width: float = 10.0
     invert: bool = False
+    field_angle: float = 0.0
+    wavelength: float = 50.0
+    phase: float = 0.0
+    amplitude: float = 1.0
+    offset: float = 0.0
+    duty_cycle: float = 0.5
+    smoothness: float = 0.0
+    cell_width: float = 20.0
+    cell_height: float = 20.0
+    turns: float = 3.0
+    direction: int = 1
+    falloff: float = 1.0
 
     def shared_engine(self) -> SharedFieldEngine | None:
         """Gate 1 compatibility adapter; old UI/project parameters stay authoritative.
@@ -69,13 +86,40 @@ class SizeFieldModifier:
         Only Linear Size is migrated. No duplicate persistent field settings,
         no schema migration, and no changed Rotation/Mask/Grid behaviour.
         """
-        if self.mode not in (SizeFieldMode.LINEAR_X, SizeFieldMode.LINEAR_Y, SizeFieldMode.RING):
+        if self.mode not in (SizeFieldMode.LINEAR_X, SizeFieldMode.LINEAR_Y, SizeFieldMode.RING,
+                             SizeFieldMode.WAVE, SizeFieldMode.STRIPE, SizeFieldMode.CHECKER,
+                             SizeFieldMode.SPIRAL):
             return None
         if self.mode is SizeFieldMode.RING:
             scalar = RingField("legacy-ring-size", center_x=self.center_x, center_y=self.center_y,
-                               radius=self.radius, ring_width=self.ring_width, invert=self.invert)
+                               radius=self.radius, ring_width=self.ring_width, falloff=self.falloff, invert=self.invert)
             field_id = scalar.id
             modifier_id = "legacy-ring-size"
+        elif self.mode is SizeFieldMode.WAVE:
+            scalar = WaveField("legacy-wave-size", angle=self.field_angle,
+                               wavelength=self.wavelength, phase=self.phase,
+                               amplitude=self.amplitude, offset=self.offset, invert=self.invert)
+            field_id = scalar.id
+            modifier_id = "legacy-wave-size"
+        elif self.mode is SizeFieldMode.STRIPE:
+            scalar = StripeField("legacy-stripe-size", angle=self.field_angle,
+                                 period=self.wavelength, phase=self.phase,
+                                 duty_cycle=self.duty_cycle, smoothness=self.smoothness,
+                                 invert=self.invert)
+            field_id = scalar.id
+            modifier_id = "legacy-stripe-size"
+        elif self.mode is SizeFieldMode.CHECKER:
+            scalar = CheckerField("legacy-checker-size", angle=self.field_angle,
+                                  cell_width=self.cell_width, cell_height=self.cell_height,
+                                  offset_x=self.center_x, offset_y=self.center_y, invert=self.invert)
+            field_id = scalar.id
+            modifier_id = "legacy-checker-size"
+        elif self.mode is SizeFieldMode.SPIRAL:
+            scalar = SpiralField("legacy-spiral-size", center_x=self.center_x, center_y=self.center_y,
+                                 turns=self.turns, phase=self.phase, direction=self.direction,
+                                 falloff=self.falloff, invert=self.invert)
+            field_id = scalar.id
+            modifier_id = "legacy-spiral-size"
         else:
             scalar = LinearField("legacy-linear-size", angle=0.0 if self.mode is SizeFieldMode.LINEAR_X else 90.0)
             field_id = scalar.id
@@ -88,7 +132,21 @@ class SizeFieldModifier:
                   "center_x": self.center_x, "center_y": self.center_y, "radius": self.radius, "strength": self.strength}
         # Keep old JSON byte-for-byte compatible for every pre-Ring mode.
         if self.mode is SizeFieldMode.RING:
-            result.update({"ring_width": self.ring_width, "invert": self.invert})
+            result.update({"ring_width": self.ring_width, "falloff": self.falloff, "invert": self.invert})
+        elif self.mode is SizeFieldMode.WAVE:
+            result.update({"field_angle": self.field_angle, "wavelength": self.wavelength,
+                           "phase": self.phase, "amplitude": self.amplitude,
+                           "offset": self.offset, "invert": self.invert})
+        elif self.mode is SizeFieldMode.STRIPE:
+            result.update({"field_angle": self.field_angle, "wavelength": self.wavelength,
+                           "phase": self.phase, "duty_cycle": self.duty_cycle,
+                           "smoothness": self.smoothness, "invert": self.invert})
+        elif self.mode is SizeFieldMode.CHECKER:
+            result.update({"field_angle": self.field_angle, "cell_width": self.cell_width,
+                           "cell_height": self.cell_height, "invert": self.invert})
+        elif self.mode is SizeFieldMode.SPIRAL:
+            result.update({"turns": self.turns, "phase": self.phase, "direction": self.direction,
+                           "falloff": self.falloff, "invert": self.invert})
         return result
 
     @classmethod
@@ -100,7 +158,15 @@ class SizeFieldModifier:
                    max_scale=max(0.01, float(value.get("max_scale", 1.0))),
                    center_x=float(value.get("center_x", 0.0)), center_y=float(value.get("center_y", 0.0)),
                    radius=max(0.01, float(value.get("radius", 100.0))), strength=min(1.0, max(0.0, float(value.get("strength", 1.0)))),
-                   ring_width=max(0.01, float(value.get("ring_width", 10.0))), invert=bool(value.get("invert", False)))
+                   ring_width=max(0.01, float(value.get("ring_width", 10.0))), invert=bool(value.get("invert", False)),
+                   field_angle=float(value.get("field_angle", 0.0)), wavelength=max(0.01, float(value.get("wavelength", 50.0))),
+                   phase=float(value.get("phase", 0.0)), amplitude=min(1.0, max(0.0, float(value.get("amplitude", 1.0)))),
+                   offset=min(1.0, max(0.0, float(value.get("offset", 0.0)))),
+                   duty_cycle=min(1.0, max(0.0, float(value.get("duty_cycle", 0.5)))),
+                   smoothness=min(0.5, max(0.0, float(value.get("smoothness", 0.0)))),
+                   cell_width=max(0.01, float(value.get("cell_width", 20.0))), cell_height=max(0.01, float(value.get("cell_height", 20.0))),
+                   turns=max(0.0, float(value.get("turns", 3.0))), direction=1 if int(value.get("direction", 1)) >= 0 else -1,
+                   falloff=max(0.01, float(value.get("falloff", 1.0))))
 
 
 @dataclass
@@ -145,13 +211,16 @@ def _apply_override(element: Element, override: LocalOverride | None) -> Element
 def _field_factor(field: SizeFieldModifier, element: Element, bounds: tuple[float, float, float, float]) -> float:
     xmin, ymin, xmax, ymax = bounds
     if field.mode is SizeFieldMode.CONSTANT: return 0.5
-    if field.mode in (SizeFieldMode.LINEAR_X, SizeFieldMode.LINEAR_Y):
-        raise ValueError("Linear Size 必须通过 SharedFieldEngine 计算。")
+    if field.mode in (SizeFieldMode.LINEAR_X, SizeFieldMode.LINEAR_Y, SizeFieldMode.RING,
+                      SizeFieldMode.WAVE, SizeFieldMode.STRIPE, SizeFieldMode.CHECKER,
+                      SizeFieldMode.SPIRAL):
+        raise ValueError("共享标量尺寸场必须通过 SharedFieldEngine 计算。")
     return min(1.0, math.hypot(element.x - field.center_x, element.y - field.center_y) / field.radius)
 
 
 def _apply_fields(elements: list[Element], size_field: SizeFieldModifier, rotation_field: RotationFieldModifier,
-                  mask: MaskModifier, overrides: dict[str, LocalOverride], *, apply_size: bool = True) -> list[Element]:
+                  mask: MaskModifier, overrides: dict[str, LocalOverride], *, apply_size: bool = True,
+                  apply_rotation: bool = True) -> list[Element]:
     if not elements: return []
     xmin, xmax = min(item.x for item in elements), max(item.x for item in elements)
     ymin, ymax = min(item.y for item in elements), max(item.y for item in elements)
@@ -168,12 +237,13 @@ def _apply_fields(elements: list[Element], size_field: SizeFieldModifier, rotati
             scale = size_field.min_scale + (size_field.max_scale - size_field.min_scale) * factor
             scale = 1.0 + (scale - 1.0) * size_field.strength
         element.width = max(0.01, element.width * scale); element.height = max(0.01, element.height * scale)
-        dx, dy = element.x - rotation_field.center_x, element.y - rotation_field.center_y
-        if rotation_field.mode is RotationFieldMode.FACE_CENTER: target = math.degrees(math.atan2(dy, dx))
-        elif rotation_field.mode is RotationFieldMode.TANGENTIAL: target = math.degrees(math.atan2(dy, dx)) + 90.0
-        elif rotation_field.mode is RotationFieldMode.ATTRACTOR: target = math.degrees(math.atan2(dy, dx))
-        else: target = rotation_field.angle
-        element.rotation += target * rotation_field.strength
+        if apply_rotation:
+            dx, dy = element.x - rotation_field.center_x, element.y - rotation_field.center_y
+            if rotation_field.mode is RotationFieldMode.FACE_CENTER: target = math.degrees(math.atan2(dy, dx))
+            elif rotation_field.mode is RotationFieldMode.TANGENTIAL: target = math.degrees(math.atan2(dy, dx)) + 90.0
+            elif rotation_field.mode is RotationFieldMode.ATTRACTOR: target = math.degrees(math.atan2(dy, dx))
+            else: target = rotation_field.angle
+            element.rotation += target * rotation_field.strength
         element.visible = element.visible and mask.contains(element.x, element.y)
         _apply_override(element, overrides.get(element.id))
     return elements

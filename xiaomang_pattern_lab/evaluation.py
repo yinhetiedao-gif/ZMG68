@@ -68,7 +68,11 @@ def _evaluate_shared_layers(document: PatternDocument, source: Iterable[Element]
     engine = field_engine_from_document(document)
     evaluated = engine.apply(source) if engine is not None else deepcopy(list(source))
     if stack is not None:
-        evaluated = stack.apply(evaluated, include_size=engine is None)
+        evaluated = stack.apply(
+            evaluated,
+            include_size=engine is None or not engine.has_size_modifier,
+            include_rotation=engine is None or not engine.has_rotation_modifier,
+        )
     return evaluated
 
 
