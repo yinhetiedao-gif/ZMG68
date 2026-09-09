@@ -1,0 +1,123 @@
+[
+  {
+    "id": "dot-0002",
+    "type": "dot",
+    "x": 56.5033,
+    "y": 23.250833,
+    "radius_x": 7.261088,
+    "radius_y": 6.510453,
+    "rotation": 89.763891,
+    "fill": "#000000",
+    "source_confidence": 0.938897
+  },
+  {
+    "id": "dot-0003",
+    "type": "dot",
+    "x": 132.5,
+    "y": 22.5,
+    "radius_x": 5.656854,
+    "radius_y": 5.656854,
+    "rotation": -45.0,
+    "fill": "#000000",
+    "source_confidence": 0.958779
+  },
+  {
+    "id": "dot-0004",
+    "type": "dot",
+    "x": 24.5,
+    "y": 22.5,
+    "radius_x": 4.242641,
+    "radius_y": 4.949747,
+    "rotation": 45.0,
+    "fill": "#000000",
+    "source_confidence": 0.885313
+  },
+  {
+    "id": "dot-0005",
+    "type": "dot",
+    "x": 24.5,
+    "y": 56.5,
+    "radius_x": 8.814683,
+    "radius_y": 8.814683,
+    "rotation": -10.590675,
+    "fill": "#000000",
+    "source_confidence": 0.974279
+  },
+  {
+    "id": "dot-0006",
+    "type": "dot",
+    "x": 132.5,
+    "y": 56.5,
+    "radius_x": 7.903117,
+    "radius_y": 7.343558,
+    "rotation": 33.232165,
+    "fill": "#000000",
+    "source_confidence": 0.944621
+  },
+  {
+    "id": "dot-0007",
+    "type": "dot",
+    "x": 56.5033,
+    "y": 57.250833,
+    "radius_x": 7.261088,
+    "radius_y": 6.510453,
+    "rotation": 89.763891,
+    "fill": "#000000",
+    "source_confidence": 0.938897
+  },
+  {
+    "id": "dot-0008",
+    "type": "dot",
+    "x": 92.5,
+    "y": 56.5,
+    "radius_x": 4.242641,
+    "radius_y": 4.949747,
+    "rotation": 45.0,
+    "fill": "#000000",
+    "source_confidence": 0.885313
+  },
+  {
+    "id": "dot-0009",
+    "type": "dot",
+    "x": 56.910597,
+    "y": 93.485007,
+    "radius_x": 9.807115,
+    "radius_y": 10.342594,
+    "rotation": -0.125736,
+    "fill": "#000000",
+    "source_confidence": 0.980651
+  },
+  {
+    "id": "dot-0010",
+    "type": "dot",
+    "x": 92.5,
+    "y": 92.5,
+    "radius_x": 7.903117,
+    "radius_y": 7.343558,
+    "rotation": 33.232165,
+    "fill": "#000000",
+    "source_confidence": 0.944621
+  },
+  {
+    "id": "dot-0011",
+    "type": "dot",
+    "x": 24.5,
+    "y": 92.5,
+    "radius_x": 6.00301,
+    "radius_y": 6.00301,
+    "rotation": 72.028944,
+    "fill": "#000000",
+    "source_confidence": 0.958779
+  },
+  {
+    "id": "dot-0012",
+    "type": "dot",
+    "x": 132.5,
+    "y": 92.5,
+    "radius_x": 4.242641,
+    "radius_y": 4.949747,
+    "rotation": 45.0,
+    "fill": "#000000",
+    "source_confidence": 0.885313
+  }
+]

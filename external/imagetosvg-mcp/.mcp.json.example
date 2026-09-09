@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "imagetosvg": {
+      "command": "node",
+      "args": ["/absolute/path/to/imagetosvg-mcp/dist/index.js"]
+    }
+  }
+}

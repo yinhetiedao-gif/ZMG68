@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" role="img" aria-labelledby="pie-title">
+  <title id="pie-title">Market share: A 40%, B 35%, C 25%</title>
+  <path d="M100 100 L100 20 A80 80 0 0 1 175.3 140 Z" fill="#6366f1"/>
+  <path d="M100 100 L175.3 140 A80 80 0 0 1 35.3 130 Z" fill="#8b5cf6"/>
+  <path d="M100 100 L35.3 130 A80 80 0 0 1 100 20 Z" fill="#c4b5fd"/>
+</svg>

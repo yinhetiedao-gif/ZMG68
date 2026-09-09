@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://xiaomang.local/schemas/handoff-contract-1.0.json",
+  "title": "Xiaomang Handoff Contract",
+  "type": "object",
+  "required": ["contract", "version", "run_id", "created_at", "source", "intent", "stages", "artifacts", "validation", "rollback"],
+  "properties": {
+    "contract": {"const": "xiaomang.handoff"},
+    "version": {"const": "1.0"},
+    "run_id": {"type": "string", "minLength": 1},
+    "created_at": {"type": "string", "minLength": 1},
+    "source": {"type": "object", "required": ["kind", "path", "sha256"], "properties": {"kind": {"type": "string"}, "path": {"type": "string", "minLength": 1}, "sha256": {"type": "string", "minLength": 1}}},
+    "intent": {"type": "object", "required": ["operation", "target_width_mm"], "properties": {"operation": {"const": "reference_to_stl"}, "target_width_mm": {"type": "number", "exclusiveMinimum": 0}, "allow_multi_component": {"type": "boolean"}}},
+    "stages": {"type": "object", "minProperties": 1, "additionalProperties": {"type": "object", "required": ["status", "artifact_ids"], "properties": {"status": {"enum": ["pending", "running", "passed", "failed"]}, "artifact_ids": {"type": "array", "items": {"type": "string"}}}}},
+    "parameters": {"type": "object", "properties": {"units": {"const": "mm"}, "seed": {"type": "integer"}, "quality": {"type": "string"}}},
+    "payload": {"type": "object"},
+    "artifacts": {"type": "array", "items": {"type": "object", "required": ["id", "kind", "path", "sha256", "producer", "status"], "properties": {"id": {"type": "string"}, "kind": {"type": "string"}, "path": {"type": "string", "minLength": 1}, "sha256": {"type": "string", "minLength": 1}, "producer": {"type": "string"}, "status": {"enum": ["pending", "running", "passed", "failed"]}}}},
+    "validation": {"type": "object", "required": ["passed", "checks"], "properties": {"passed": {"type": "boolean"}, "checks": {"type": "array"}}},
+    "errors": {"type": "array"},
+    "rollback": {"type": "object", "required": ["checkpoint", "reversible"], "properties": {"checkpoint": {"type": "string", "minLength": 1}, "reversible": {"type": "boolean"}}}
+  },
+  "additionalProperties": true
+}
+

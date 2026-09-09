@@ -1,0 +1,12 @@
+{
+  "app_name": "小芒造物",
+  "new": "新建", "open": "打开项目", "save": "保存", "save_as": "另存为",
+  "undo": "撤销", "redo": "重做", "import": "导入轮廓", "draw": "自由绘制",
+  "export_svg": "导出 SVG", "export_png": "导出 PNG", "export_dxf": "导出 DXF",
+  "randomize": "随机生成", "save_preset": "保存预设", "load_preset": "载入预设",
+  "contour": "轮廓", "element": "元素", "distribution": "分布", "parameters": "基础参数", "noise": "随机与噪声", "preview": "实时预览",
+  "count": "数量", "length": "线条长度", "width": "线条宽度", "dot_radius": "圆点大小", "length_random": "长度随机", "dot_random": "圆点随机", "noise_strength": "平滑噪声", "noise_scale": "噪声尺度", "seed": "随机种子", "preview_quality": "预览质量",
+  "saved": "已保存：{path}", "exported": "已导出：{path}", "ready": "就绪。拖动参数可实时查看效果。",
+  "draw_help": "正在自由绘制：左键描绘轮廓；松开鼠标后自动平滑并闭合。",
+  "invalid": "无法生成：{error}", "import_error": "导入失败：{error}", "autosaved": "已自动保存恢复副本。"
+}

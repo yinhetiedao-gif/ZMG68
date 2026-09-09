@@ -1,0 +1,56 @@
+{
+  "name": "imagetosvg-mcp",
+  "version": "0.1.0",
+  "description": "Local MCP server that vectorizes images and gives AI agents full control over SVG",
+  "type": "module",
+  "bin": { "imagetosvg": "dist/index.js" },
+  "main": "dist/index.js",
+  "files": ["dist", "skill", "README.md", "LICENSE"],
+  "engines": { "node": ">=20" },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "svg",
+    "vectorize",
+    "image-to-svg",
+    "raster-to-vector",
+    "vtracer",
+    "ai-agents",
+    "claude"
+  ],
+  "author": "Rakshit Raj",
+  "license": "MIT",
+  "homepage": "https://github.com/ujo78/imagetosvg-mcp#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ujo78/imagetosvg-mcp.git"
+  },
+  "bugs": { "url": "https://github.com/ujo78/imagetosvg-mcp/issues" },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/index.ts",
+    "start": "node dist/index.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "prepare": "tsc"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@neplex/vectorizer": "^0.1.0",
+    "@resvg/resvg-js": "^2.6.2",
+    "mupdf": "^1.27.0",
+    "sharp": "^0.35.1",
+    "svg-path-bbox": "^2.1.0",
+    "svgo": "^4.0.1",
+    "svgson": "^5.3.1",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.3",
+    "pdf-lib": "^1.17.1",
+    "tsx": "^4.22.4",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.9"
+  }
+}

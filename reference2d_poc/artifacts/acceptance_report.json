@@ -1,0 +1,40 @@
+{
+  "stage": "A: Geometry Reconstruction",
+  "source_path": "reference2d_poc\\artifacts\\dot_halftone_input.png",
+  "svg_path": "reference2d_poc\\artifacts\\dot_halftone_vtracer.svg",
+  "vtracer_version": "0.6.15",
+  "vtracer_options": {
+    "colormode": "binary",
+    "filter_speckle": 1,
+    "corner_threshold": 40,
+    "mode": "spline"
+  },
+  "svg_path_count": 12,
+  "dot_count": 12,
+  "rejected_count": 0,
+  "rejected": [],
+  "reference_visible_after_reconstruction": false,
+  "geometry_count_after_delete": 11,
+  "single_dot_edit": {
+    "id": "dot-0001",
+    "radius_before": 9.807115117501969,
+    "radius_after": 14.710672676252953,
+    "position_after": [
+      95.91059681384445,
+      25.485006518968476
+    ],
+    "deleted": true
+  },
+  "saved_project": "reference2d_poc\\artifacts\\editable_geometry_project.json",
+  "restored_geometry_count": 11,
+  "restored_reference_visible": false,
+  "restored_in_fresh_process": true,
+  "restored_without_reanalysis": true,
+  "trace_validation": {
+    "svg_path": "reference2d_poc\\artifacts\\dot_halftone_trace_validation.svg",
+    "svg_path_count": 12,
+    "dot_count": 12,
+    "rejected_count": 0,
+    "purpose": "仅开发/验证；正式运行时不调用 trace CLI"
+  }
+}

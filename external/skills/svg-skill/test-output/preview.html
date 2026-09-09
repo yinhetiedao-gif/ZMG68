@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>svg-skill interactive preview</title>
+  <link rel="stylesheet" href="12-integration/demo.css">
+  <style>
+    * { box-sizing: border-box; margin: 0; }
+    body { font-family: system-ui, -apple-system, sans-serif; background: #09090b; color: #e4e4e7; padding: 1.5rem; line-height: 1.5; }
+    a { color: #a78bfa; }
+    h1 { font-size: 1.5rem; font-weight: 700; }
+    .sub { color: #71717a; font-size: .875rem; margin: .35rem 0 1.5rem; }
+    section { margin-bottom: 2.5rem; }
+    h2 { font-size: .7rem; text-transform: uppercase; letter-spacing: .1em; color: #52525b; margin-bottom: 1rem; padding-bottom: .5rem; border-bottom: 1px solid #27272a; }
+
+    /* interactive lab */
+    .lab { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1rem; margin-bottom: 1rem; }
+    .lab-card { background: #18181b; border: 1px solid #27272a; border-radius: 12px; overflow: hidden; }
+    .lab-preview { display: flex; align-items: center; justify-content: center; min-height: 100px; background: #09090b; border-bottom: 1px solid #27272a; padding: 1rem; gap: 1rem; }
+    .lab-preview svg { width: 48px; height: 48px; flex-shrink: 0; }
+    :root { --theme-color: #a78bfa; }
+    .theme-aware { color: var(--theme-color); transition: color .2s ease; }
+    .theme-aware svg { color: var(--theme-color); }
+    #theme-current { font-size: .7rem; color: var(--theme-color); font-family: ui-monospace, monospace; min-width: 4.5rem; }
+    .lab-preview.wide { min-height: 80px; }
+    .lab-preview .icon-bg, .lab-preview .icon-mask { width: 40px; height: 40px; }
+    .lab-body { padding: .875rem; }
+    .lab-title { font-size: .8rem; font-weight: 600; color: #d4d4d8; margin-bottom: .25rem; }
+    .lab-hint { font-size: .7rem; color: #71717a; margin-bottom: .6rem; }
+    .prompt { position: relative; background: #09090b; border: 1px solid #3f3f46; border-radius: 8px; padding: .6rem 2.2rem .6rem .75rem; font-size: .75rem; color: #a1a1aa; font-family: ui-monospace, SFMono-Regular, monospace; line-height: 1.45; }
+    .copy-btn { position: absolute; top: .4rem; right: .4rem; background: #27272a; border: 1px solid #3f3f46; color: #a1a1aa; border-radius: 6px; padding: .2rem .5rem; font-size: .65rem; cursor: pointer; transition: .15s; }
+    .copy-btn:hover { background: #3f3f46; color: #fff; }
+    .copy-btn.copied { background: #14532d; border-color: #16a34a; color: #4ade80; }
+
+    .theme-bar { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; margin-bottom: 1rem; padding: .75rem 1rem; background: #18181b; border: 1px solid #27272a; border-radius: 10px; }
+    .theme-bar label { font-size: .75rem; color: #71717a; }
+    .swatches { display: flex; gap: .4rem; }
+    .swatch { width: 26px; height: 26px; border-radius: 50%; border: 2px solid #3f3f46; cursor: pointer; transition: .15s; padding: 0; flex-shrink: 0; }
+    .swatch:hover { border-color: #a1a1aa; transform: scale(1.08); }
+    .swatch.active { border-color: #fff; box-shadow: 0 0 0 2px var(--theme-color); transform: scale(1.12); }
+
+    /* scene grid */
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: .75rem; }
+    .scene { background: #18181b; border: 1px solid #27272a; border-radius: 10px; overflow: hidden; display: flex; flex-direction: column; }
+    .scene-preview { display: flex; align-items: center; justify-content: center; min-height: 72px; padding: .75rem; background: #09090b; }
+    .scene-preview img, .scene-preview svg { max-width: 56px; max-height: 56px; }
+    .scene-preview.wide img { max-width: 100%; max-height: 64px; width: 100%; }
+    .scene-body { padding: .65rem .75rem .75rem; flex: 1; display: flex; flex-direction: column; gap: .5rem; }
+    .scene-label { font-size: .75rem; font-weight: 600; color: #d4d4d8; }
+    .scene-prompt { font-size: .68rem; color: #71717a; font-family: ui-monospace, monospace; background: #09090b; border: 1px solid #27272a; border-radius: 6px; padding: .45rem .5rem; flex: 1; cursor: pointer; transition: .15s; }
+    .scene-prompt:hover { border-color: #52525b; color: #a1a1aa; }
+    .scene-actions { display: flex; gap: .4rem; }
+    .scene-actions button { flex: 1; background: #27272a; border: 1px solid #3f3f46; color: #a1a1aa; border-radius: 6px; padding: .3rem; font-size: .65rem; cursor: pointer; }
+    .scene-actions button:hover { background: #3f3f46; color: #fff; }
+
+    .wave-box { margin-top: 1rem; border-radius: 10px; overflow: hidden; background: #eff6ff; color: #1e3a5f; }
+    .wave-box .wave-svg { display: block; width: 100%; height: 56px; color: #1e40af; }
+    .wave-strip { width: 100%; border-radius: 6px; overflow: hidden; background: #eff6ff; color: #1e40af; }
+    .wave-strip svg { display: block; width: 100%; height: 44px; }
+    .sprite-row { display: flex; gap: .75rem; align-items: center; justify-content: center; }
+    .sprite-row svg { width: 40px; height: 40px; }
+    .toast { position: fixed; bottom: 1.5rem; left: 50%; transform: translateX(-50%) translateY(80px); background: #27272a; border: 1px solid #3f3f46; color: #e4e4e7; padding: .5rem 1rem; border-radius: 8px; font-size: .8rem; opacity: 0; transition: .25s; pointer-events: none; z-index: 99; }
+    .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+    footer { margin-top: 2rem; font-size: .75rem; color: #52525b; text-align: center; }
+  </style>
+</head>
+<body>
+  <h1>svg-skill interactive preview</h1>
+  <p class="sub">Interactive demos · click prompts to copy into your agent · validate with <code>bash run-tests.sh</code></p>
+
+  <!-- ===== Interactive lab ===== -->
+  <section>
+    <h2>Interactive Lab</h2>
+    <div class="theme-bar">
+      <label>currentColor theme:</label>
+      <div class="swatches" id="swatches"></div>
+      <span id="theme-current">#a78bfa</span>
+      <span style="font-size:.7rem;color:#52525b">click swatches to switch</span>
+    </div>
+    <div class="lab">
+      <div class="lab-card">
+        <div class="lab-preview theme-aware" id="theme-demo">
+          <!-- Inline SVG required — <img> cannot inherit currentColor -->
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/>
+            <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+          </svg>
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M9.55 17.05 4.5 12l1.41-1.41 3.64 3.64 8.54-8.54L19.5 6l-9.95 11.05Z"/>
+          </svg>
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="40" height="40" aria-hidden="true">
+            <circle cx="12" cy="12" r="9" fill="none" stroke="#3f3f46" stroke-width="3"/>
+            <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="3" stroke-dasharray="56.55" stroke-dashoffset="14.14" stroke-linecap="round" transform="rotate(-90 12 12)"/>
+          </svg>
+        </div>
+        <div class="lab-body">
+          <div class="lab-title">currentColor theme inheritance</div>
+          <div class="lab-hint">switch swatches above — inline SVG inherits color</div>
+          <div class="prompt">Draw a 24×24 outline bell icon, fill none, stroke currentColor<button class="copy-btn" data-copy>Copy</button></div>
+        </div>
+      </div>
+      <div class="lab-card">
+        <div class="lab-preview theme-aware">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true">
+            <style>.spin{transform-origin:center;animation:r .8s linear infinite}@keyframes r{to{transform:rotate(360deg)}}</style>
+            <g class="spin"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="40 20" stroke-linecap="round"/></g>
+          </svg>
+        </div>
+        <div class="lab-body">
+          <div class="lab-title">CSS spin loader</div>
+          <div class="lab-hint">animation plays automatically</div>
+          <div class="prompt">Draw an SVG loading spinner with CSS @keyframes rotation and currentColor<button class="copy-btn" data-copy>Copy</button></div>
+        </div>
+      </div>
+      <div class="lab-card">
+        <div class="lab-preview" style="cursor:pointer">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="56" height="56" aria-hidden="true">
+            <style>.h{fill:#71717a;transition:fill .2s,transform .2s;transform-origin:center}svg:hover .h{fill:#ef4444;transform:scale(1.15)}</style>
+            <path class="h" d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+          </svg>
+        </div>
+        <div class="lab-body">
+          <div class="lab-title">Hover interaction</div>
+          <div class="lab-hint">hover over the heart to try it</div>
+          <div class="prompt">Draw a heart SVG that turns red and scales up on hover using inline CSS<button class="copy-btn" data-copy>Copy</button></div>
+        </div>
+      </div>
+      <div class="lab-card">
+        <div class="lab-preview wide theme-aware">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 24" width="140" height="20" aria-hidden="true">
+            <rect x="0" y="4" width="200" height="16" rx="8" fill="#27272a"/>
+            <rect x="0" y="4" width="120" height="16" rx="8" fill="currentColor"/>
+          </svg>
+        </div>
+        <div class="lab-body">
+          <div class="lab-title">Progress bar 60%</div>
+          <div class="lab-hint">rect width computed from percentage</div>
+          <div class="prompt">Draw a 60% SVG progress bar, viewBox 200×24, currentColor<button class="copy-btn" data-copy>Copy</button></div>
+        </div>
+      </div>
+      <div class="lab-card">
+        <div class="lab-preview" style="min-height:120px">
+          <div class="css-demo-strip">
+            <div class="css-demo-cell">
+              <span class="css-demo-tag">background</span>
+              <div class="icon-bg" aria-hidden="true"></div>
+              <span style="font-size:.65rem;color:#71717a">url(svg) tiling</span>
+            </div>
+            <div class="css-demo-cell">
+              <span class="css-demo-tag">mask</span>
+              <div class="icon-mask" aria-hidden="true"></div>
+              <span style="font-size:.65rem;color:#71717a">follows theme color</span>
+            </div>
+          </div>
+        </div>
+        <div class="lab-body">
+          <div class="lab-title">CSS background / mask</div>
+          <div class="lab-hint">light tile for contrast · switch theme to see mask change</div>
+          <div class="prompt">Create map-pin.svg and CSS that references it via mask, color follows --accent<button class="copy-btn" data-copy>Copy</button></div>
+        </div>
+      </div>
+      <div class="lab-card">
+        <div class="lab-preview sprite-row theme-aware">
+          <svg aria-hidden="true"><use href="#ic-home"/></svg>
+          <svg aria-hidden="true"><use href="#ic-settings"/></svg>
+        </div>
+        <div class="lab-body">
+          <div class="lab-title">Sprite &lt;use&gt;</div>
+          <div class="lab-hint">same-page symbol refs inherit currentColor</div>
+          <div class="prompt">Create an SVG sprite with home and settings symbols, show &lt;use&gt; usage<button class="copy-btn" data-copy>Copy</button></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== All scenes + prompts ===== -->
+  <section>
+    <h2>All Scenes · click prompts to copy</h2>
+    <div class="grid" id="scenes"></div>
+  </section>
+
+  <div class="wave-box">
+    <div style="padding:.75rem 1rem;font-size:.85rem">Wave divider · preserveAspectRatio="none"</div>
+    <svg class="wave-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 120" preserveAspectRatio="none" aria-hidden="true">
+      <path d="M0,64 C200,120 400,0 600,64 C800,128 1000,0 1200,64 L1200,120 L0,120 Z" fill="currentColor"/>
+    </svg>
+  </div>
+
+  <svg xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true">
+    <symbol id="ic-home" viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1v-9.5z" fill="currentColor"/></symbol>
+    <symbol id="ic-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  </svg>
+
+  <footer>Test checklist <code>TEST.md</code> · install <code>bash install.sh</code></footer>
+  <div class="toast" id="toast">Copied to clipboard</div>
+
+  <script>
+    const THEME_COLORS = [
+      { hex: "#a78bfa", name: "Purple" },
+      { hex: "#4ade80", name: "Green" },
+      { hex: "#38bdf8", name: "Blue" },
+      { hex: "#fb7185", name: "Pink" },
+      { hex: "#facc15", name: "Yellow" },
+    ];
+
+    const SCENES = [
+      { label: "Outline icon", src: "01-icons/bell-outline.svg", theme: true, prompt: "Draw a 24×24 outline bell icon, stroke-width 2, currentColor" },
+      { label: "Filled icon", src: "01-icons/check-filled.svg", theme: true, prompt: "Draw a 24×24 filled check icon, fill currentColor" },
+      { label: "Multi-color icon", src: "01-icons/layers-multicolor.svg", prompt: "Draw a stacked multi-color layers icon, purple tones, 24×24" },
+      { label: "Map pin", src: "01-icons/map-pin.svg", prompt: "Draw a map pin icon, teardrop shape with white center dot" },
+      { label: "Logo", src: "02-brand/logo.svg", wide: false, imgStyle: "width:52px;height:52px", prompt: "Design a circular logo, blue background with white flame shape, viewBox 48×48" },
+      { label: "Favicon", src: "02-brand/favicon.svg", prompt: "Draw a 32×32 favicon, blue rounded square, minimal graphic" },
+      { label: "Empty state", src: "03-illustration/empty-box.svg", wide: true, prompt: "Draw a flat empty-state illustration, open box with plus sign" },
+      { label: "Flowchart (CJK)", src: "04-diagrams/flow-zh.svg", wide: true, prompt: "Draw a Chinese flowchart: clarify → draw → check → deliver, with arrows" },
+      { label: "Architecture", src: "04-diagrams/architecture.svg", wide: true, prompt: "Draw a three-tier diagram: Client → API → CDN, Database cylinder below" },
+      { label: "Bar chart", src: "05-charts/bar.svg", wide: true, prompt: "Draw a bar chart SVG, Q1–Q4 sales 40/65/50/80, add title for a11y" },
+      { label: "Line chart", src: "05-charts/line.svg", wide: true, prompt: "Draw a line chart SVG, weekly visits, with data point circles" },
+      { label: "Pie chart", src: "05-charts/pie.svg", imgStyle: "width:56px;height:56px", prompt: "Draw a pie chart SVG, market share A 40% B 35% C 25%" },
+      { label: "Progress ring 75%", src: "06-progress/ring-75.svg", theme: true, prompt: "Draw a 75% progress ring using stroke-dashoffset, starting from top" },
+      { label: "Progress bar 60%", src: "06-progress/bar-60.svg", wide: true, theme: true, imgStyle: "max-width:100%;height:20px", prompt: "Draw a 60% progress bar SVG with rounded rect" },
+      { label: "Avatar placeholder", src: "07-ui/avatar.svg", theme: true, imgStyle: "width:44px;height:44px", prompt: "Draw a generic person avatar placeholder, currentColor, viewBox 40×40" },
+      { label: "Badge", src: "07-ui/badge.svg", imgStyle: "max-width:72px;height:26px", prompt: "Draw a purple PRO badge, pill-shaped rounded rect" },
+      { label: "Wave divider", type: "wave", prompt: "Draw a full-width wave divider SVG, preserveAspectRatio none" },
+      { label: "Sprite sheet", type: "sprite", prompt: "Create an SVG sprite file with home and settings symbols" },
+      { label: "Clip", src: "11-effects/clip-card.svg", imgStyle: "width:56px;height:56px", prompt: "Clip a card avatar with a circular clipPath" },
+      { label: "Drop shadow", src: "11-effects/shadow.svg", wide: true, imgStyle: "max-width:72px", prompt: "Draw a white card with feDropShadow filter" },
+      { label: "Dot pattern", src: "11-effects/dots-pattern.svg", imgStyle: "width:56px;height:56px", prompt: "Draw a dot pattern background with pattern, 100×100" },
+      { label: "Email inline", src: "12-integration/email-icon.svg", prompt: "Draw a 16×16 star icon for email, inline attributes only, no style or animation" },
+      { label: "React component", type: "code", code: "BellIcon.tsx", prompt: "Export the bell icon as a React component, spread SVGProps, aria-hidden" },
+      { label: "Vue component", type: "code", code: "MailIcon.vue", prompt: "Export the mail icon as a Vue 3 component with script setup" },
+    ];
+
+    const grid = document.getElementById("scenes");
+    const toast = document.getElementById("toast");
+    let toastTimer;
+    let currentTheme = THEME_COLORS[0].hex;
+
+    function showToast(msg) {
+      toast.textContent = msg;
+      toast.classList.add("show");
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => toast.classList.remove("show"), 1800);
+    }
+
+    async function copyText(text) {
+      try {
+        await navigator.clipboard.writeText(text);
+        showToast("Copied — paste into your agent chat");
+      } catch {
+        showToast("Copy failed — select text manually");
+      }
+    }
+
+    async function inlineSvg(src, style) {
+      const res = await fetch(src);
+      const text = await res.text();
+      const wrap = document.createElement("div");
+      wrap.innerHTML = text.trim();
+      const svg = wrap.querySelector("svg");
+      if (!svg) return null;
+      if (style) svg.setAttribute("style", style);
+      svg.removeAttribute("width");
+      svg.removeAttribute("height");
+      return svg;
+    }
+
+    SCENES.forEach(async s => {
+      const el = document.createElement("div");
+      el.className = "scene";
+      const wideCls = s.wide ? " wide" : "";
+      const themeCls = s.theme ? " theme-aware" : "";
+      const previewEl = document.createElement("div");
+      previewEl.className = `scene-preview${wideCls}${themeCls}`;
+
+      if (s.type === "code") {
+        previewEl.innerHTML = `<div style="font-size:.7rem;color:#71717a;font-family:monospace">${s.code}</div>`;
+      } else if (s.type === "wave") {
+        previewEl.innerHTML = `
+          <div class="wave-strip">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 120" preserveAspectRatio="none" aria-hidden="true">
+              <path d="M0,64 C200,120 400,0 600,64 C800,128 1000,0 1200,64 L1200,120 L0,120 Z" fill="currentColor"/>
+            </svg>
+          </div>`;
+      } else if (s.type === "sprite") {
+        previewEl.className += " theme-aware";
+        previewEl.innerHTML = `
+          <div class="sprite-row">
+            <svg aria-hidden="true"><use href="#ic-home"/></svg>
+            <svg aria-hidden="true"><use href="#ic-settings"/></svg>
+          </div>`;
+        previewEl.querySelectorAll("svg").forEach(svg => { svg.style.color = currentTheme; });
+      } else if (s.theme) {
+        const svg = await inlineSvg(s.src, s.imgStyle || "");
+        if (svg) {
+          svg.style.color = currentTheme;
+          previewEl.appendChild(svg);
+        } else {
+          previewEl.innerHTML = `<img src="${s.src}" alt="">`;
+        }
+      } else {
+        const style = s.imgStyle ? ` style="${s.imgStyle}"` : "";
+        previewEl.innerHTML = `<img src="${s.src}" alt=""${style}>`;
+      }
+
+      const body = document.createElement("div");
+      body.className = "scene-body";
+      body.innerHTML = `
+        <div class="scene-label">${s.label}</div>
+        <div class="scene-prompt" title="Click to copy">${s.prompt}</div>
+        <div class="scene-actions"><button type="button" data-copy>Copy prompt</button></div>`;
+      el.appendChild(previewEl);
+      el.appendChild(body);
+      body.querySelector(".scene-prompt").addEventListener("click", () => copyText(s.prompt));
+      body.querySelector("[data-copy]").addEventListener("click", () => copyText(s.prompt));
+      grid.appendChild(el);
+    });
+
+    document.querySelectorAll(".copy-btn[data-copy]").forEach(btn => {
+      btn.addEventListener("click", e => {
+        e.stopPropagation();
+        const text = btn.parentElement.textContent.replace("Copy", "").trim();
+        copyText(text);
+        btn.classList.add("copied");
+        btn.textContent = "Copied";
+        setTimeout(() => { btn.classList.remove("copied"); btn.textContent = "Copy"; }, 1500);
+      });
+    });
+
+    function applyTheme(hex) {
+      currentTheme = hex;
+      document.documentElement.style.setProperty("--theme-color", hex);
+      document.getElementById("theme-current").textContent = hex;
+      document.querySelectorAll(".theme-aware svg").forEach(svg => {
+        svg.style.color = hex;
+      });
+    }
+
+    const swatchBox = document.getElementById("swatches");
+    THEME_COLORS.forEach((c, i) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "swatch" + (i === 0 ? " active" : "");
+      btn.style.background = c.hex;
+      btn.title = c.name + " " + c.hex;
+      btn.setAttribute("aria-label", c.name);
+      btn.addEventListener("click", () => {
+        swatchBox.querySelectorAll(".swatch").forEach(b => b.classList.remove("active"));
+        btn.classList.add("active");
+        applyTheme(c.hex);
+      });
+      swatchBox.appendChild(btn);
+    });
+
+    applyTheme(THEME_COLORS[0].hex);
+  </script>
+</body>
+</html>

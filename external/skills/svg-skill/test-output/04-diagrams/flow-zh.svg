@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 100" role="img" aria-labelledby="flow-title">
+  <title id="flow-title">SVG 绘制流水线</title>
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 Z" fill="#64748b"/>
+    </marker>
+  </defs>
+  <rect x="10" y="30" width="70" height="40" rx="6" fill="#e0f2fe" stroke="#0284c7"/>
+  <text x="45" y="55" text-anchor="middle" font-size="12" fill="#0c4a6e">澄清需求</text>
+  <line x1="80" y1="50" x2="110" y2="50" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
+  <rect x="110" y="30" width="70" height="40" rx="6" fill="#fef3c7" stroke="#d97706"/>
+  <text x="145" y="55" text-anchor="middle" font-size="12" fill="#78350f">绘制图形</text>
+  <line x1="180" y1="50" x2="210" y2="50" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
+  <rect x="210" y="30" width="70" height="40" rx="6" fill="#f3e8ff" stroke="#9333ea"/>
+  <text x="245" y="55" text-anchor="middle" font-size="12" fill="#581c87">质量检查</text>
+  <line x1="280" y1="50" x2="310" y2="50" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
+  <rect x="310" y="30" width="70" height="40" rx="6" fill="#dcfce7" stroke="#16a34a"/>
+  <text x="345" y="55" text-anchor="middle" font-size="12" fill="#14532d">交付文件</text>
+</svg>

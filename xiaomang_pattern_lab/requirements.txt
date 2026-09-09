@@ -1,0 +1,6 @@
+# Runtime dependencies for Xiaomang Pattern Lab only.
+# Tkinter ships with the managed Python runtime and is verified by the launcher.
+Pillow>=10.0,<12
+# Foundation reference reconstruction and manufacturing helpers use NumPy
+# for deterministic raster measurements and STL checks.
+numpy>=1.26,<3

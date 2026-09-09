@@ -1,0 +1,4 @@
+interface:
+  display_name: 'Xiaomang Native'
+  short_description: 'Local SDF/STL backend without Blender'
+  default_prompt: 'Use the local SDF mesh backend to generate and audit STL without requiring Blender.'

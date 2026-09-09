@@ -1,0 +1,6 @@
+__pycache__/
+build/
+build-spec/
+build-tools/
+dist/
+installer-output/

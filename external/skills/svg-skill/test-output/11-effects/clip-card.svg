@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" aria-hidden="true">
+  <defs>
+    <clipPath id="round-clip"><circle cx="40" cy="40" r="36"/></clipPath>
+  </defs>
+  <g clip-path="url(#round-clip)">
+    <rect width="80" height="80" fill="#6366f1"/>
+    <circle cx="40" cy="30" r="14" fill="#c7d2fe"/>
+    <rect x="20" y="50" width="40" height="30" rx="20" fill="#c7d2fe"/>
+  </g>
+</svg>

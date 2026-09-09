@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true">
+  <style>
+    .spin { transform-origin: center; animation: r .8s linear infinite; }
+    @keyframes r { to { transform: rotate(360deg); } }
+  </style>
+  <g class="spin">
+    <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="40 20" stroke-linecap="round"/>
+  </g>
+</svg>

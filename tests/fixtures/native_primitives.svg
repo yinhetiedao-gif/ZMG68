@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200">
+  <g id="native-group">
+    <circle id="native-circle" cx="30" cy="30" r="12" fill="#000000"/>
+    <ellipse id="native-ellipse" cx="75" cy="30" rx="18" ry="8" fill="#000000"/>
+    <rect id="native-rect" x="110" y="15" width="30" height="22" rx="2" fill="#000000"/>
+    <path id="recovered-rect" d="M 20 80 H 65 V 110 H 20 Z" fill="#000000"/>
+    <path id="recovered-ellipse" d="M 60 150 A 20 10 0 1 0 100 150 A 20 10 0 1 0 60 150 Z" fill="#000000"/>
+    <path id="kept-path" d="M 130 120 C 150 80 180 160 165 180 Z" fill="#000000"/>
+  </g>
+</svg>

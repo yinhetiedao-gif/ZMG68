@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 24" role="img" aria-labelledby="pbar-title">
+  <title id="pbar-title">60% progress</title>
+  <rect x="0" y="4" width="200" height="16" rx="8" fill="#e5e7eb"/>
+  <rect x="0" y="4" width="120" height="16" rx="8" fill="currentColor"/>
+</svg>

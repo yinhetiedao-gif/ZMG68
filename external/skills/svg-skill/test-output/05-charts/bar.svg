@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" role="img" aria-labelledby="bar-title">
+  <title id="bar-title">Sales: Q1 40, Q2 65, Q3 50, Q4 80</title>
+  <desc>Quarterly sales bar chart, max value 80</desc>
+  <rect x="50" y="100" width="50" height="140" fill="#6366f1" rx="4"/>
+  <rect x="130" y="55" width="50" height="185" fill="#6366f1" rx="4"/>
+  <rect x="210" y="125" width="50" height="115" fill="#6366f1" rx="4"/>
+  <rect x="290" y="40" width="50" height="200" fill="#6366f1" rx="4"/>
+  <line x1="40" y1="240" x2="370" y2="240" stroke="#94a3b8"/>
+  <line x1="40" y1="40" x2="40" y2="240" stroke="#94a3b8"/>
+  <text x="75" y="258" text-anchor="middle" font-size="11" fill="#64748b">Q1</text>
+  <text x="155" y="258" text-anchor="middle" font-size="11" fill="#64748b">Q2</text>
+  <text x="235" y="258" text-anchor="middle" font-size="11" fill="#64748b">Q3</text>
+  <text x="315" y="258" text-anchor="middle" font-size="11" fill="#64748b">Q4</text>
+</svg>

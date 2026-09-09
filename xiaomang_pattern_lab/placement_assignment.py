@@ -1,0 +1,427 @@
+"""Unified placement, prototype and assignment primitives.
+
+This module is deliberately UI-free.  It is an additive bridge between the
+existing Foundation ``PatternDocument``/Grid model and future multi-shape
+editing.  A placement slot describes *where* a cell lives; an
+``ElementPrototype`` (the existing, serializable type from ``parametric``)
+describes *what* is placed there.  Keeping those concerns separate lets an
+imported element be replaced and restored without destroying its source
+geometry.
+
+The default configuration is a strict no-op: Circle Grid, no replacement and
+randomness disabled produce the same stable ids and geometry as the existing
+GridParametricModel.
+"""
+from __future__ import annotations
+
+from copy import deepcopy
+from dataclasses import dataclass, field
+import hashlib
+import math
+from typing import Any, Iterable, Mapping, Sequence
+
+from ppg.foundation.models import Element, PatternDocument
+
+from .parametric import (
+    CirclePrototype,
+    ElementPrototype,
+    EllipsePrototype,
+    GridParametricModel,
+    RectPrototype,
+)
+
+
+PLACEMENT_METADATA_KEY = "xiaomang_pattern_lab.placement_assignment"
+
+
+@dataclass(frozen=True)
+class PlacementSlot:
+    """A stable location record independent of the shape placed in it."""
+
+    slot_id: str
+    source_element_id: str
+    center_x: float
+    center_y: float
+    width: float
+    height: float
+    rotation: float = 0.0
+    row: int | None = None
+    column: int | None = None
+    source_type: str = ""
+    visible: bool = True
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "slot_id": self.slot_id,
+            "source_element_id": self.source_element_id,
+            "center_x": self.center_x,
+            "center_y": self.center_y,
+            "width": self.width,
+            "height": self.height,
+            "rotation": self.rotation,
+            "row": self.row,
+            "column": self.column,
+            "source_type": self.source_type,
+            "visible": self.visible,
+            "metadata": deepcopy(self.metadata),
+        }
+
+    @classmethod
+    def from_dict(cls, value: Mapping[str, Any]) -> "PlacementSlot":
+        return cls(
+            slot_id=str(value.get("slot_id", "")),
+            source_element_id=str(value.get("source_element_id", value.get("slot_id", ""))),
+            center_x=float(value.get("center_x", value.get("x", 0.0))),
+            center_y=float(value.get("center_y", value.get("y", 0.0))),
+            width=max(0.01, float(value.get("width", 1.0))),
+            height=max(0.01, float(value.get("height", 1.0))),
+            rotation=float(value.get("rotation", 0.0)),
+            row=None if value.get("row") is None else int(value["row"]),
+            column=None if value.get("column") is None else int(value["column"]),
+            source_type=str(value.get("source_type", "")),
+            visible=bool(value.get("visible", True)),
+            metadata=deepcopy(dict(value.get("metadata") or {})),
+        )
+
+
+class ImportedElementSlotProvider:
+    """Expose existing document elements as stable placement slots."""
+
+    @staticmethod
+    def from_elements(elements: Iterable[Element]) -> list[PlacementSlot]:
+        return [
+            PlacementSlot(
+                slot_id=str(element.id),
+                source_element_id=str(element.id),
+                center_x=float(element.x),
+                center_y=float(element.y),
+                width=max(0.01, float(element.width)),
+                height=max(0.01, float(element.height)),
+                rotation=float(element.rotation),
+                source_type=str(element.type),
+                visible=bool(element.visible),
+                metadata={"provider": "imported_element"},
+            )
+            for element in elements
+        ]
+
+    @classmethod
+    def from_document(cls, document: PatternDocument) -> list[PlacementSlot]:
+        return cls.from_elements(document.elements)
+
+
+class GridSlotProvider:
+    """Adapt the existing GridParametricModel; it does not implement a new Grid."""
+
+    @staticmethod
+    def from_model(model: GridParametricModel) -> list[PlacementSlot]:
+        model.normalized()
+        slots: list[PlacementSlot] = []
+        generated = {element.id: element for element in model.generate(include_overrides=True)}
+        for row in range(model.rows):
+            for column in range(model.columns):
+                element_id = model.element_id(row, column)
+                element = generated[element_id]
+                slots.append(
+                    PlacementSlot(
+                        slot_id=element_id,
+                        source_element_id=element_id,
+                        center_x=element.x,
+                        center_y=element.y,
+                        width=element.width,
+                        height=element.height,
+                        rotation=element.rotation,
+                        row=row,
+                        column=column,
+                        source_type=element.type,
+                        visible=element.visible,
+                        metadata={"provider": "grid", "model": "GridParametricModel"},
+                    )
+                )
+        return slots
+
+
+class ShapePrototypeRegistry:
+    """Registry for the existing ``ElementPrototype`` hierarchy.
+
+    No parallel shape class hierarchy is introduced.  Future custom SVG or
+    compound prototypes can be registered by id using ``ElementPrototype``.
+    """
+
+    def __init__(self, prototypes: Mapping[str, ElementPrototype] | None = None) -> None:
+        self._prototypes: dict[str, ElementPrototype] = {}
+        if prototypes:
+            for identifier, prototype in prototypes.items():
+                self.register(identifier, prototype)
+
+    @classmethod
+    def with_builtins(cls) -> "ShapePrototypeRegistry":
+        registry = cls()
+        registry.register("circle", CirclePrototype())
+        registry.register("ellipse", EllipsePrototype())
+        registry.register("square", RectPrototype(rx_ratio=0.0, ry_ratio=0.0))
+        registry.register("rectangle", RectPrototype(rx_ratio=0.0, ry_ratio=0.0))
+        return registry
+
+    def register(self, prototype_id: str, prototype: ElementPrototype) -> None:
+        identifier = str(prototype_id).strip()
+        if not identifier:
+            raise ValueError("Prototype id 不能为空。")
+        if not isinstance(prototype, ElementPrototype):
+            raise TypeError("Prototype 必须是 ElementPrototype。")
+        self._prototypes[identifier] = deepcopy(prototype)
+
+    def get(self, prototype_id: str) -> ElementPrototype:
+        try:
+            return deepcopy(self._prototypes[str(prototype_id)])
+        except KeyError as exc:
+            raise KeyError("未注册 Prototype：%s" % prototype_id) from exc
+
+    def ids(self) -> tuple[str, ...]:
+        return tuple(self._prototypes.keys())
+
+    def to_dict(self) -> dict[str, dict[str, Any]]:
+        return {identifier: prototype.to_dict() for identifier, prototype in self._prototypes.items()}
+
+    @classmethod
+    def from_dict(cls, value: Mapping[str, Any] | None) -> "ShapePrototypeRegistry":
+        registry = cls()
+        for identifier, raw in (value or {}).items():
+            if isinstance(raw, Mapping):
+                registry.register(str(identifier), ElementPrototype.from_dict(dict(raw)))
+        return registry
+
+
+@dataclass
+class ReplacementMap:
+    """Non-destructive source-slot to prototype mapping."""
+
+    values: dict[str, str] = field(default_factory=dict)
+
+    def set(self, slot_id: str, prototype_id: str) -> None:
+        self.values[str(slot_id)] = str(prototype_id)
+
+    def remove(self, slot_id: str) -> None:
+        self.values.pop(str(slot_id), None)
+
+    def clear(self) -> None:
+        self.values.clear()
+
+    def to_dict(self) -> dict[str, str]:
+        return dict(self.values)
+
+    @classmethod
+    def from_dict(cls, value: Mapping[str, Any] | None) -> "ReplacementMap":
+        return cls({str(key): str(item) for key, item in (value or {}).items()})
+
+
+@dataclass
+class AssignmentSettings:
+    strategy: str = "manual"
+    single_prototype_id: str | None = None
+    shape_pool: list[str] = field(default_factory=list)
+    weights: dict[str, float] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "strategy": self.strategy,
+            "single_prototype_id": self.single_prototype_id,
+            "shape_pool": list(self.shape_pool),
+            "weights": dict(self.weights),
+        }
+
+    @classmethod
+    def from_dict(cls, value: Mapping[str, Any] | None) -> "AssignmentSettings":
+        value = value or {}
+        return cls(
+            strategy=str(value.get("strategy", "manual")),
+            single_prototype_id=value.get("single_prototype_id"),
+            shape_pool=[str(item) for item in value.get("shape_pool") or []],
+            weights={str(key): float(item) for key, item in (value.get("weights") or {}).items()},
+        )
+
+
+@dataclass
+class RandomSettings:
+    enabled: bool = False
+    seed: int = 1
+    shape_random: bool = False
+    occupancy: float = 1.0
+    size_random: float = 0.0
+    rotation_random: float = 0.0
+    position_jitter: float = 0.0
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "enabled": self.enabled,
+            "seed": self.seed,
+            "shape_random": self.shape_random,
+            "occupancy": self.occupancy,
+            "size_random": self.size_random,
+            "rotation_random": self.rotation_random,
+            "position_jitter": self.position_jitter,
+        }
+
+    @classmethod
+    def from_dict(cls, value: Mapping[str, Any] | None) -> "RandomSettings":
+        value = value or {}
+        return cls(
+            enabled=bool(value.get("enabled", False)),
+            seed=int(value.get("seed", 1)),
+            shape_random=bool(value.get("shape_random", False)),
+            occupancy=min(1.0, max(0.0, float(value.get("occupancy", 1.0)))),
+            size_random=min(1.0, max(0.0, float(value.get("size_random", 0.0)))),
+            rotation_random=max(0.0, float(value.get("rotation_random", 0.0))),
+            position_jitter=max(0.0, float(value.get("position_jitter", 0.0))),
+        )
+
+
+def deterministic_unit(seed: int, slot_id: str, channel: str) -> float:
+    """Stable [0,1) value; independent of process/hash randomisation."""
+
+    digest = hashlib.sha256(f"{int(seed)}|{slot_id}|{channel}".encode("utf-8")).digest()
+    return int.from_bytes(digest[:8], "big") / float(1 << 64)
+
+
+class AssignmentEngine:
+    """Evaluate slots without mutating their source document elements."""
+
+    def __init__(self, registry: ShapePrototypeRegistry | None = None) -> None:
+        self.registry = registry or ShapePrototypeRegistry.with_builtins()
+
+    @staticmethod
+    def _weighted_pick(settings: AssignmentSettings, slots: Sequence[PlacementSlot], slot: PlacementSlot,
+                      random_settings: RandomSettings) -> str | None:
+        candidates = list(settings.shape_pool)
+        if not candidates:
+            return settings.single_prototype_id
+        weights = [max(0.0, float(settings.weights.get(identifier, 1.0))) for identifier in candidates]
+        total = sum(weights)
+        if total <= 0.0:
+            return candidates[0]
+        target = deterministic_unit(random_settings.seed, slot.slot_id, "shape") * total
+        for identifier, weight in zip(candidates, weights):
+            target -= weight
+            if target <= 0:
+                return identifier
+        return candidates[-1]
+
+    def _prototype_id_for(self, slot: PlacementSlot, settings: AssignmentSettings,
+                          replacement_map: ReplacementMap, random_settings: RandomSettings) -> str | None:
+        if slot.slot_id in replacement_map.values:
+            return replacement_map.values[slot.slot_id]
+        if settings.strategy == "single":
+            return settings.single_prototype_id
+        if settings.strategy in {"weighted_random", "random"} and random_settings.enabled and random_settings.shape_random:
+            return self._weighted_pick(settings, (), slot, random_settings)
+        if settings.strategy == "checkerboard" and settings.shape_pool:
+            index = ((slot.row or 0) + (slot.column or 0)) % len(settings.shape_pool)
+            return settings.shape_pool[index]
+        return None
+
+    def evaluate(self, slots: Iterable[PlacementSlot], source_elements: Mapping[str, Element] | Iterable[Element],
+                 *, replacement_map: ReplacementMap | None = None,
+                 assignment: AssignmentSettings | None = None,
+                 random_settings: RandomSettings | None = None) -> list[Element]:
+        source_map = {element.id: element for element in source_elements} if not isinstance(source_elements, Mapping) else dict(source_elements)
+        replacement_map = replacement_map or ReplacementMap()
+        assignment = assignment or AssignmentSettings()
+        random_settings = random_settings or RandomSettings()
+        output: list[Element] = []
+        for slot in slots:
+            source = source_map.get(slot.source_element_id) or source_map.get(slot.slot_id)
+            prototype_id = self._prototype_id_for(slot, assignment, replacement_map, random_settings)
+            if prototype_id is None:
+                if source is None:
+                    continue
+                output.append(deepcopy(source))
+                continue
+            prototype = self.registry.get(prototype_id)
+            width, height = slot.width, slot.height
+            rotation = slot.rotation
+            x, y = slot.center_x, slot.center_y
+            if random_settings.enabled:
+                if random_settings.size_random:
+                    factor = 1.0 + (deterministic_unit(random_settings.seed, slot.slot_id, "size") * 2.0 - 1.0) * random_settings.size_random
+                    width, height = max(0.01, width * factor), max(0.01, height * factor)
+                if random_settings.rotation_random:
+                    rotation += (deterministic_unit(random_settings.seed, slot.slot_id, "rotation") * 2.0 - 1.0) * random_settings.rotation_random
+                if random_settings.position_jitter:
+                    x += (deterministic_unit(random_settings.seed, slot.slot_id, "x") * 2.0 - 1.0) * random_settings.position_jitter
+                    y += (deterministic_unit(random_settings.seed, slot.slot_id, "y") * 2.0 - 1.0) * random_settings.position_jitter
+            visible = slot.visible
+            if random_settings.enabled and random_settings.occupancy < 1.0:
+                visible = deterministic_unit(random_settings.seed, slot.slot_id, "occupancy") < random_settings.occupancy
+            output.append(prototype.instantiate(
+                element_id=slot.source_element_id or slot.slot_id,
+                x=x, y=y, width=width, height=height, rotation=rotation, visible=visible,
+            ))
+        return output
+
+
+@dataclass
+class PlacementAssignmentState:
+    """Serializable state kept in PatternDocument metadata when enabled."""
+
+    slots: list[PlacementSlot] = field(default_factory=list)
+    prototypes: ShapePrototypeRegistry = field(default_factory=ShapePrototypeRegistry.with_builtins)
+    replacement_map: ReplacementMap = field(default_factory=ReplacementMap)
+    assignment: AssignmentSettings = field(default_factory=AssignmentSettings)
+    random: RandomSettings = field(default_factory=RandomSettings)
+    enabled: bool = False
+
+    def to_dict(self) -> dict[str, Any]:
+        assignment_payload = self.assignment.to_dict()
+        return {
+            "version": 1,
+            "enabled": self.enabled,
+            "slots": [slot.to_dict() for slot in self.slots],
+            "shape_prototypes": self.prototypes.to_dict(),
+            "replacement_map": self.replacement_map.to_dict(),
+            "shape_pool": list(self.assignment.shape_pool),
+            "assignment_settings": assignment_payload,
+            "random_settings": self.random.to_dict(),
+        }
+
+    @classmethod
+    def from_dict(cls, value: Mapping[str, Any] | None) -> "PlacementAssignmentState":
+        value = value or {}
+        raw_prototypes = value.get("shape_prototypes")
+        prototypes = ShapePrototypeRegistry.from_dict(raw_prototypes) if raw_prototypes else ShapePrototypeRegistry.with_builtins()
+        assignment_payload = dict(value.get("assignment_settings") or {})
+        # ``shape_pool`` was initially nested under assignment_settings; keep
+        # accepting and emitting the explicit top-level field for schema
+        # migration and easier project inspection.
+        if "shape_pool" in value and "shape_pool" not in assignment_payload:
+            assignment_payload["shape_pool"] = value.get("shape_pool")
+        return cls(
+            slots=[PlacementSlot.from_dict(item) for item in value.get("slots") or []],
+            prototypes=prototypes,
+            replacement_map=ReplacementMap.from_dict(value.get("replacement_map")),
+            assignment=AssignmentSettings.from_dict(assignment_payload),
+            random=RandomSettings.from_dict(value.get("random_settings")),
+            enabled=bool(value.get("enabled", False)),
+        )
+
+    def attach(self, document: PatternDocument) -> None:
+        document.metadata[PLACEMENT_METADATA_KEY] = self.to_dict()
+
+    @classmethod
+    def from_document(cls, document: PatternDocument) -> "PlacementAssignmentState":
+        return cls.from_dict(document.metadata.get(PLACEMENT_METADATA_KEY))
+
+
+def default_circle_grid_state(model: GridParametricModel) -> PlacementAssignmentState:
+    """Build the Gate 1 compatibility state without changing old output."""
+
+    source = model.generate(include_overrides=True)
+    registry = ShapePrototypeRegistry.with_builtins()
+    return PlacementAssignmentState(
+        slots=GridSlotProvider.from_model(model),
+        prototypes=registry,
+        replacement_map=ReplacementMap(),
+        assignment=AssignmentSettings(strategy="manual"),
+        random=RandomSettings(),
+        enabled=False,
+    )

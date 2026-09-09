@@ -1,0 +1,2 @@
+# Stage A 独立运行时；正式接入时由 PyInstaller 收集此包，不依赖 trace CLI。
+vtracer==0.6.15
