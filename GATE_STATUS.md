@@ -1,13 +1,25 @@
 # Gate 状态（2026-09-09）
 
-- Current Gate: A — RingField
+- Current Gate: A.5 — Shared Field Integration Bridge
 - Status: PASS — 不自动进入 Wave Gate B
-- Current Branch: feature/shared-field-ring-gatea
+- Current Branch: feature/shared-field-integration-gatea5
 - Pre-change Snapshot Commit: b685af304241541a21a123bf7b86f2b995266e01
 - Protected Snapshot Branch: backup/pre-safety-snapshot
 - Stable Baseline Commit: 本次验证提交由 backup/stable-baseline 保护（提交后创建，不覆盖）
 - Last Known Good Commit: 使用 `git rev-parse backup/stable-baseline` 获取验证提交
-- Current Commit: Gate 1 提交后以 `git rev-parse HEAD` 为准（状态文件不自指提交哈希）
+- Current Commit: A.5 验证提交后以 `git rev-parse HEAD` 为准（状态文件不自指提交哈希）
+
+## Gate A.5 完成记录（2026-09-09）
+
+- `evaluate_pattern_document()` 新增文档声明式 Field Graph 适配：
+  `PatternDocument → SharedFieldEngine → SharedModifierStack post-field → Final Elements`。
+- Ring/Linear 尺寸场在图存在时只消费一次；旧 Linear 输出、源 Geometry 与 SVG 保持兼容。
+- Ring 接入既有共享参数场控件（Ring、环宽、反转），未引入新的 Generator 或独立 UI 系统。
+- Gate A.5 定向测试：6/6 PASS；Gate A/Ring、Gate 1、SharedModifier 专项合计 33/33 PASS。
+- 变更文件：`evaluation.py`、`shared_modifiers.py`、`parametric_families.py`、
+  `ui_harness.py`、`tests/test_shared_field_integration.py` 及本记录文档。
+- 全量回归：138/138 PASS，0 skip，188.949 秒；证据 `work/shared-field-integration-gatea5-regression.log`。
+- Pattern Lab self-test：6/6 PASS；证据 `work/shared-field-integration-gatea5-self-test.log`。
 
 ## Gate 1 完成记录（2026-09-09）
 

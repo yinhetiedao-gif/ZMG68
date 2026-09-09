@@ -18,6 +18,7 @@ from .parametric import PARAMETRIC_METADATA_KEY, GridParametricModel, PatternMod
 from .parametric_families import parametric_model_from_payload
 from .placement_assignment import AssignmentEngine, PlacementAssignmentState
 from .shared_modifiers import SharedModifierStack
+from .shared_fields import SharedFieldEngine
 
 
 def serialize_elements(elements: Iterable[Element]) -> list[dict]:
@@ -48,6 +49,29 @@ def parametric_model_from_document(document: PatternDocument):
     return parametric_model_from_payload(mode, raw_model) if isinstance(raw_model, dict) else None
 
 
+def field_engine_from_document(document: PatternDocument) -> SharedFieldEngine | None:
+    """Rehydrate the durable PatternDocument field graph, if present.
+
+    The graph is deliberately reconstructed through the shared adapter rather
+    than through a UI/model object.  This is the missing Gate A.5 bridge: a
+    saved Ring/Linear field now participates in every non-UI evaluation path.
+    """
+    if not document.fields and not document.modifiers:
+        return None
+    return SharedFieldEngine.from_dict({"version": 1, "fields": document.fields,
+                                        "modifiers": document.modifiers})
+
+
+def _evaluate_shared_layers(document: PatternDocument, source: Iterable[Element],
+                            stack: SharedModifierStack | None) -> list[Element]:
+    """Apply persisted scalar fields once, then post-field compatibility layers."""
+    engine = field_engine_from_document(document)
+    evaluated = engine.apply(source) if engine is not None else deepcopy(list(source))
+    if stack is not None:
+        evaluated = stack.apply(evaluated, include_size=engine is None)
+    return evaluated
+
+
 def evaluate_pattern_document(document: PatternDocument) -> list[Element]:
     """Evaluate one document into transient final Foundation Elements.
 
@@ -71,13 +95,13 @@ def evaluate_pattern_document(document: PatternDocument) -> list[Element]:
             assignment=state.assignment,
             random_settings=state.random,
         )
-        return shared_modifiers.apply(evaluated) if shared_modifiers else evaluated
+        return _evaluate_shared_layers(document, evaluated, shared_modifiers)
     model = parametric_model_from_document(document)
     if model is None:
         source = shared_modifiers.source_snapshot() if shared_modifiers and shared_modifiers.source_elements else document.elements
-        return shared_modifiers.apply(source) if shared_modifiers else deepcopy(document.elements)
+        return _evaluate_shared_layers(document, source, shared_modifiers)
     evaluated = model.generate()
-    return shared_modifiers.apply(evaluated) if shared_modifiers else evaluated
+    return _evaluate_shared_layers(document, evaluated, shared_modifiers)
 
 
 def materialize_evaluated_elements(document: PatternDocument) -> list[Element]:

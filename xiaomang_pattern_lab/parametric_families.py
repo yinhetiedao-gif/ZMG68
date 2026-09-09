@@ -16,7 +16,7 @@ from typing import Iterable, Optional, Protocol
 from ppg.foundation.models import ELEMENT_TYPES, Element
 
 from .parametric import ElementPrototype, LocalOverride, MaskModifier
-from .shared_fields import FieldMapping, FieldRegistry, LinearField, SharedFieldEngine, SizeModifier
+from .shared_fields import FieldMapping, FieldRegistry, LinearField, RingField, SharedFieldEngine, SizeModifier
 
 
 class ParametricModel(Protocol):
@@ -41,6 +41,7 @@ class SizeFieldMode(str, Enum):
     LINEAR_Y = "linear_y"
     RADIAL = "radial"
     ATTRACTOR = "attractor"
+    RING = "ring"
 
 
 class RotationFieldMode(str, Enum):
@@ -59,6 +60,8 @@ class SizeFieldModifier:
     center_y: float = 0.0
     radius: float = 100.0
     strength: float = 1.0
+    ring_width: float = 10.0
+    invert: bool = False
 
     def shared_engine(self) -> SharedFieldEngine | None:
         """Gate 1 compatibility adapter; old UI/project parameters stay authoritative.
@@ -66,15 +69,27 @@ class SizeFieldModifier:
         Only Linear Size is migrated. No duplicate persistent field settings,
         no schema migration, and no changed Rotation/Mask/Grid behaviour.
         """
-        if self.mode not in (SizeFieldMode.LINEAR_X, SizeFieldMode.LINEAR_Y):
+        if self.mode not in (SizeFieldMode.LINEAR_X, SizeFieldMode.LINEAR_Y, SizeFieldMode.RING):
             return None
-        scalar = LinearField("legacy-linear-size", angle=0.0 if self.mode is SizeFieldMode.LINEAR_X else 90.0)
+        if self.mode is SizeFieldMode.RING:
+            scalar = RingField("legacy-ring-size", center_x=self.center_x, center_y=self.center_y,
+                               radius=self.radius, ring_width=self.ring_width, invert=self.invert)
+            field_id = scalar.id
+            modifier_id = "legacy-ring-size"
+        else:
+            scalar = LinearField("legacy-linear-size", angle=0.0 if self.mode is SizeFieldMode.LINEAR_X else 90.0)
+            field_id = scalar.id
+            modifier_id = "legacy-size"
         mapping = FieldMapping(min_output=self.min_scale, max_output=self.max_scale, strength=self.strength)
-        return SharedFieldEngine(FieldRegistry([scalar]), [SizeModifier("legacy-size", scalar.id, mapping)])
+        return SharedFieldEngine(FieldRegistry([scalar]), [SizeModifier(modifier_id, field_id, mapping)])
 
     def to_dict(self) -> dict:
-        return {"mode": self.mode.value, "min_scale": self.min_scale, "max_scale": self.max_scale,
-                "center_x": self.center_x, "center_y": self.center_y, "radius": self.radius, "strength": self.strength}
+        result = {"mode": self.mode.value, "min_scale": self.min_scale, "max_scale": self.max_scale,
+                  "center_x": self.center_x, "center_y": self.center_y, "radius": self.radius, "strength": self.strength}
+        # Keep old JSON byte-for-byte compatible for every pre-Ring mode.
+        if self.mode is SizeFieldMode.RING:
+            result.update({"ring_width": self.ring_width, "invert": self.invert})
+        return result
 
     @classmethod
     def from_dict(cls, value: dict | None) -> "SizeFieldModifier":
@@ -84,7 +99,8 @@ class SizeFieldModifier:
         return cls(mode=mode, min_scale=max(0.01, float(value.get("min_scale", 1.0))),
                    max_scale=max(0.01, float(value.get("max_scale", 1.0))),
                    center_x=float(value.get("center_x", 0.0)), center_y=float(value.get("center_y", 0.0)),
-                   radius=max(0.01, float(value.get("radius", 100.0))), strength=min(1.0, max(0.0, float(value.get("strength", 1.0)))))
+                   radius=max(0.01, float(value.get("radius", 100.0))), strength=min(1.0, max(0.0, float(value.get("strength", 1.0)))),
+                   ring_width=max(0.01, float(value.get("ring_width", 10.0))), invert=bool(value.get("invert", False)))
 
 
 @dataclass
@@ -135,15 +151,17 @@ def _field_factor(field: SizeFieldModifier, element: Element, bounds: tuple[floa
 
 
 def _apply_fields(elements: list[Element], size_field: SizeFieldModifier, rotation_field: RotationFieldModifier,
-                  mask: MaskModifier, overrides: dict[str, LocalOverride]) -> list[Element]:
+                  mask: MaskModifier, overrides: dict[str, LocalOverride], *, apply_size: bool = True) -> list[Element]:
     if not elements: return []
     xmin, xmax = min(item.x for item in elements), max(item.x for item in elements)
     ymin, ymax = min(item.y for item in elements), max(item.y for item in elements)
-    engine = size_field.shared_engine()
+    engine = size_field.shared_engine() if apply_size else None
     values = engine.evaluate_fields(elements) if engine else {}
     consumer = engine.modifiers[0] if engine else None
     for index, element in enumerate(elements):
-        if consumer:
+        if not apply_size:
+            scale = 1.0
+        elif consumer:
             scale = consumer.scale(values[consumer.field_id][index])
         else:
             factor = _field_factor(size_field, element, (xmin, ymin, xmax, ymax))

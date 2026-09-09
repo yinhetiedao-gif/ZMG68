@@ -123,7 +123,8 @@ class PatternLabApp(tk.Tk):
         self.family_rotation_mode_var = tk.StringVar(value=RotationFieldMode.CONSTANT.value)
         self.family_min_scale_var = tk.StringVar(value="1.0"); self.family_max_scale_var = tk.StringVar(value="1.0")
         self.family_center_x_var = tk.StringVar(value="0"); self.family_center_y_var = tk.StringVar(value="0")
-        self.family_radius_var = tk.StringVar(value="100"); self.family_rotation_var = tk.StringVar(value="0")
+        self.family_radius_var = tk.StringVar(value="100"); self.family_ring_width_var = tk.StringVar(value="10")
+        self.family_ring_invert_var = tk.BooleanVar(value=False); self.family_rotation_var = tk.StringVar(value="0")
         self.grid_vars: dict[str, tk.StringVar] = {}
         self._grid_control_widgets: list[tk.Widget] = []
         self._build()
@@ -204,13 +205,16 @@ class PatternLabApp(tk.Tk):
         ttk.Entry(fields, textvariable=self.family_center_x_var, width=6).grid(row=2, column=1, sticky="w")
         ttk.Entry(fields, textvariable=self.family_center_y_var, width=6).grid(row=2, column=1)
         ttk.Entry(fields, textvariable=self.family_radius_var, width=6).grid(row=2, column=1, sticky="e")
-        ttk.Label(fields, text="旋转场").grid(row=3, column=0, sticky="w")
+        ttk.Label(fields, text="环宽 / 反转").grid(row=3, column=0, sticky="w")
+        ttk.Entry(fields, textvariable=self.family_ring_width_var, width=7).grid(row=3, column=1, sticky="w")
+        ttk.Checkbutton(fields, text="反转", variable=self.family_ring_invert_var).grid(row=3, column=1, sticky="e")
+        ttk.Label(fields, text="旋转场").grid(row=4, column=0, sticky="w")
         ttk.Combobox(fields, state="readonly", textvariable=self.family_rotation_mode_var,
-                     values=tuple(item.value for item in RotationFieldMode), width=14).grid(row=3, column=1, sticky="ew")
-        ttk.Label(fields, text="固定角度").grid(row=4, column=0, sticky="w")
-        ttk.Entry(fields, textvariable=self.family_rotation_var, width=14).grid(row=4, column=1, sticky="ew")
+                     values=tuple(item.value for item in RotationFieldMode), width=14).grid(row=4, column=1, sticky="ew")
+        ttk.Label(fields, text="固定角度").grid(row=5, column=0, sticky="w")
+        ttk.Entry(fields, textvariable=self.family_rotation_var, width=14).grid(row=5, column=1, sticky="ew")
         fields.columnconfigure(1, weight=1)
-        ttk.Button(fields, text="应用共享参数场", command=self.apply_family_fields).grid(row=5, column=0, columnspan=2, sticky="ew", pady=(5, 0))
+        ttk.Button(fields, text="应用共享参数场", command=self.apply_family_fields).grid(row=6, column=0, columnspan=2, sticky="ew", pady=(5, 0))
         tolerance_row = ttk.Frame(parent); tolerance_row.pack(fill="x", pady=(0, 5))
         ttk.Label(tolerance_row, text="分析容差", width=9).pack(side="left")
         tolerance_combo = ttk.Combobox(tolerance_row, state="readonly", textvariable=self.analysis_tolerance_var,
@@ -542,6 +546,7 @@ class PatternLabApp(tk.Tk):
         self.family_size_mode_var.set(size.mode.value); self.family_rotation_mode_var.set(rotation.mode.value)
         self.family_min_scale_var.set(str(size.min_scale)); self.family_max_scale_var.set(str(size.max_scale))
         self.family_center_x_var.set(str(size.center_x)); self.family_center_y_var.set(str(size.center_y)); self.family_radius_var.set(str(size.radius))
+        self.family_ring_width_var.set(str(size.ring_width)); self.family_ring_invert_var.set(bool(size.invert))
         self.family_rotation_var.set(str(rotation.angle))
 
     def apply_family_fields(self) -> None:
@@ -559,7 +564,10 @@ class PatternLabApp(tk.Tk):
                 max_scale=parse_float_ui_value(self.family_max_scale_var.get(), "最大缩放", minimum=0.0),
                 center_x=parse_float_ui_value(self.family_center_x_var.get(), "控制点 X"),
                 center_y=parse_float_ui_value(self.family_center_y_var.get(), "控制点 Y"),
-                radius=max(.01, parse_float_ui_value(self.family_radius_var.get(), "影响半径", minimum=0.0)), strength=1.0,
+                radius=max(.01, parse_float_ui_value(self.family_radius_var.get(), "影响半径", minimum=0.0)),
+                strength=1.0,
+                ring_width=max(.01, parse_float_ui_value(self.family_ring_width_var.get(), "环宽", minimum=0.0)),
+                invert=bool(self.family_ring_invert_var.get()),
             )
             rotation = RotationFieldModifier(
                 mode=RotationFieldMode(self.family_rotation_mode_var.get()),

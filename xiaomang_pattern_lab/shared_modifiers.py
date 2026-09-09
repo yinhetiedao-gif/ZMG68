@@ -48,7 +48,16 @@ class SharedModifierStack:
     source_elements: list[dict[str, Any]] = field(default_factory=list)
     enabled: bool = True
 
-    def apply(self, elements: Iterable[Element], *, include_overrides: bool = True) -> list[Element]:
+    def apply(self, elements: Iterable[Element], *, include_overrides: bool = True,
+              include_size: bool = True) -> list[Element]:
+        """Apply the legacy stack to a source.
+
+        ``PatternDocument.fields/modifiers`` is the durable shared-field graph.
+        When the evaluator has already consumed that graph, ``include_size`` is
+        set to false so a migrated Linear/Ring size field cannot be applied a
+        second time by this compatibility stack.  Rotation, mask and local
+        overrides still run in the same order.
+        """
         overrides = self.local_overrides if include_overrides else {}
         return _apply_fields(
             deepcopy(list(elements)),
@@ -56,6 +65,7 @@ class SharedModifierStack:
             self.rotation_field,
             self.mask,
             overrides,
+            apply_size=include_size,
         )
 
     def source_snapshot(self) -> list[Element]:

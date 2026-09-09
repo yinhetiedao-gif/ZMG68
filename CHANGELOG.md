@@ -1,5 +1,22 @@
 # 更新记录
 
+## 1.6.26 — Shared Field Gate A.5：Integration Bridge（2026-09-09）
+
+### Added
+
+- `evaluate_pattern_document()` 现在从 `PatternDocument.fields[] / modifiers[]`
+  重建并执行 `SharedFieldEngine`；Ring/Linear 图在保存、重开、Grid 生成和非 UI
+  评估路径中真正生效。
+- 兼容 `SharedModifierStack` 增加 post-field 模式，声明式 Size Field 消费后只再
+  应用旋转、掩膜和 Local Override，避免重复缩放。
+- 既有共享参数场面板加入 Ring 模式及环宽/反转控制；旧模式 JSON 保持兼容。
+- 新增 Gate A.5 集成测试：文档图、Grid+Ring、Linear 不重复、Save/Load、SVG 物化。
+
+### Scope
+
+- 不新增 Wave、Stripe、Checker、Spiral，也不修改 Raster、Canvas Direct
+  Manipulation、Grid 专用 SizeGradient 或已弃用的 `ppg/field_generators.py`。
+
 ## 1.6.25 — Shared Field Gate A：RingField（2026-09-09）
 
 ### Added

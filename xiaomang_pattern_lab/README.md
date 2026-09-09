@@ -86,6 +86,16 @@ Gate A 只新增 `RingField`，不新增平行参数化系统。它按元素的�
 它；RingField 不修改 source geometry，也不操作 Canvas。Wave、Stripe、Checker、Spiral
 及新的 Field UI 刻意留在后续独立 Gate。
 
+### Shared Field Integration — Gate A.5
+
+Gate A.5 将 `PatternDocument.fields[] / modifiers[]` 接回唯一的
+`evaluate_pattern_document()` 入口：`PatternDocument field graph → SharedFieldEngine
+→ SharedModifierStack（Rotation / Mask / Local Override）→ Final Elements → Canvas`。
+因此保存后直接读取文档、Grid 生成和导出都真正消费 Ring/Linear 图，而不是只把
+图作为元数据保存。已迁移的 Size Field 只执行一次，避免兼容栈与声明式图重复缩放；
+旧 Linear X/Y 的输出和 SVG 保持字节级兼容。Ring 现在也可从“参数化效果”面板选择，
+并提供中心、半径、环宽与反转参数。Gate A.5 不新增 Wave、Stripe、Checker 或 Spiral。
+
 ## 启动实验台
 
 ```powershell
