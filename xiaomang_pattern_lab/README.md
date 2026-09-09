@@ -1,5 +1,17 @@
 # Xiaomang Pattern Lab / 小芒图案实验室
 
+## 开发安全（Gate 0）
+
+开发前必须读取仓库根的 `AGENTS.md`、`DEVELOPMENT_SAFETY.md`、`GATE_STATUS.md`。
+源码已纳入本地 Git；新功能仅在 feature/*，保护快照不可覆盖。
+当前全量回归存在 3 个失败/错误，尚未建立 Stable Baseline / Last Known Good。
+测试通过前不得继续下一 Gate。Git 备份不包含 .venv/.runtime/node_modules。
+独立回退目录需安装 requirements 和构建 external/imagetosvg-mcp（锁文件已纳入 Git）。
+
+启用本地分支保护钩子：`git config core.hooksPath .githooks`。
+全量检查：`.\xiaomang_pattern_lab\.venv\Scripts\python.exe -m unittest discover -s tests -v`
+（在仓库根运行）。日志和已知失败见 `GATE_STATUS.md`。
+
 这是一个可删除的技术验证项目，不是正式版小芒造物。它验证的唯一闭环是：
 
 `PNG/JPG → 预处理 Adapter → Vectorization Adapter → SVGNormalizer → PatternDocument → 编辑 → SVG / JSON`

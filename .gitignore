@@ -4,3 +4,24 @@ build-spec/
 build-tools/
 dist/
 installer-output/
+
+# Local runtimes, generated outputs and private configuration stay on disk.
+.venv/
+.runtime/
+.build-runtime/
+work/
+backups/
+source-releases/
+node_modules/
+npm-cache/
+.pytest_cache/
+*.pyc
+*.zip
+*.exe
+*.msi
+*.log
+.env
+.env.*
+!.env.example
+*.pem
+*.key

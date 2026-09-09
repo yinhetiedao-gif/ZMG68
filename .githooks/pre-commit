@@ -1,0 +1,9 @@
+#!/bin/sh
+branch=$(git symbolic-ref --quiet --short HEAD) || {
+    echo 'Blocked: create a feature/* branch before committing.' >&2
+    exit 1
+}
+case "$branch" in
+    feature/*) exit 0 ;;
+    *) echo "Blocked: '$branch' is protected; commit only on feature/*." >&2; exit 1 ;;
+esac
