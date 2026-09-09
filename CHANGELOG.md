@@ -1,5 +1,17 @@
 # 更新记录
 
+## 1.6.30 — Shared Field Gate E：SpiralField（2026-09-09）
+
+### Added
+
+- 新增 `SpiralField`，基于世界坐标极角、归一化半径、圈数、相位、方向、衰减和反转输出标量。
+- Spiral 复用通用 Size/Rotation Modifier，支持 Grid、Save/Load、Undo/Redo 和 source safety。
+- 新增方向、相位、中心、圈数、衰减、Document Evaluate 与确定性测试。
+
+### Scope
+
+- 本 Gate 未修改 Raster、GridAnalyzer、Canvas 交互或旧 `ppg`；不新增 Noise、Image、Vector、Shape、Random、Density 或 3D。
+
 ## 1.6.29 — Shared Field Gate D：CheckerField（2026-09-09）
 
 ### Added

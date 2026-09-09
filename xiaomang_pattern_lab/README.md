@@ -117,6 +117,13 @@ Wave 已通过导入 Elements、Grid、Canvas 参数面板、Undo/Redo、Save/Lo
 它只通过通用 Size/Rotation Modifier 影响 Geometry，已覆盖 Grid、Save/Load、Undo/Redo、
 source safety 和完整回归；Spiral 不在本 Gate 范围内。
 
+### Shared Field Gate E — SpiralField
+
+`SpiralField` 使用极坐标角度与按文档范围归一化的半径计算螺旋标量，支持中心、圈数、
+相位、顺/逆方向、衰减和反转。它只通过通用 Size/Rotation Modifier 影响 Geometry，
+不直接旋转或移动 Element；已完成 Grid、Save/Load、Undo/Redo、SVG 物化和 source safety
+回归。Gate E 后不再继续扩展视觉 Field。
+
 ## 启动实验台
 
 ```powershell

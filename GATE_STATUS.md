@@ -1,6 +1,6 @@
 # Gate 状态（2026-09-09）
 
-- Current Gate: D — CheckerField
+- Current Gate: E — SpiralField
 - Status: PASS — 不自动进入 Wave Gate B
 - Current Branch: feature/shared-fields-nightly-20260909-1630
 - Pre-change Snapshot Commit: b685af304241541a21a123bf7b86f2b995266e01
@@ -44,6 +44,14 @@
 - Gate D 定向测试：4/4 PASS；与前序共享字段专项合计 47/47 PASS。
 - 全量回归：152/152 PASS，0 skip，197.783 秒；证据 `work/shared-fields-nightly-gate-d-regression.log`。
 - 当前 Last Known Good：待本 Gate 提交后以 `git rev-parse HEAD` 记录；不得在此之前进入 Gate E。
+
+## Gate E 完成记录（2026-09-09）
+
+- 新增 `SpiralField`：极角、归一化半径、圈数、相位、方向、衰减和反转均使用世界坐标。
+- Spiral 通过通用 Size/Rotation Modifier、Document Evaluate、Grid、Save/Load、Undo/Redo 与 source safety。
+- Gate E 定向测试：4/4 PASS；与前序共享字段专项合计 51/51 PASS。
+- 全量回归：160/160 PASS，0 skip，157.041 秒；证据 `work/shared-fields-nightly-gate-e-regression.log`。
+- 当前 Last Known Good：待本 Gate 提交后以 `git rev-parse HEAD` 记录；Gate F 只允许做兼容性检查。
 
 ## Gate 1 完成记录（2026-09-09）
 
