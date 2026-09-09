@@ -1,5 +1,18 @@
 # 更新记录
 
+## 1.6.28 — Shared Field Gate C：StripeField（2026-09-09）
+
+### Added
+
+- 新增 `StripeField`，支持世界坐标角度、周期、相位、占空比、平滑度和反转。
+- Stripe 继续复用通用 Size/Rotation Modifier，不创建专用效果类。
+- 共享参数场控件补充占空比、平滑度及通用场参数；旧项目参数保持兼容。
+- 新增 Stripe 的周期、角度、相位、占空比、Size/Rotation、Grid、Save/Load 与 Undo/Redo 测试。
+
+### Scope
+
+- 本 Gate 未修改 Raster、GridAnalyzer、Canvas 交互或旧 `ppg`；Checker、Spiral 仍待后续独立 Gate。
+
 ## 1.6.27 — Shared Field Gate B：WaveField（2026-09-09）
 
 ### Added

@@ -1,6 +1,6 @@
 # Gate 状态（2026-09-09）
 
-- Current Gate: B — WaveField
+- Current Gate: C — StripeField
 - Status: PASS — 不自动进入 Wave Gate B
 - Current Branch: feature/shared-fields-nightly-20260909-1630
 - Pre-change Snapshot Commit: b685af304241541a21a123bf7b86f2b995266e01
@@ -28,6 +28,14 @@
 - Gate B 定向测试：5/5 PASS；与 Gate A.5/共享字段专项合计 39/39 PASS。
 - 全量回归：144/144 PASS，0 skip，159.502 秒；证据 `work/shared-fields-nightly-gate-b-regression.log`。
 - 当前 Last Known Good：待本 Gate 提交后以 `git rev-parse HEAD` 记录；不得在此之前进入 Gate C。
+
+## Gate C 完成记录（2026-09-09）
+
+- 新增 `StripeField`：周期、角度、相位、占空比、平滑度与反转均使用世界坐标并输出 0～1 标量。
+- Stripe 通过现有 Size/Rotation Modifier、Document Evaluate、Grid、Save/Load、Undo/Redo 和 source safety。
+- Gate C 定向测试：4/4 PASS；与前序共享字段专项合计 43/43 PASS。
+- 全量回归：148/148 PASS，0 skip，152.819 秒；证据 `work/shared-fields-nightly-gate-c-regression.log`。
+- 当前 Last Known Good：待本 Gate 提交后以 `git rev-parse HEAD` 记录；不得在此之前进入 Gate D。
 
 ## Gate 1 完成记录（2026-09-09）
 

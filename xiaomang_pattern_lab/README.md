@@ -104,6 +104,13 @@ Gate B 在 A.5 桥接上新增 `WaveField`，仍只输出世界坐标上的 `0.0
 Wave 已通过导入 Elements、Grid、Canvas 参数面板、Undo/Redo、Save/Load 和 SVG 物化
 回归。Stripe、Checker、Spiral 不在本 Gate 范围内。
 
+### Shared Field Gate C — StripeField
+
+`StripeField` 将世界坐标投影到周期条带，输出确定性 0～1 标量；周期、角度、相位、
+占空比、边缘平滑和反转都保存在 Field Graph 中，并由既有 Size/Rotation Modifier
+消费。Stripe 已通过导入 Elements、Grid、Save/Load、Undo/Redo、source safety 和全量
+回归，不改变 Raster/Canvas/Grid 基础链路。
+
 ## 启动实验台
 
 ```powershell
