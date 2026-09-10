@@ -54,3 +54,33 @@ class GateZeroTkSmokeTests(unittest.TestCase):
                     self.assertTrue(svg.is_file())
             finally:
                 app.destroy()
+
+    def test_matrix_parameter_panel_scrolls_as_one_page(self):
+        """All matrix controls remain reachable when the window is shorter than the form."""
+        with TemporaryDirectory() as directory:
+            app = PatternLabApp(directory)
+            try:
+                app.update()
+                notebooks = []
+                stack = list(app.winfo_children())
+                while stack:
+                    widget = stack.pop()
+                    stack.extend(widget.winfo_children())
+                    if widget.winfo_class() == "TNotebook":
+                        notebooks.append(widget)
+                self.assertTrue(notebooks)
+                notebook = notebooks[0]
+                notebook.select(1)
+                app.update()
+                scroll_canvas = app._matrix_scroll_canvas
+                self.assertIsNotNone(scroll_canvas)
+                self.assertGreater(scroll_canvas.winfo_height(), 100)
+                _x0, y0, _x1, y1 = map(float, scroll_canvas.cget("scrollregion").split())
+                self.assertGreater(y1, scroll_canvas.winfo_height())
+                scroll_canvas.yview_moveto(1.0)
+                app.update()
+                first, last = scroll_canvas.yview()
+                self.assertGreater(first, 0.5)
+                self.assertAlmostEqual(last, 1.0, delta=0.02)
+            finally:
+                app.destroy()

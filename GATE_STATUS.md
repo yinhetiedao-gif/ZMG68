@@ -1,4 +1,11 @@
-# Gate 状态（2026-09-09）
+# Gate 状态（2026-09-10）
+
+## Gate G follow-up — 参数面板滚动修复（2026-09-10）
+
+- Status: PASS
+- 规则矩阵页的共享参数、旋转、网格、渐变和掩膜控件统一进入单一垂直滚动容器。
+- Tk 界面回归 5/5 PASS；全量 unittest 164/164 PASS，0 skip。
+- 未修改 PatternDocument、Raster→SVG、Grid 分析、Canvas 操作或 Undo/Redo 业务逻辑。
 
 ## Gate G — Shared Field UI & Compatibility（2026-09-10）
 

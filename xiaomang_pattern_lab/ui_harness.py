@@ -142,6 +142,8 @@ class PatternLabApp(tk.Tk):
         self._family_rotation_description_var = tk.StringVar(value=rotation_description(RotationFieldMode.CONSTANT.value))
         self._family_dynamic_frame: ttk.Frame | None = None
         self._family_rotation_frame: ttk.Frame | None = None
+        self._matrix_scroll_canvas: tk.Canvas | None = None
+        self._matrix_scrollbar: ttk.Scrollbar | None = None
         self._family_preview_after: str | None = None
         self._family_controls_ready = False
         self.grid_vars: dict[str, tk.StringVar] = {}
@@ -202,6 +204,28 @@ class PatternLabApp(tk.Tk):
         self._build_matrix_panel(matrix_tab)
 
     def _build_matrix_panel(self, parent: ttk.Frame) -> None:
+        # The matrix tab contains more controls than a typical laptop viewport.
+        # Keep the whole tab (shared fields + grid + mask) in one scroll region;
+        # previously only the bottom grid form scrolled, leaving the top controls
+        # visible while silently clipping the remaining options.
+        scroll_shell = ttk.Frame(parent)
+        scroll_shell.pack(fill="both", expand=True)
+        scroll_canvas = tk.Canvas(scroll_shell, highlightthickness=0, background="#f8fafc")
+        scroll_bar = ttk.Scrollbar(scroll_shell, orient="vertical", command=scroll_canvas.yview)
+        self._matrix_scroll_canvas = scroll_canvas
+        self._matrix_scrollbar = scroll_bar
+        scroll_canvas.configure(yscrollcommand=scroll_bar.set)
+        scroll_bar.pack(side="right", fill="y")
+        scroll_canvas.pack(side="left", fill="both", expand=True)
+        content = ttk.Frame(scroll_canvas, padding=5)
+        content_window = scroll_canvas.create_window((0, 0), window=content, anchor="nw")
+        content.bind("<Configure>", lambda _event: scroll_canvas.configure(scrollregion=scroll_canvas.bbox("all")))
+        scroll_canvas.bind("<Configure>", lambda event: scroll_canvas.itemconfigure(content_window, width=event.width))
+        scroll_canvas.bind("<Enter>", lambda _event: scroll_canvas.focus_set())
+        scroll_canvas.bind("<MouseWheel>", lambda event: scroll_canvas.yview_scroll(int(-event.delta / 120), "units"))
+        # Build all controls in the scrollable content frame from this point on.
+        parent = content
+
         header = ttk.Frame(parent); header.pack(fill="x")
         ttk.Label(header, text="基础结构：").pack(side="left")
         ttk.Radiobutton(header, text="原始元素", value=PatternMode.FREE.value, variable=self.pattern_mode_var, command=self._switch_mode).pack(side="left")
@@ -244,13 +268,11 @@ class PatternLabApp(tk.Tk):
                                        values=(AnalysisTolerance.STRICT.value, AnalysisTolerance.STANDARD.value, AnalysisTolerance.LENIENT.value), width=14)
         tolerance_combo.pack(side="left", fill="x", expand=True)
         tolerance_combo.bind("<<ComboboxSelected>>", lambda _event: self.session.set_grid_analysis_tolerance(self.analysis_tolerance_var.get()))
-        outer = ttk.Frame(parent); outer.pack(fill="both", expand=True)
-        canvas = tk.Canvas(outer, width=278, highlightthickness=0, background="#f8fafc")
-        scroll = ttk.Scrollbar(outer, orient="vertical", command=canvas.yview)
-        canvas.configure(yscrollcommand=scroll.set); scroll.pack(side="right", fill="y"); canvas.pack(side="left", fill="both", expand=True)
-        form = ttk.Frame(canvas, padding=6); window = canvas.create_window((0, 0), window=form, anchor="nw")
-        form.bind("<Configure>", lambda _event: canvas.configure(scrollregion=canvas.bbox("all")))
-        canvas.bind("<Configure>", lambda event: canvas.itemconfigure(window, width=event.width))
+        # Grid and mask parameters are part of the same scrollable page.  This
+        # avoids a nested, nearly-zero-height scrollbar that made these options
+        # appear to disappear on smaller windows.
+        form = ttk.Frame(parent, padding=6)
+        form.pack(fill="x", pady=(2, 0))
         self._add_grid_number(form, "rows", "行数", 1, 120, 1, "12")
         self._add_grid_number(form, "columns", "列数", 1, 120, 1, "12")
         self._add_grid_number(form, "spacing_x", "Spacing U (mm)", 0.1, 120, 0.1, "12")
