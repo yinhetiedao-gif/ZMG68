@@ -222,7 +222,11 @@ class PatternLabApp(tk.Tk):
         content.bind("<Configure>", lambda _event: scroll_canvas.configure(scrollregion=scroll_canvas.bbox("all")))
         scroll_canvas.bind("<Configure>", lambda event: scroll_canvas.itemconfigure(content_window, width=event.width))
         scroll_canvas.bind("<Enter>", lambda _event: scroll_canvas.focus_set())
-        scroll_canvas.bind("<MouseWheel>", lambda event: scroll_canvas.yview_scroll(int(-event.delta / 120), "units"))
+        # Route the wheel only while the pointer is inside this panel.  A
+        # bind_all is safe here because the handler returns ``break`` only for
+        # descendants of this scroll canvas; the main design Canvas keeps its
+        # own wheel-to-zoom binding untouched.
+        self.bind_all("<MouseWheel>", self._route_matrix_mousewheel, add="+")
         # Build all controls in the scrollable content frame from this point on.
         parent = content
 
@@ -312,6 +316,24 @@ class PatternLabApp(tk.Tk):
         self._add_grid_number(form, "mask_height", "矩形高度 (mm)", 0.1, 500, 0.1, "100")
         self._add_grid_number(form, "mask_radius", "圆形半径 (mm)", 0.1, 500, 0.1, "50")
         ttk.Label(form, text="滑块拖动仅预览；松开后一次提交。", foreground="#56616f", wraplength=245).pack(anchor="w", pady=(8, 2))
+
+    def _route_matrix_mousewheel(self, event: tk.Event):
+        """Scroll the matrix page when the pointer is over any child control."""
+        canvas = self._matrix_scroll_canvas
+        if canvas is None or not canvas.winfo_exists():
+            return None
+        widget = self.winfo_containing(event.x_root, event.y_root)
+        while widget is not None:
+            if widget is canvas:
+                delta = int(-event.delta / 120) if getattr(event, "delta", 0) else 0
+                if delta:
+                    canvas.yview_scroll(delta, "units")
+                return "break"
+            try:
+                widget = widget.master
+            except AttributeError:
+                widget = None
+        return None
 
     def _add_grid_number(self, parent, key: str, label: str, minimum: float, maximum: float, resolution: float, initial: str) -> None:
         variable = tk.StringVar(value=initial); self.grid_vars[key] = variable

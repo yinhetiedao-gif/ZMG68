@@ -1,6 +1,7 @@
 """Real Tk callback smoke test; not a substitute for visual acceptance."""
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from types import SimpleNamespace
 from unittest.mock import patch
 import unittest
 
@@ -82,5 +83,15 @@ class GateZeroTkSmokeTests(unittest.TestCase):
                 first, last = scroll_canvas.yview()
                 self.assertGreater(first, 0.5)
                 self.assertAlmostEqual(last, 1.0, delta=0.02)
+
+                # Wheel events over a child Entry must scroll the same page,
+                # while the design Canvas keeps its separate zoom binding.
+                scroll_canvas.yview_moveto(0.0)
+                app.update()
+                entry = app._grid_control_widgets[1]
+                with patch.object(app, "winfo_containing", return_value=entry):
+                    app._route_matrix_mousewheel(SimpleNamespace(x_root=0, y_root=0, delta=-120))
+                app.update()
+                self.assertGreater(scroll_canvas.yview()[0], 0.0)
             finally:
                 app.destroy()
