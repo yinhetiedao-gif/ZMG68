@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 from dataclasses import asdict, dataclass, field
+import math
 from typing import Any, Iterable, Mapping
 
 from ppg.foundation.models import ELEMENT_TYPES, Element, PatternDocument
@@ -22,6 +23,123 @@ from .parametric_families import (
 
 
 SHARED_MODIFIER_METADATA_KEY = "xiaomang_pattern_lab.shared_modifiers"
+
+
+POSITION_MODES = (
+    "offset",
+    "attractor",
+    "repeller",
+    "radial_push",
+    "twist",
+    "wave",
+)
+
+
+@dataclass
+class PositionModifier:
+    """Non-destructive position/deformation layer for derived Elements.
+
+    The modifier deliberately works on element centres only.  It never edits
+    ``source_elements`` or the reference image, so it can be reordered with
+    other stack layers and evaluated repeatedly with identical results.
+    ``amount`` is measured in document units (normally mm); ``angle`` and
+    ``phase`` are degrees/radians respectively where noted below.
+    """
+
+    id: str = "position"
+    mode: str = "offset"
+    enabled: bool = True
+    offset_x: float = 0.0
+    offset_y: float = 0.0
+    center_x: float = 0.0
+    center_y: float = 0.0
+    amount: float = 10.0
+    radius: float = 100.0
+    angle: float = 30.0
+    wavelength: float = 50.0
+    phase: float = 0.0
+    strength: float = 1.0
+    falloff: float = 1.0
+
+    def __post_init__(self) -> None:
+        self.mode = str(self.mode or "offset")
+        if self.mode not in POSITION_MODES:
+            raise ValueError("不支持的位置/变形模式：%s" % self.mode)
+        for name in (
+            "offset_x", "offset_y", "center_x", "center_y", "amount",
+            "radius", "angle", "wavelength", "phase", "strength", "falloff",
+        ):
+            value = float(getattr(self, name))
+            if not math.isfinite(value):
+                raise ValueError("PositionModifier 参数必须是有限数字：%s" % name)
+            setattr(self, name, value)
+        if self.radius <= 0:
+            raise ValueError("PositionModifier.radius 必须大于 0。")
+        if self.wavelength <= 0:
+            raise ValueError("PositionModifier.wavelength 必须大于 0。")
+        if self.falloff <= 0:
+            raise ValueError("PositionModifier.falloff 必须大于 0。")
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, value: Mapping[str, Any] | None) -> "PositionModifier":
+        raw = dict(value or {})
+        allowed = {
+            "id", "mode", "enabled", "offset_x", "offset_y", "center_x",
+            "center_y", "amount", "radius", "angle", "wavelength", "phase",
+            "strength", "falloff",
+        }
+        return cls(**{key: raw[key] for key in allowed if key in raw})
+
+    def _influence(self, distance: float) -> float:
+        normalized = max(0.0, 1.0 - distance / self.radius)
+        return normalized ** self.falloff
+
+    def apply(self, elements: Iterable[Element]) -> list[Element]:
+        """Return transformed copies; no input Element is mutated."""
+
+        result = deepcopy(list(elements))
+        if not self.enabled:
+            return result
+        cx, cy = self.center_x, self.center_y
+        theta = math.radians(self.angle)
+        axis_x, axis_y = math.cos(theta), math.sin(theta)
+        normal_x, normal_y = -axis_y, axis_x
+        for element in result:
+            px, py = float(element.x), float(element.y)
+            dx = dy = 0.0
+            if self.mode == "offset":
+                dx = self.offset_x * self.strength
+                dy = self.offset_y * self.strength
+            else:
+                vx, vy = px - cx, py - cy
+                distance = math.hypot(vx, vy)
+                influence = self._influence(distance)
+                if self.mode in ("attractor", "repeller", "radial_push"):
+                    if distance > 1e-12:
+                        ux, uy = vx / distance, vy / distance
+                    else:
+                        ux, uy = 0.0, 0.0
+                    sign = -1.0 if self.mode == "attractor" else 1.0
+                    magnitude = self.amount * self.strength * influence
+                    dx, dy = sign * ux * magnitude, sign * uy * magnitude
+                elif self.mode == "twist":
+                    local_angle = theta * self.strength * influence
+                    cos_a, sin_a = math.cos(local_angle), math.sin(local_angle)
+                    nx = vx * cos_a - vy * sin_a
+                    ny = vx * sin_a + vy * cos_a
+                    dx, dy = nx - vx, ny - vy
+                elif self.mode == "wave":
+                    coordinate = px * axis_x + py * axis_y
+                    displacement = self.amount * self.strength * math.sin(
+                        (2.0 * math.pi * coordinate / self.wavelength) + self.phase
+                    ) * influence
+                    dx, dy = normal_x * displacement, normal_y * displacement
+            element.x = px + dx
+            element.y = py + dy
+        return result
 
 
 def _element_from_dict(raw: Mapping[str, Any]) -> Element:
@@ -98,6 +216,8 @@ class SharedModifierStack:
                         result, SizeFieldModifier(), rotation, MaskModifier(), {},
                         apply_size=False, apply_rotation=True,
                     )
+                elif layer_type == "position":
+                    result = PositionModifier.from_dict(params).apply(result)
                 else:
                     raise ValueError("不支持的 Modifier Stack 层类型：%s" % layer_type)
             result = _apply_fields(
@@ -150,10 +270,10 @@ class SharedModifierStack:
 
     def add_modifier(self, modifier_type: str, parameters: Mapping[str, Any], *,
                      modifier_id: str | None = None, enabled: bool = True) -> str:
-        """Append one explicit Size/Rotation layer and return its stable ID."""
+        """Append one explicit Size/Rotation/Position layer and return its stable ID."""
         modifier_type = str(modifier_type)
-        if modifier_type not in ("size", "rotation"):
-            raise ValueError("Modifier Stack 只支持 size 或 rotation。")
+        if modifier_type not in ("size", "rotation", "position"):
+            raise ValueError("Modifier Stack 只支持 size、rotation 或 position。")
         identifier = str(modifier_id or "%s-%d" % (modifier_type, len(self.modifiers) + 1))
         if any(str(item.get("id")) == identifier for item in self.modifiers):
             raise ValueError("Modifier ID 不能重复：%s" % identifier)

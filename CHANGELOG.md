@@ -1,5 +1,18 @@
 # 更新记录
 
+## 1.6.34 — Gate I：位置与变形修饰器（2026-09-10）
+
+### Added
+
+- 新增有序 `PositionModifier` 层：整体偏移、吸引、排斥、径向推出、扭转和波形位移。
+- 位置层与现有 Size/Rotation 层共用 Modifier Stack；仅改变派生 Element，保留 source geometry 不变。
+- 参数页增加位置/变形层的中文模式与数值入口，支持与堆栈同样的启用、排序、复制、删除和重置操作。
+
+### Verification
+
+- Gate I 定向测试：2/2 PASS；位置层 Save/Load、Undo/Redo、确定性和源元素完整性通过。
+- Gate H/共享 Modifier 回归：7/7 PASS。
+
 ## 1.6.33 — Gate H：可组合效果堆栈（2026-09-10）
 
 ### Added

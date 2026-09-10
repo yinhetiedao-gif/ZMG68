@@ -1,5 +1,13 @@
 # Gate 状态（2026-09-10）
 
+## Gate I — Position / Deformation Modifier（2026-09-10）
+
+- Status: PASS（核心与最小中文参数入口已接入）
+- `PositionModifier` 通过显式堆栈层对派生 Element 中心进行偏移/吸引/排斥/径向推出/扭转/波形位移；不写回 `source_elements`。
+- Position 层可启用/停用、复制、删除、上下移动、重置；层顺序和参数保存到 PatternDocument metadata。
+- 定向测试 2/2 PASS；Gate H 与共享 Modifier 回归 7/7 PASS；完整回归以本 Gate 提交时结果为准。
+- Gate J（Mask / Scope）尚未开始。
+
 ## Gate H — 可组合 Modifier Stack（2026-09-10）
 
 - Status: PASS（核心与 UI 管理面板已接入）

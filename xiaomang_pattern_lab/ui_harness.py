@@ -25,7 +25,7 @@ from .faithful_mapping import ConversionMode, FaithfulMappingAdapter
 from .interaction import InteractionState
 from .parametric import GridParametricModel, MaskMode, MaskModifier, PatternMode, SizeGradientMode, SizeGradientModifier
 from .parametric_families import RotationFieldMode, RotationFieldModifier, SizeFieldMode, SizeFieldModifier
-from .shared_modifiers import SharedModifierStack
+from .shared_modifiers import POSITION_MODES, PositionModifier, SharedModifierStack
 from .pattern_analyzer import AnalysisTolerance
 from .performance import PerformanceMetrics
 from .field_ui import (
@@ -136,6 +136,19 @@ class PatternLabApp(tk.Tk):
         self.family_smoothness_var = tk.StringVar(value="0"); self.family_cell_width_var = tk.StringVar(value="20")
         self.family_cell_height_var = tk.StringVar(value="20"); self.family_turns_var = tk.StringVar(value="3")
         self.family_direction_var = tk.StringVar(value="1"); self.family_rotation_var = tk.StringVar(value="0")
+        self.position_mode_var = tk.StringVar(value="offset")
+        self.position_mode_display_var = tk.StringVar(value="整体偏移")
+        self.position_offset_x_var = tk.StringVar(value="0")
+        self.position_offset_y_var = tk.StringVar(value="0")
+        self.position_center_x_var = tk.StringVar(value="0")
+        self.position_center_y_var = tk.StringVar(value="0")
+        self.position_amount_var = tk.StringVar(value="10")
+        self.position_radius_var = tk.StringVar(value="100")
+        self.position_angle_var = tk.StringVar(value="30")
+        self.position_wavelength_var = tk.StringVar(value="50")
+        self.position_phase_var = tk.StringVar(value="0")
+        self.position_strength_var = tk.StringVar(value="1")
+        self.position_falloff_var = tk.StringVar(value="1")
         self.family_size_display_var = tk.StringVar(value=field_label(SizeFieldMode.CONSTANT.value))
         self.family_rotation_display_var = tk.StringVar(value=rotation_label(RotationFieldMode.CONSTANT.value))
         self._family_description_var = tk.StringVar(value=field_description(SizeFieldMode.CONSTANT.value))
@@ -329,6 +342,30 @@ class PatternLabApp(tk.Tk):
         add_row = ttk.Frame(panel); add_row.pack(fill="x", pady=(0, 3))
         ttk.Button(add_row, text="添加尺寸层", command=lambda: self._add_current_stack_layer("size")).pack(side="left", fill="x", expand=True)
         ttk.Button(add_row, text="添加旋转层", command=lambda: self._add_current_stack_layer("rotation")).pack(side="left", fill="x", expand=True, padx=(3, 0))
+        position_box = ttk.LabelFrame(panel, text="位置 / 变形", padding=4)
+        position_box.pack(fill="x", pady=(2, 4))
+        mode_labels = {
+            "offset": "整体偏移", "attractor": "吸引", "repeller": "排斥",
+            "radial_push": "径向推出", "twist": "扭转", "wave": "波形位移",
+        }
+        reverse_mode_labels = {label: mode for mode, label in mode_labels.items()}
+        mode_combo = ttk.Combobox(position_box, state="readonly", values=tuple(mode_labels.values()),
+                                   textvariable=self.position_mode_display_var)
+        mode_combo.pack(fill="x", pady=(0, 3))
+        mode_combo.bind("<<ComboboxSelected>>", lambda _event: self.position_mode_var.set(reverse_mode_labels.get(self.position_mode_display_var.get(), "offset")))
+        controls = (
+            ("偏移 X (mm)", self.position_offset_x_var), ("偏移 Y (mm)", self.position_offset_y_var),
+            ("中心 X (mm)", self.position_center_x_var), ("中心 Y (mm)", self.position_center_y_var),
+            ("强度", self.position_strength_var), ("幅度/距离 (mm)", self.position_amount_var),
+            ("影响半径 (mm)", self.position_radius_var), ("角度 (°)", self.position_angle_var),
+            ("波长 (mm)", self.position_wavelength_var), ("相位 (rad)", self.position_phase_var),
+            ("衰减", self.position_falloff_var),
+        )
+        for label, variable in controls:
+            row = ttk.Frame(position_box); row.pack(fill="x", pady=1)
+            ttk.Label(row, text=label, width=13, anchor="w").pack(side="left")
+            ttk.Entry(row, textvariable=variable, width=10).pack(side="right", fill="x", expand=True)
+        ttk.Button(position_box, text="添加位置/变形层", command=lambda: self._add_current_stack_layer("position")).pack(fill="x", pady=(3, 0))
         action_row = ttk.Frame(panel); action_row.pack(fill="x")
         for label, callback in (("启用/停用", self._toggle_stack_layer), ("↑", lambda: self._move_stack_layer(-1)),
                                 ("↓", lambda: self._move_stack_layer(1)), ("复制", self._duplicate_stack_layer),
@@ -352,7 +389,7 @@ class PatternLabApp(tk.Tk):
         if stack is None:
             self._modifier_stack_list.insert("end", "暂无独立效果层（可从上方参数添加）")
             return
-        labels = {"size": "尺寸", "rotation": "旋转"}
+        labels = {"size": "尺寸", "rotation": "旋转", "position": "位置/变形"}
         for item in stack.modifiers:
             state = "启用" if bool(item.get("enabled", True)) else "停用"
             self._modifier_stack_list.insert("end", "%s  %s → %s" % (state, item.get("id", "modifier"), labels.get(item.get("type"), item.get("type"))))
@@ -367,11 +404,31 @@ class PatternLabApp(tk.Tk):
 
     def _add_current_stack_layer(self, modifier_type: str) -> None:
         def action() -> None:
-            size, rotation = self._family_modifiers_from_controls()
-            parameters = size.to_dict() if modifier_type == "size" else rotation.to_dict()
+            if modifier_type == "position":
+                parameters = self._position_parameters_from_controls()
+            else:
+                size, rotation = self._family_modifiers_from_controls()
+                parameters = size.to_dict() if modifier_type == "size" else rotation.to_dict()
             self.session.add_modifier_layer(modifier_type, parameters)
             self._after_document_change()
         self._handle(action)
+
+    def _position_parameters_from_controls(self) -> dict:
+        values = {
+            "mode": self.position_mode_var.get(),
+            "offset_x": parse_float_ui_value(self.position_offset_x_var.get(), "偏移 X"),
+            "offset_y": parse_float_ui_value(self.position_offset_y_var.get(), "偏移 Y"),
+            "center_x": parse_float_ui_value(self.position_center_x_var.get(), "中心 X"),
+            "center_y": parse_float_ui_value(self.position_center_y_var.get(), "中心 Y"),
+            "strength": parse_float_ui_value(self.position_strength_var.get(), "强度"),
+            "amount": parse_float_ui_value(self.position_amount_var.get(), "幅度/距离"),
+            "radius": parse_float_ui_value(self.position_radius_var.get(), "影响半径", minimum=1e-9),
+            "angle": parse_float_ui_value(self.position_angle_var.get(), "角度"),
+            "wavelength": parse_float_ui_value(self.position_wavelength_var.get(), "波长", minimum=1e-9),
+            "phase": parse_float_ui_value(self.position_phase_var.get(), "相位"),
+            "falloff": parse_float_ui_value(self.position_falloff_var.get(), "衰减", minimum=1e-9),
+        }
+        return PositionModifier(**values).to_dict()
 
     def _toggle_stack_layer(self) -> None:
         index = self._selected_stack_index()

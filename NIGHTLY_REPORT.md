@@ -1,5 +1,12 @@
 # Nightly Shared Field Report
 
+## Gate I — 位置与变形修饰器（2026-09-10）
+
+- 根因：Gate H 堆栈只支持尺寸和旋转，位置变化会被迫写入源几何或另起一套生成器。
+- 修复：新增统一 `PositionModifier`，按有序层对派生元素中心执行六种确定性变换；现有 source snapshot 与参考图保持只读。
+- 交互：参数页提供中文模式和数值入口，位置层沿用堆栈的启停、排序、复制、删除、重置与一次性 Undo。
+- 验证：Position 专项 2/2 PASS；Gate H/共享 Modifier 回归 7/7 PASS；完整测试将在提交前执行。
+
 ## Gate H — 可组合 Modifier Stack（2026-09-10）
 
 - 根因：现有共享效果虽然按 Size/Rotation 分离，但没有用户可管理的有序层列表。
