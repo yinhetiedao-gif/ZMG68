@@ -1,5 +1,20 @@
 # 更新记录
 
+## 1.6.31 — Shared Field Gate G：中文参数面板与兼容性审计（2026-09-10）
+
+### Added
+
+- 新增 `field_ui.py`：内部稳定 ID 与中文显示名称、说明、旋转方式映射完全分离。
+- 新增 `field_compatibility.py`：通过正式 `evaluate_pattern_document()` 对 Size/Rotation/Position 进行兼容性审计。
+- 共享参数场面板升级为按当前 Field 动态显示相关参数，并提供 Slider + 数值框双向输入。
+- 增加作用强度、合理单位范围、反转 Checkbox、参数预览与释放时单次提交。
+
+### Compatibility
+
+- 未新增 Field；PatternDocument 内部仍使用 `constant`、`wave` 等稳定英文 ID。
+- `radial` / `attractor` 明确标记为旧 Size 兼容层，Position 当前明确不支持，不再假装已接通。
+- 全量回归 163/163 PASS；共享 Field 兼容性审计 3/3 PASS。
+
 ## 1.6.30 — Shared Field Gate E：SpiralField（2026-09-09）
 
 ### Added

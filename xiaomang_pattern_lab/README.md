@@ -4,7 +4,7 @@
 
 开发前必须读取仓库根的 `AGENTS.md`、`DEVELOPMENT_SAFETY.md`、`GATE_STATUS.md`。
 源码已纳入本地 Git；新功能仅在 feature/*，保护快照不可覆盖。
-Gate 0 已完成并由 `backup/stable-baseline` 保护；当前只执行 Shared Field Engine 的 Gate 1。
+Gate 0 至 Gate F 已完成并由备份分支保护；当前 Gate G 只进行 Shared Field UI 与兼容性收尾。
 测试通过前不得继续下一 Gate。Git 备份不包含 .venv/.runtime/node_modules。
 独立回退目录需安装 requirements 和构建 external/imagetosvg-mcp（锁文件已纳入 Git）。
 
@@ -123,6 +123,15 @@ source safety 和完整回归；Spiral 不在本 Gate 范围内。
 相位、顺/逆方向、衰减和反转。它只通过通用 Size/Rotation Modifier 影响 Geometry，
 不直接旋转或移动 Element；已完成 Grid、Save/Load、Undo/Redo、SVG 物化和 source safety
 回归。Gate E 后不再继续扩展视觉 Field。
+
+### Shared Field Gate G — UI 与兼容性审计
+
+Gate G 不新增 Field，而是把现有共享场做成可用的中文参数面板。内部
+`constant`、`wave` 等稳定 ID 保持不变，界面使用中文显示名称和用途说明；选择
+不同 Field 时只显示相关参数。连续参数提供 Slider + 数值框，滑动过程只做轻量
+预览，释放时一次性写入 Undo。`field_compatibility.py` 通过正式的
+`evaluate_pattern_document()` 检查 Size、Rotation 和 Position 支持状态；Position
+当前明确标记为未接入，radial/attractor 仍只由 legacy Size 兼容层提供。
 
 ## 启动实验台
 

@@ -1,5 +1,13 @@
 # Nightly Shared Field Report
 
+## Gate G 产品化收尾（2026-09-10）
+
+- 新增稳定的 Field 中文显示映射、中文说明和动态参数面板；保存格式继续使用英文 stable id。
+- 新增正式评估链路兼容性审计：共享 Field 的 Size/Rotation 支持状态已自动验证，Position 明确标记未接入。
+- Slider/Entry 使用同一 StringVar；拖动只做预览，释放或确认时调用一次 `apply_family_fields()`，避免连续 Undo。
+- Gate G 专项：3/3 PASS；全量回归：163/163 PASS，0 skip。
+- 当前版本：1.6.31；未新增 Field 或 3D/素材/案例功能。
+
 Baseline Commit: `db5fd5ba698863608e3cc92286d46877daf6366a` (`backup/gatea-stable`)
 
 Development Branch: `feature/shared-fields-nightly-20260909-1630`

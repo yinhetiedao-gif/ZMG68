@@ -1,5 +1,15 @@
 # Gate 状态（2026-09-09）
 
+## Gate G — Shared Field UI & Compatibility（2026-09-10）
+
+- Status: PASS
+- 兼容性审计通过正式 `PatternDocument → evaluate_pattern_document() → Final Geometry`：3/3 PASS。
+- Field × Modifier 结果：`constant/linear_x/linear_y/ring/wave/stripe/checker/spiral` 支持 Size + Rotation；`radial/attractor` 仅支持 legacy Size；Position 当前明确 unsupported。
+- UI 内部 ID 保持不变，显示名称/说明改为中文；参数按 Field 动态显示，Slider 与数值框共享变量并在释放时提交一次。
+- 全量 unittest：163/163 PASS，0 skip。
+- 新增文件：`field_ui.py`、`field_compatibility.py`、`tests/test_field_compatibility.py`。
+- 本 Gate 未新增 Field、Generator、3D、素材库或 UI 主题重构。
+
 - Current Gate: F — Final Compatibility
 - Status: PASS — 不自动进入 Wave Gate B
 - Current Branch: feature/shared-fields-nightly-20260909-1630

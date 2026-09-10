@@ -28,6 +28,10 @@ from .parametric_families import RotationFieldMode, RotationFieldModifier, SizeF
 from .shared_modifiers import SharedModifierStack
 from .pattern_analyzer import AnalysisTolerance
 from .performance import PerformanceMetrics
+from .field_ui import (
+    FIELD_ORDER, field_description, field_label, rotation_description,
+    rotation_label,
+)
 from ppg.foundation.region_geometry import filled_region_polygons
 from .session import PatternLabSession, ViewMode
 from .spatial_index import BoundingBoxSpatialIndex
@@ -122,6 +126,7 @@ class PatternLabApp(tk.Tk):
         self.family_size_mode_var = tk.StringVar(value=SizeFieldMode.CONSTANT.value)
         self.family_rotation_mode_var = tk.StringVar(value=RotationFieldMode.CONSTANT.value)
         self.family_min_scale_var = tk.StringVar(value="1.0"); self.family_max_scale_var = tk.StringVar(value="1.0")
+        self.family_strength_var = tk.StringVar(value="1.0")
         self.family_center_x_var = tk.StringVar(value="0"); self.family_center_y_var = tk.StringVar(value="0")
         self.family_radius_var = tk.StringVar(value="100"); self.family_ring_width_var = tk.StringVar(value="10")
         self.family_ring_invert_var = tk.BooleanVar(value=False); self.family_field_angle_var = tk.StringVar(value="0")
@@ -131,6 +136,14 @@ class PatternLabApp(tk.Tk):
         self.family_smoothness_var = tk.StringVar(value="0"); self.family_cell_width_var = tk.StringVar(value="20")
         self.family_cell_height_var = tk.StringVar(value="20"); self.family_turns_var = tk.StringVar(value="3")
         self.family_direction_var = tk.StringVar(value="1"); self.family_rotation_var = tk.StringVar(value="0")
+        self.family_size_display_var = tk.StringVar(value=field_label(SizeFieldMode.CONSTANT.value))
+        self.family_rotation_display_var = tk.StringVar(value=rotation_label(RotationFieldMode.CONSTANT.value))
+        self._family_description_var = tk.StringVar(value=field_description(SizeFieldMode.CONSTANT.value))
+        self._family_rotation_description_var = tk.StringVar(value=rotation_description(RotationFieldMode.CONSTANT.value))
+        self._family_dynamic_frame: ttk.Frame | None = None
+        self._family_rotation_frame: ttk.Frame | None = None
+        self._family_preview_after: str | None = None
+        self._family_controls_ready = False
         self.grid_vars: dict[str, tk.StringVar] = {}
         self._grid_control_widgets: list[tk.Widget] = []
         self._build()
@@ -202,41 +215,29 @@ class PatternLabApp(tk.Tk):
         fields = ttk.LabelFrame(parent, text="参数化效果（适用于所有结构）", padding=5)
         fields.pack(fill="x", pady=(0, 6))
         ttk.Label(fields, text="尺寸场").grid(row=0, column=0, sticky="w")
-        ttk.Combobox(fields, state="readonly", textvariable=self.family_size_mode_var,
-                     values=tuple(item.value for item in SizeFieldMode), width=14).grid(row=0, column=1, sticky="ew")
-        ttk.Label(fields, text="最小 / 最大缩放").grid(row=1, column=0, sticky="w")
-        ttk.Entry(fields, textvariable=self.family_min_scale_var, width=7).grid(row=1, column=1, sticky="w")
-        ttk.Entry(fields, textvariable=self.family_max_scale_var, width=7).grid(row=1, column=1, sticky="e")
-        ttk.Label(fields, text="控制点 X / Y / 半径").grid(row=2, column=0, sticky="w")
-        ttk.Entry(fields, textvariable=self.family_center_x_var, width=6).grid(row=2, column=1, sticky="w")
-        ttk.Entry(fields, textvariable=self.family_center_y_var, width=6).grid(row=2, column=1)
-        ttk.Entry(fields, textvariable=self.family_radius_var, width=6).grid(row=2, column=1, sticky="e")
-        ttk.Label(fields, text="环宽 / 反转").grid(row=3, column=0, sticky="w")
-        ttk.Entry(fields, textvariable=self.family_ring_width_var, width=7).grid(row=3, column=1, sticky="w")
-        ttk.Checkbutton(fields, text="反转", variable=self.family_ring_invert_var).grid(row=3, column=1, sticky="e")
-        ttk.Label(fields, text="角度 / 周期 / 相位").grid(row=4, column=0, sticky="w")
-        ttk.Entry(fields, textvariable=self.family_field_angle_var, width=6).grid(row=4, column=1, sticky="w")
-        ttk.Entry(fields, textvariable=self.family_wavelength_var, width=6).grid(row=4, column=1)
-        ttk.Entry(fields, textvariable=self.family_phase_var, width=6).grid(row=4, column=1, sticky="e")
-        ttk.Label(fields, text="振幅 / 偏移 / 衰减").grid(row=5, column=0, sticky="w")
-        ttk.Entry(fields, textvariable=self.family_amplitude_var, width=6).grid(row=5, column=1, sticky="w")
-        ttk.Entry(fields, textvariable=self.family_offset_var, width=6).grid(row=5, column=1)
-        ttk.Entry(fields, textvariable=self.family_falloff_var, width=6).grid(row=5, column=1, sticky="e")
-        ttk.Label(fields, text="占空 / 平滑 / 格宽").grid(row=6, column=0, sticky="w")
-        ttk.Entry(fields, textvariable=self.family_duty_cycle_var, width=6).grid(row=6, column=1, sticky="w")
-        ttk.Entry(fields, textvariable=self.family_smoothness_var, width=6).grid(row=6, column=1)
-        ttk.Entry(fields, textvariable=self.family_cell_width_var, width=6).grid(row=6, column=1, sticky="e")
-        ttk.Label(fields, text="格高 / 圈数 / 方向").grid(row=7, column=0, sticky="w")
-        ttk.Entry(fields, textvariable=self.family_cell_height_var, width=6).grid(row=7, column=1, sticky="w")
-        ttk.Entry(fields, textvariable=self.family_turns_var, width=6).grid(row=7, column=1)
-        ttk.Entry(fields, textvariable=self.family_direction_var, width=6).grid(row=7, column=1, sticky="e")
-        ttk.Label(fields, text="旋转场").grid(row=8, column=0, sticky="w")
-        ttk.Combobox(fields, state="readonly", textvariable=self.family_rotation_mode_var,
-                     values=tuple(item.value for item in RotationFieldMode), width=14).grid(row=8, column=1, sticky="ew")
-        ttk.Label(fields, text="固定角度").grid(row=9, column=0, sticky="w")
-        ttk.Entry(fields, textvariable=self.family_rotation_var, width=14).grid(row=9, column=1, sticky="ew")
+        size_combo = ttk.Combobox(fields, state="readonly", textvariable=self.family_size_display_var,
+                                  values=tuple(field_label(item.value) for item in SizeFieldMode), width=14)
+        size_combo.grid(row=0, column=1, sticky="ew")
+        size_combo.bind("<<ComboboxSelected>>", self._on_family_size_selected)
+        ttk.Label(fields, textvariable=self._family_description_var, foreground="#56616f", wraplength=230,
+                  justify="left").grid(row=1, column=0, columnspan=2, sticky="w", pady=(2, 5))
+        self._family_dynamic_frame = ttk.Frame(fields)
+        self._family_dynamic_frame.grid(row=2, column=0, columnspan=2, sticky="ew")
+        ttk.Separator(fields, orient="horizontal").grid(row=3, column=0, columnspan=2, sticky="ew", pady=5)
+        ttk.Label(fields, text="旋转场").grid(row=4, column=0, sticky="w")
+        rotation_combo = ttk.Combobox(fields, state="readonly", textvariable=self.family_rotation_display_var,
+                                      values=tuple(rotation_label(item.value) for item in RotationFieldMode), width=14)
+        rotation_combo.grid(row=4, column=1, sticky="ew")
+        rotation_combo.bind("<<ComboboxSelected>>", self._on_family_rotation_selected)
+        ttk.Label(fields, textvariable=self._family_rotation_description_var, foreground="#56616f", wraplength=230,
+                  justify="left").grid(row=5, column=0, columnspan=2, sticky="w", pady=(2, 5))
+        self._family_rotation_frame = ttk.Frame(fields)
+        self._family_rotation_frame.grid(row=6, column=0, columnspan=2, sticky="ew")
         fields.columnconfigure(1, weight=1)
-        ttk.Button(fields, text="应用共享参数场", command=self.apply_family_fields).grid(row=10, column=0, columnspan=2, sticky="ew", pady=(5, 0))
+        ttk.Button(fields, text="重置参数", command=self.reset_family_fields).grid(row=7, column=0, columnspan=2, sticky="ew", pady=(3, 0))
+        ttk.Button(fields, text="应用共享参数场", command=self.apply_family_fields).grid(row=8, column=0, columnspan=2, sticky="ew", pady=(3, 0))
+        self._build_family_field_panel()
+        self._family_controls_ready = True
         tolerance_row = ttk.Frame(parent); tolerance_row.pack(fill="x", pady=(0, 5))
         ttk.Label(tolerance_row, text="分析容差", width=9).pack(side="left")
         tolerance_combo = ttk.Combobox(tolerance_row, state="readonly", textvariable=self.analysis_tolerance_var,
@@ -560,13 +561,174 @@ class PatternLabApp(tk.Tk):
             self._after_document_change()
         self._handle(action)
 
+    def _on_family_size_selected(self, _event=None) -> None:
+        """Translate a Chinese display label back to the stable schema id."""
+        selected = self.family_size_display_var.get()
+        for item in SizeFieldMode:
+            if field_label(item.value) == selected:
+                self.family_size_mode_var.set(item.value)
+                break
+        self._family_description_var.set(field_description(self.family_size_mode_var.get()))
+        self._build_family_field_panel()
+        self._schedule_family_preview()
+
+    def _on_family_rotation_selected(self, _event=None) -> None:
+        selected = self.family_rotation_display_var.get()
+        for item in RotationFieldMode:
+            if rotation_label(item.value) == selected:
+                self.family_rotation_mode_var.set(item.value)
+                break
+        self._family_rotation_description_var.set(rotation_description(self.family_rotation_mode_var.get()))
+        self._build_family_rotation_panel()
+        self._schedule_family_preview()
+
+    def _add_family_slider(self, parent, label: str, variable: tk.StringVar, minimum: float,
+                           maximum: float, resolution: float = 0.1, unit: str = "") -> None:
+        row = ttk.Frame(parent); row.pack(fill="x", pady=1)
+        ttk.Label(row, text=label, width=11).pack(side="left")
+        scale = tk.Scale(row, from_=minimum, to=maximum, resolution=resolution, orient="horizontal",
+                         showvalue=False, variable=variable, highlightthickness=0, length=125,
+                         command=lambda _value: self._schedule_family_preview())
+        scale.pack(side="left", fill="x", expand=True)
+        entry = ttk.Entry(row, textvariable=variable, width=8)
+        entry.pack(side="right", padx=(4, 0))
+        if unit:
+            ttk.Label(row, text=unit, width=3).pack(side="right")
+        scale.bind("<ButtonRelease-1>", lambda _event: self._commit_family_preview())
+        entry.bind("<KeyRelease>", lambda _event: self._schedule_family_preview())
+        entry.bind("<Return>", lambda _event: self._commit_family_preview())
+        entry.bind("<FocusOut>", lambda _event: self._commit_family_preview())
+
+    def _add_family_checkbox(self, parent, label: str, variable: tk.BooleanVar) -> None:
+        ttk.Checkbutton(parent, text=label, variable=variable,
+                        command=self._commit_family_preview).pack(anchor="w", pady=2)
+
+    def _build_family_field_panel(self) -> None:
+        if self._family_dynamic_frame is None:
+            return
+        for child in self._family_dynamic_frame.winfo_children():
+            child.destroy()
+        mode = self.family_size_mode_var.get()
+        self._family_description_var.set(field_description(mode))
+        self._add_family_slider(self._family_dynamic_frame, "最小缩放", self.family_min_scale_var, 0.01, 3.0, 0.01)
+        self._add_family_slider(self._family_dynamic_frame, "最大缩放", self.family_max_scale_var, 0.01, 3.0, 0.01)
+        self._add_family_slider(self._family_dynamic_frame, "作用强度", self.family_strength_var, 0.0, 1.0, 0.01)
+        if mode in {SizeFieldMode.RADIAL.value, SizeFieldMode.ATTRACTOR.value, SizeFieldMode.RING.value,
+                    SizeFieldMode.CHECKER.value, SizeFieldMode.SPIRAL.value}:
+            self._add_family_slider(self._family_dynamic_frame, "中心 X", self.family_center_x_var, -500.0, 500.0, 0.1, "mm")
+            self._add_family_slider(self._family_dynamic_frame, "中心 Y", self.family_center_y_var, -500.0, 500.0, 0.1, "mm")
+        if mode in {SizeFieldMode.RADIAL.value, SizeFieldMode.ATTRACTOR.value, SizeFieldMode.RING.value}:
+            self._add_family_slider(self._family_dynamic_frame, "半径", self.family_radius_var, 0.1, 1000.0, 0.1, "mm")
+            self._add_family_slider(self._family_dynamic_frame, "衰减", self.family_falloff_var, 0.1, 5.0, 0.05)
+        if mode == SizeFieldMode.RING.value:
+            self._add_family_slider(self._family_dynamic_frame, "环宽", self.family_ring_width_var, 0.1, 500.0, 0.1, "mm")
+            self._add_family_checkbox(self._family_dynamic_frame, "反转", self.family_ring_invert_var)
+        elif mode == SizeFieldMode.WAVE.value:
+            self._add_family_slider(self._family_dynamic_frame, "方向角度", self.family_field_angle_var, -180.0, 180.0, 1.0, "°")
+            self._add_family_slider(self._family_dynamic_frame, "波长", self.family_wavelength_var, 1.0, 1000.0, 0.1, "mm")
+            self._add_family_slider(self._family_dynamic_frame, "相位（弧度）", self.family_phase_var, -6.283, 6.283, 0.01)
+            self._add_family_slider(self._family_dynamic_frame, "振幅", self.family_amplitude_var, 0.0, 1.0, 0.01)
+            self._add_family_slider(self._family_dynamic_frame, "偏移", self.family_offset_var, 0.0, 1.0, 0.01)
+            self._add_family_checkbox(self._family_dynamic_frame, "反转", self.family_ring_invert_var)
+        elif mode == SizeFieldMode.STRIPE.value:
+            self._add_family_slider(self._family_dynamic_frame, "方向角度", self.family_field_angle_var, -180.0, 180.0, 1.0, "°")
+            self._add_family_slider(self._family_dynamic_frame, "周期", self.family_wavelength_var, 1.0, 1000.0, 0.1, "mm")
+            self._add_family_slider(self._family_dynamic_frame, "相位（周期）", self.family_phase_var, 0.0, 1.0, 0.01)
+            self._add_family_slider(self._family_dynamic_frame, "占空比", self.family_duty_cycle_var, 0.0, 1.0, 0.01)
+            self._add_family_slider(self._family_dynamic_frame, "边缘平滑", self.family_smoothness_var, 0.0, 0.5, 0.01)
+            self._add_family_checkbox(self._family_dynamic_frame, "反转", self.family_ring_invert_var)
+        elif mode == SizeFieldMode.CHECKER.value:
+            self._add_family_slider(self._family_dynamic_frame, "旋转", self.family_field_angle_var, -180.0, 180.0, 1.0, "°")
+            self._add_family_slider(self._family_dynamic_frame, "格宽", self.family_cell_width_var, 1.0, 500.0, 0.1, "mm")
+            self._add_family_slider(self._family_dynamic_frame, "格高", self.family_cell_height_var, 1.0, 500.0, 0.1, "mm")
+            self._add_family_checkbox(self._family_dynamic_frame, "反转", self.family_ring_invert_var)
+        elif mode == SizeFieldMode.SPIRAL.value:
+            self._add_family_slider(self._family_dynamic_frame, "圈数", self.family_turns_var, 0.0, 20.0, 0.1)
+            self._add_family_slider(self._family_dynamic_frame, "相位（周期）", self.family_phase_var, 0.0, 1.0, 0.01)
+            direction_row = ttk.Frame(self._family_dynamic_frame); direction_row.pack(fill="x", pady=1)
+            ttk.Label(direction_row, text="方向", width=11).pack(side="left")
+            direction_combo = ttk.Combobox(direction_row, state="readonly", width=10, textvariable=self.family_direction_var,
+                                           values=("1", "-1"))
+            direction_combo.pack(side="left")
+            direction_combo.bind("<<ComboboxSelected>>", lambda _event: self._schedule_family_preview())
+            self._add_family_slider(self._family_dynamic_frame, "衰减", self.family_falloff_var, 0.1, 5.0, 0.05)
+            self._add_family_checkbox(self._family_dynamic_frame, "反转", self.family_ring_invert_var)
+
+        self._build_family_rotation_panel()
+
+    def _build_family_rotation_panel(self) -> None:
+        if self._family_rotation_frame is None:
+            return
+        for child in self._family_rotation_frame.winfo_children():
+            child.destroy()
+        mode = self.family_rotation_mode_var.get()
+        self._family_rotation_description_var.set(rotation_description(mode))
+        self._add_family_slider(self._family_rotation_frame, "旋转角度", self.family_rotation_var, -180.0, 180.0, 1.0, "°")
+        if mode != RotationFieldMode.CONSTANT.value:
+            self._add_family_slider(self._family_rotation_frame, "中心 X", self.family_center_x_var, -500.0, 500.0, 0.1, "mm")
+            self._add_family_slider(self._family_rotation_frame, "中心 Y", self.family_center_y_var, -500.0, 500.0, 0.1, "mm")
+
+    def _schedule_family_preview(self) -> None:
+        if not self._family_controls_ready or self._family_preview_after is not None:
+            return
+        self._family_preview_after = self.after(self.PARAMETER_PREVIEW_INTERVAL_MS, self._run_family_preview)
+
+    def _run_family_preview(self) -> None:
+        self._family_preview_after = None
+        try:
+            document = self.session.document
+            if not document:
+                return
+            size, rotation = self._family_modifiers_from_controls()
+            model = self.session.parametric_model
+            if model is not None and hasattr(model, "size_field") and self.session.pattern_mode is not PatternMode.GRID:
+                candidate = deepcopy(model)
+                candidate.size_field = size; candidate.rotation_field = rotation
+                preview = candidate.generate()
+            else:
+                current = SharedModifierStack.from_document(document)
+                source = current.source_snapshot() if current and current.source_elements else document.elements
+                if model is not None and self.session.pattern_mode is PatternMode.GRID:
+                    source = model.generate()
+                stack = current or SharedModifierStack(source_kind="preview")
+                stack.size_field = size; stack.rotation_field = rotation
+                preview = stack.apply(source)
+            self._render_static_layer(elements=preview, update_index=False); self._render_interaction_layer()
+        except Exception as error:
+            self._log_exception("共享参数场预览", error)
+
+    def _commit_family_preview(self) -> None:
+        if self._family_preview_after:
+            try: self.after_cancel(self._family_preview_after)
+            except tk.TclError: pass
+            self._family_preview_after = None
+        if self._family_controls_ready:
+            self.apply_family_fields()
+
+    def reset_family_fields(self) -> None:
+        """Restore semantic defaults and commit as one normal Undo transaction."""
+        size = SizeFieldModifier(mode=SizeFieldMode(self.family_size_mode_var.get()))
+        rotation = RotationFieldModifier(mode=RotationFieldMode(self.family_rotation_mode_var.get()))
+        self.family_min_scale_var.set(str(size.min_scale)); self.family_max_scale_var.set(str(size.max_scale))
+        self.family_strength_var.set(str(size.strength)); self.family_center_x_var.set(str(size.center_x)); self.family_center_y_var.set(str(size.center_y))
+        self.family_radius_var.set(str(size.radius)); self.family_ring_width_var.set(str(size.ring_width)); self.family_ring_invert_var.set(size.invert)
+        self.family_field_angle_var.set(str(size.field_angle)); self.family_wavelength_var.set(str(size.wavelength)); self.family_phase_var.set(str(size.phase))
+        self.family_amplitude_var.set(str(size.amplitude)); self.family_offset_var.set(str(size.offset)); self.family_falloff_var.set(str(size.falloff))
+        self.family_duty_cycle_var.set(str(size.duty_cycle)); self.family_smoothness_var.set(str(size.smoothness)); self.family_cell_width_var.set(str(size.cell_width)); self.family_cell_height_var.set(str(size.cell_height))
+        self.family_turns_var.set(str(size.turns)); self.family_direction_var.set(str(size.direction)); self.family_rotation_var.set(str(rotation.angle))
+        self._build_family_field_panel()
+        self.apply_family_fields()
+
     def _load_family_field_controls(self, model) -> None:
         """Reflect common modifier values without giving Canvas another state."""
         if not hasattr(model, "size_field"):
             return
         size, rotation = model.size_field, model.rotation_field
         self.family_size_mode_var.set(size.mode.value); self.family_rotation_mode_var.set(rotation.mode.value)
+        self.family_size_display_var.set(field_label(size.mode.value)); self.family_rotation_display_var.set(rotation_label(rotation.mode.value))
+        self._family_description_var.set(field_description(size.mode.value)); self._family_rotation_description_var.set(rotation_description(rotation.mode.value))
         self.family_min_scale_var.set(str(size.min_scale)); self.family_max_scale_var.set(str(size.max_scale))
+        self.family_strength_var.set(str(size.strength))
         self.family_center_x_var.set(str(size.center_x)); self.family_center_y_var.set(str(size.center_y)); self.family_radius_var.set(str(size.radius))
         self.family_ring_width_var.set(str(size.ring_width)); self.family_ring_invert_var.set(bool(size.invert))
         self.family_field_angle_var.set(str(size.field_angle)); self.family_wavelength_var.set(str(size.wavelength)); self.family_phase_var.set(str(size.phase))
@@ -575,6 +737,38 @@ class PatternLabApp(tk.Tk):
         self.family_cell_width_var.set(str(size.cell_width)); self.family_cell_height_var.set(str(size.cell_height))
         self.family_turns_var.set(str(size.turns)); self.family_direction_var.set(str(size.direction))
         self.family_rotation_var.set(str(rotation.angle))
+        self._build_family_field_panel()
+
+    def _family_modifiers_from_controls(self) -> tuple[SizeFieldModifier, RotationFieldModifier]:
+        size = SizeFieldModifier(
+            mode=SizeFieldMode(self.family_size_mode_var.get()),
+            min_scale=parse_float_ui_value(self.family_min_scale_var.get(), "最小缩放", minimum=0.0),
+            max_scale=parse_float_ui_value(self.family_max_scale_var.get(), "最大缩放", minimum=0.0),
+            center_x=parse_float_ui_value(self.family_center_x_var.get(), "控制点 X"),
+            center_y=parse_float_ui_value(self.family_center_y_var.get(), "控制点 Y"),
+            radius=max(.01, parse_float_ui_value(self.family_radius_var.get(), "影响半径", minimum=0.0)),
+            strength=min(1.0, max(0.0, parse_float_ui_value(self.family_strength_var.get(), "作用强度", minimum=0.0))),
+            ring_width=max(.01, parse_float_ui_value(self.family_ring_width_var.get(), "环宽", minimum=0.0)),
+            invert=bool(self.family_ring_invert_var.get()),
+            field_angle=parse_float_ui_value(self.family_field_angle_var.get(), "场角度"),
+            wavelength=max(.01, parse_float_ui_value(self.family_wavelength_var.get(), "波长", minimum=0.0)),
+            phase=parse_float_ui_value(self.family_phase_var.get(), "相位"),
+            amplitude=min(1.0, max(0.0, parse_float_ui_value(self.family_amplitude_var.get(), "振幅", minimum=0.0))),
+            offset=min(1.0, max(0.0, parse_float_ui_value(self.family_offset_var.get(), "偏移", minimum=0.0))),
+            falloff=max(.01, parse_float_ui_value(self.family_falloff_var.get(), "衰减", minimum=0.0)),
+            duty_cycle=min(1.0, max(0.0, parse_float_ui_value(self.family_duty_cycle_var.get(), "占空比", minimum=0.0))),
+            smoothness=min(.5, max(0.0, parse_float_ui_value(self.family_smoothness_var.get(), "平滑度", minimum=0.0))),
+            cell_width=max(.01, parse_float_ui_value(self.family_cell_width_var.get(), "格宽", minimum=0.0)),
+            cell_height=max(.01, parse_float_ui_value(self.family_cell_height_var.get(), "格高", minimum=0.0)),
+            turns=max(0.0, parse_float_ui_value(self.family_turns_var.get(), "圈数", minimum=0.0)),
+            direction=1 if int(parse_float_ui_value(self.family_direction_var.get(), "方向")) >= 0 else -1,
+        )
+        rotation = RotationFieldModifier(
+            mode=RotationFieldMode(self.family_rotation_mode_var.get()),
+            angle=parse_float_ui_value(self.family_rotation_var.get(), "固定角度"),
+            center_x=size.center_x, center_y=size.center_y, strength=1.0,
+        )
+        return size, rotation
 
     def apply_family_fields(self) -> None:
         """Commit shared Size/Rotation fields for every structure source.
@@ -585,34 +779,7 @@ class PatternLabApp(tk.Tk):
         """
         def action() -> None:
             model = self.session.parametric_model
-            size = SizeFieldModifier(
-                mode=SizeFieldMode(self.family_size_mode_var.get()),
-                min_scale=parse_float_ui_value(self.family_min_scale_var.get(), "最小缩放", minimum=0.0),
-                max_scale=parse_float_ui_value(self.family_max_scale_var.get(), "最大缩放", minimum=0.0),
-                center_x=parse_float_ui_value(self.family_center_x_var.get(), "控制点 X"),
-                center_y=parse_float_ui_value(self.family_center_y_var.get(), "控制点 Y"),
-                radius=max(.01, parse_float_ui_value(self.family_radius_var.get(), "影响半径", minimum=0.0)),
-                strength=1.0,
-                ring_width=max(.01, parse_float_ui_value(self.family_ring_width_var.get(), "环宽", minimum=0.0)),
-                invert=bool(self.family_ring_invert_var.get()),
-                field_angle=parse_float_ui_value(self.family_field_angle_var.get(), "场角度"),
-                wavelength=max(.01, parse_float_ui_value(self.family_wavelength_var.get(), "波长", minimum=0.0)),
-                phase=parse_float_ui_value(self.family_phase_var.get(), "相位"),
-                amplitude=min(1.0, max(0.0, parse_float_ui_value(self.family_amplitude_var.get(), "振幅", minimum=0.0))),
-                offset=min(1.0, max(0.0, parse_float_ui_value(self.family_offset_var.get(), "偏移", minimum=0.0))),
-                falloff=max(.01, parse_float_ui_value(self.family_falloff_var.get(), "衰减", minimum=0.0)),
-                duty_cycle=min(1.0, max(0.0, parse_float_ui_value(self.family_duty_cycle_var.get(), "占空比", minimum=0.0))),
-                smoothness=min(.5, max(0.0, parse_float_ui_value(self.family_smoothness_var.get(), "平滑度", minimum=0.0))),
-                cell_width=max(.01, parse_float_ui_value(self.family_cell_width_var.get(), "格宽", minimum=0.0)),
-                cell_height=max(.01, parse_float_ui_value(self.family_cell_height_var.get(), "格高", minimum=0.0)),
-                turns=max(0.0, parse_float_ui_value(self.family_turns_var.get(), "圈数", minimum=0.0)),
-                direction=1 if int(parse_float_ui_value(self.family_direction_var.get(), "方向")) >= 0 else -1,
-            )
-            rotation = RotationFieldModifier(
-                mode=RotationFieldMode(self.family_rotation_mode_var.get()),
-                angle=parse_float_ui_value(self.family_rotation_var.get(), "固定角度"),
-                center_x=size.center_x, center_y=size.center_y, strength=1.0,
-            )
+            size, rotation = self._family_modifiers_from_controls()
             if self.session.pattern_mode is PatternMode.GRID:
                 # Keep Grid's own size gradient intact; this stack is an
                 # additive, source-independent effects layer.
@@ -889,7 +1056,7 @@ class PatternLabApp(tk.Tk):
             return
         self._closing = True
         for callback_id in (self._interaction_after, self._inspector_after, self._parameter_after,
-                            self._resize_after, self._performance_after):
+                            self._family_preview_after, self._resize_after, self._performance_after):
             if callback_id:
                 try:
                     self.after_cancel(callback_id)
