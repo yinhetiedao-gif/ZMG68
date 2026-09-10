@@ -15,18 +15,19 @@ GridParametricModel.
 from __future__ import annotations
 
 from copy import deepcopy
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 import hashlib
 import math
 from typing import Any, Iterable, Mapping, Sequence
 
-from ppg.foundation.models import Element, PatternDocument
+from ppg.foundation.models import ELEMENT_TYPES, Element, PatternDocument
 
 from .parametric import (
     CirclePrototype,
     ElementPrototype,
     EllipsePrototype,
     GridParametricModel,
+    PolygonPrototype,
     RectPrototype,
 )
 
@@ -162,6 +163,19 @@ class ShapePrototypeRegistry:
         registry.register("ellipse", EllipsePrototype())
         registry.register("square", RectPrototype(rx_ratio=0.0, ry_ratio=0.0))
         registry.register("rectangle", RectPrototype(rx_ratio=0.0, ry_ratio=0.0))
+        # Built-in paths use normalized local coordinates centred at (0, 0).
+        # They all flow through the existing generic FilledRegion renderer and
+        # SVG exporter; Canvas does not need a branch per named shape.
+        registry.register("diamond", _filled_polygon(
+            "M 0 -0.5 L 0.5 0 L 0 0.5 L -0.5 0 Z", "diamond",
+        ))
+        registry.register("triangle", _filled_polygon(
+            "M 0 -0.5 L 0.5 0.5 L -0.5 0.5 Z", "triangle",
+        ))
+        registry.register("star", _filled_polygon(_star_path(), "star"))
+        registry.register("line", _filled_polygon(
+            "M -0.5 -0.075 L 0.5 -0.075 L 0.5 0.075 L -0.5 0.075 Z", "line",
+        ))
         return registry
 
     def register(self, prototype_id: str, prototype: ElementPrototype) -> None:
@@ -369,6 +383,10 @@ class PlacementAssignmentState:
     replacement_map: ReplacementMap = field(default_factory=ReplacementMap)
     assignment: AssignmentSettings = field(default_factory=AssignmentSettings)
     random: RandomSettings = field(default_factory=RandomSettings)
+    # Durable audit/source snapshot used to restore the original shape after
+    # any number of evaluations or a Save/Load cycle.  It is never Canvas
+    # state and is absent in old payloads, which remain valid.
+    source_elements: list[dict[str, Any]] = field(default_factory=list)
     enabled: bool = False
 
     def to_dict(self) -> dict[str, Any]:
@@ -382,6 +400,7 @@ class PlacementAssignmentState:
             "shape_pool": list(self.assignment.shape_pool),
             "assignment_settings": assignment_payload,
             "random_settings": self.random.to_dict(),
+            "source_elements": deepcopy(self.source_elements),
         }
 
     @classmethod
@@ -401,8 +420,20 @@ class PlacementAssignmentState:
             replacement_map=ReplacementMap.from_dict(value.get("replacement_map")),
             assignment=AssignmentSettings.from_dict(assignment_payload),
             random=RandomSettings.from_dict(value.get("random_settings")),
+            source_elements=[deepcopy(dict(item)) for item in value.get("source_elements") or [] if isinstance(item, Mapping)],
             enabled=bool(value.get("enabled", False)),
         )
+
+    def set_source_elements(self, elements: Iterable[Element]) -> None:
+        self.source_elements = [asdict(element) for element in elements]
+
+    def source_snapshot(self) -> list[Element]:
+        result: list[Element] = []
+        for raw in self.source_elements:
+            values = deepcopy(dict(raw))
+            kind = str(values.pop("type"))
+            result.append(ELEMENT_TYPES[kind](**values))
+        return result
 
     def attach(self, document: PatternDocument) -> None:
         document.metadata[PLACEMENT_METADATA_KEY] = self.to_dict()
@@ -423,5 +454,31 @@ def default_circle_grid_state(model: GridParametricModel) -> PlacementAssignment
         replacement_map=ReplacementMap(),
         assignment=AssignmentSettings(strategy="manual"),
         random=RandomSettings(),
+        source_elements=[asdict(element) for element in source],
         enabled=False,
     )
+
+
+def _filled_polygon(path_data: str, name: str) -> PolygonPrototype:
+    """Create a normalized, renderer-independent built-in shape prototype."""
+
+    return PolygonPrototype(
+        path_data=path_data,
+        base_x=0.0,
+        base_y=0.0,
+        base_width=1.0,
+        base_height=1.0,
+        filled=True,
+        style={"fill": "#000000", "stroke": "none"},
+        metadata={"builtin_shape": name, "normalized_local_coordinates": True},
+    )
+
+
+def _star_path(points: int = 5, inner_radius: float = 0.22,
+               outer_radius: float = 0.5) -> str:
+    coordinates: list[tuple[float, float]] = []
+    for index in range(points * 2):
+        angle = -math.pi / 2.0 + index * math.pi / points
+        radius = outer_radius if index % 2 == 0 else inner_radius
+        coordinates.append((math.cos(angle) * radius, math.sin(angle) * radius))
+    return "M " + " L ".join("%.8g %.8g" % point for point in coordinates) + " Z"

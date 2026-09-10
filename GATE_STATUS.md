@@ -1,5 +1,16 @@
 # Gate 状态（2026-09-10）
 
+## Gate K — Shape Replacement / 形状替换（2026-09-10）
+
+- Status: PASS
+- ShapePrototype：circle、square、diamond、triangle、star、line；复杂形状统一输出闭合 FilledRegion。
+- PlacementSlot 继续负责位置、尺寸和旋转；ReplacementMap 只保存 `element_id → prototype_id`，不覆盖源 Element。
+- 原始 Element 快照随 Placement Assignment metadata 保存；恢复原形、Save/Load 和多次 Evaluate 后均可追溯。
+- Evaluate 顺序：结构源 → Shape Replacement → Size/Rotation/Position + Scope → Local Override → Final Geometry。
+- Element 编辑页提供中文形状下拉、应用替换、恢复原形；替换和恢复各产生一条 Undo。
+- Gate K + Placement/Gate J 定向回归 14/14 PASS；完整 unittest 177/177 PASS；固定图自检 6/6 PASS。
+- Gate L（多选/批量编辑）未开始。
+
 ## Gate J — Modifier Scope / 基础作用范围（2026-09-10）
 
 - Status: PASS

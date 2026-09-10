@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
@@ -22,6 +22,12 @@ from .parametric import (
 from .parametric_families import AlongCurveParametricModel, FreeParametricModel, ParametricModel, RadialParametricModel
 from .element_debug import ElementDebugRecord, ElementDebugSummary, element_debug_record, element_debug_summary
 from .evaluation import evaluate_pattern_document, materialize_evaluated_elements, serialize_elements
+from .placement_assignment import (
+    PLACEMENT_METADATA_KEY,
+    ImportedElementSlotProvider,
+    PlacementAssignmentState,
+    ShapePrototypeRegistry,
+)
 from .shared_modifiers import ModifierScope, SHARED_MODIFIER_METADATA_KEY, SharedModifierStack
 from .pattern_analyzer import AnalysisTolerance, GridAnalysisDebug, GridFitResult, MultiFamilyAnalysis, PatternAnalyzer
 from .recognition import MultiScaleDotRecognizer
@@ -240,6 +246,8 @@ class PatternLabSession:
         element = document.element(element_id)
         if self.has_parametric_model:
             self._mutate("移动", lambda: self._set_grid_element_geometry(element_id, x=float(x), y=float(y)))
+        elif self.active_placement_state() is not None:
+            self._mutate("移动", lambda: self._set_placement_slot_geometry(element_id, x=float(x), y=float(y)))
         else:
             self._mutate("移动", lambda: document.move_element(element_id, float(x) - element.x, float(y) - element.y))
 
@@ -247,6 +255,10 @@ class PatternLabSession:
         document = self.require_document()
         if self.has_parametric_model:
             self._mutate("缩放", lambda: self._set_grid_element_geometry(element_id, width=float(width), height=float(height)))
+        elif self.active_placement_state() is not None:
+            self._mutate("缩放", lambda: self._set_placement_slot_geometry(
+                element_id, width=float(width), height=float(height),
+            ))
         else:
             self._mutate("缩放", lambda: document.resize_element(element_id, float(width), float(height)))
 
@@ -272,6 +284,15 @@ class PatternLabSession:
             override.rotation_offset = interaction.current_rotation - base.rotation
             self.parametric_model.local_overrides[interaction.element_id] = override
             self._rebuild_parametric_document()
+        elif self.active_placement_state() is not None:
+            self._set_placement_slot_geometry(
+                interaction.element_id,
+                x=interaction.current_x,
+                y=interaction.current_y,
+                width=interaction.current_width,
+                height=interaction.current_height,
+                rotation=interaction.current_rotation,
+            )
         else:
             element = document.element(interaction.element_id)
             document.move_element(interaction.element_id, interaction.current_x - element.x, interaction.current_y - element.y)
@@ -314,6 +335,111 @@ class PatternLabSession:
     def debug_element(self, element_id: Optional[str] = None) -> Optional[ElementDebugRecord]:
         selected = element_id or self.selected_id
         return element_debug_record(self.require_document().element(selected)) if selected else None
+
+    def active_placement_state(self) -> PlacementAssignmentState | None:
+        raw = self.require_document().metadata.get(PLACEMENT_METADATA_KEY)
+        if not isinstance(raw, dict) or not bool(raw.get("enabled", False)):
+            return None
+        return PlacementAssignmentState.from_dict(raw)
+
+    def _replacement_source(self) -> list:
+        """Return canonical pre-replacement geometry, never Canvas output."""
+
+        state = PlacementAssignmentState.from_document(self.require_document())
+        if state.source_elements:
+            return state.source_snapshot()
+        if self.parametric_model is not None:
+            return self.parametric_model.generate()
+        shared = SharedModifierStack.from_document(self.require_document())
+        if shared is not None and shared.source_elements:
+            return shared.source_snapshot()
+        return deepcopy(self.require_document().elements)
+
+    def _placement_state_for_edit(self) -> PlacementAssignmentState:
+        document = self.require_document()
+        state = PlacementAssignmentState.from_document(document)
+        source = self._replacement_source()
+        if not state.source_elements:
+            state.set_source_elements(source)
+        if not state.slots:
+            state.slots = ImportedElementSlotProvider.from_elements(source)
+        if not state.prototypes.ids():
+            state.prototypes = ShapePrototypeRegistry.with_builtins()
+        state.enabled = True
+        return state
+
+    def replace_selected_shape(self, prototype_id: str) -> None:
+        """Replace exactly one selected slot while preserving source geometry."""
+
+        identifiers = list(self.selected_ids or ([self.selected_id] if self.selected_id else []))
+        if len(identifiers) != 1:
+            raise RuntimeError("Gate K 请先只选择一个 Element 进行形状替换。")
+        element_id = identifiers[0]
+
+        def action() -> None:
+            state = self._placement_state_for_edit()
+            if prototype_id not in state.prototypes.ids():
+                raise ValueError("不支持的替换形状：%s" % prototype_id)
+            if not any(slot.slot_id == element_id or slot.source_element_id == element_id for slot in state.slots):
+                raise KeyError("找不到形状替换 Slot：%s" % element_id)
+            state.replacement_map.set(element_id, prototype_id)
+            state.attach(self.require_document())
+            materialize_evaluated_elements(self.require_document())
+
+        self._mutate("替换形状", action)
+        self.log("替换形状 %s → %s" % (element_id, prototype_id))
+
+    def restore_selected_shape(self) -> None:
+        """Remove one replacement mapping; no raster/vector re-analysis."""
+
+        identifiers = list(self.selected_ids or ([self.selected_id] if self.selected_id else []))
+        if len(identifiers) != 1:
+            raise RuntimeError("Gate K 请先只选择一个 Element 恢复原形。")
+        element_id = identifiers[0]
+
+        def action() -> None:
+            state = self.active_placement_state()
+            if state is None:
+                return
+            state.replacement_map.remove(element_id)
+            state.attach(self.require_document())
+            materialize_evaluated_elements(self.require_document())
+
+        self._mutate("恢复原始形状", action)
+        self.log("恢复原始形状：%s" % element_id)
+
+    def replacement_for(self, element_id: str) -> str | None:
+        state = self.active_placement_state()
+        return state.replacement_map.values.get(str(element_id)) if state is not None else None
+
+    def _set_placement_slot_geometry(
+        self, element_id: str, *, x: float | None = None, y: float | None = None,
+        width: float | None = None, height: float | None = None,
+        rotation: float | None = None, rebuild: bool = True,
+    ) -> None:
+        state = self.active_placement_state()
+        if state is None:
+            raise RuntimeError("当前没有启用形状替换。")
+        found = False
+        updated = []
+        for slot in state.slots:
+            if slot.slot_id == element_id or slot.source_element_id == element_id:
+                slot = replace(
+                    slot,
+                    center_x=slot.center_x if x is None else float(x),
+                    center_y=slot.center_y if y is None else float(y),
+                    width=slot.width if width is None else max(0.01, float(width)),
+                    height=slot.height if height is None else max(0.01, float(height)),
+                    rotation=slot.rotation if rotation is None else float(rotation),
+                )
+                found = True
+            updated.append(slot)
+        if not found:
+            raise KeyError("形状替换中找不到 Element：%s" % element_id)
+        state.slots = updated
+        state.attach(self.require_document())
+        if rebuild:
+            materialize_evaluated_elements(self.require_document())
 
     def activate_grid(self, model: GridParametricModel) -> None:
         self.activate_parametric(PatternMode.GRID, model, "转换为规则矩阵")
@@ -573,6 +699,16 @@ class PatternLabSession:
                     self._set_grid_element_geometry(identifier, x=selected.x + float(dx), y=selected.y + float(dy), rebuild=False)
                 self._rebuild_parametric_document()
             self._mutate("移动", action)
+        elif self.active_placement_state() is not None:
+            selected_ids = list(self.selected_ids or [self.selected_id])
+            def action() -> None:
+                for identifier in selected_ids:
+                    selected = document.element(identifier)
+                    self._set_placement_slot_geometry(
+                        identifier, x=selected.x + float(dx), y=selected.y + float(dy), rebuild=False,
+                    )
+                materialize_evaluated_elements(document)
+            self._mutate("移动", action)
         else:
             selected_ids = list(self.selected_ids or [self.selected_id])
             self._mutate("移动", lambda: [document.move_element(identifier, float(dx), float(dy)) for identifier in selected_ids])
@@ -597,6 +733,22 @@ class PatternLabSession:
                     current = document.element(identifier)
                     self._set_grid_element_geometry(identifier, width=current.width * scale_x, height=current.height * scale_y, rebuild=False)
                 self._rebuild_parametric_document()
+            elif self.active_placement_state() is not None:
+                selected_ids = list(self.selected_ids or [self.selected_id])
+                primary = document.element(self.selected_id)
+                target_width = float(width)
+                target_height = float(height if height is not None else width)
+                scale_x = target_width / max(primary.width, 0.01)
+                scale_y = target_height / max(primary.height, 0.01)
+                for identifier in selected_ids:
+                    current = document.element(identifier)
+                    self._set_placement_slot_geometry(
+                        identifier,
+                        width=current.width * scale_x,
+                        height=current.height * scale_y,
+                        rebuild=False,
+                    )
+                materialize_evaluated_elements(document)
             else:
                 document.resize_element(self.selected_id, width, height)
         self._mutate("缩放", action)
@@ -674,6 +826,18 @@ class PatternLabSession:
                     current = document.element(identifier)
                     self._set_grid_element_geometry(identifier, rotation=current.rotation + delta, rebuild=False)
                 self._rebuild_parametric_document()
+            self._mutate("旋转", action)
+        elif self.active_placement_state() is not None:
+            selected_ids = list(self.selected_ids or [self.selected_id])
+            primary = document.element(self.selected_id)
+            delta = float(rotation) - primary.rotation
+            def action() -> None:
+                for identifier in selected_ids:
+                    current = document.element(identifier)
+                    self._set_placement_slot_geometry(
+                        identifier, rotation=current.rotation + delta, rebuild=False,
+                    )
+                materialize_evaluated_elements(document)
             self._mutate("旋转", action)
         else:
             selected_ids = list(self.selected_ids or [self.selected_id])
@@ -761,7 +925,8 @@ class PatternLabSession:
             # Do not trust a stale materialized Element list from disk.  The
             # model, modifiers and overrides are the authoritative state.
             self._rebuild_parametric_document()
-        elif SharedModifierStack.from_document(self.document) is not None:
+        elif (SharedModifierStack.from_document(self.document) is not None
+              or self.active_placement_state() is not None):
             materialize_evaluated_elements(self.document)
         self.selected_id = None; self.selected_ids.clear()
         self.editable_svg_path = self.workspace / (Path(path).stem + ".svg")
@@ -778,7 +943,10 @@ class PatternLabSession:
         """Evaluate active family → Modifiers → Overrides into Elements."""
 
         if self.parametric_model is None:
-            if self.document is not None and SharedModifierStack.from_document(self.document) is not None:
+            if self.document is not None and (
+                SharedModifierStack.from_document(self.document) is not None
+                or self.active_placement_state() is not None
+            ):
                 materialize_evaluated_elements(self.document)
             return
         document = self.require_document()

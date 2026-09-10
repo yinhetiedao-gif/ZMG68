@@ -1,5 +1,14 @@
 # Nightly Shared Field Report
 
+## Gate K — 非破坏式形状替换（2026-09-10）
+
+- 目标：让单个槽位更换视觉形状，同时保留原始几何、稳定 ID、现有效果堆栈和可逆编辑。
+- 实现：扩展既有 ShapePrototypeRegistry 与 ReplacementMap；新增原始 Element 持久快照，避免重复物化或保存重开后无法恢复。
+- 形状：圆形、正方形、菱形、三角形、星形、线形；Path 形状使用通用 FilledRegion Canvas/SVG 链路。
+- 组合：Replacement 在共享 Size/Rotation/Position/Scope 之前执行；Grid 行列、间距变化后按稳定 cell ID 继续应用。
+- UI：Element 编辑页增加中文形状选择、应用替换、恢复原形和当前替换状态。
+- 验证：Gate K + Placement/Gate J 定向回归 14/14 PASS；完整 unittest 177/177 PASS；固定图 self-test 6/6 PASS。
+
 ## Gate J — Modifier Scope / 基础作用范围（2026-09-10）
 
 - 根因：效果层只能全局作用；既有 Grid Mask 的语义是控制可见性，若复用会错误隐藏未命中元素。

@@ -16,7 +16,11 @@ from ppg.foundation.models import Element, PatternDocument
 
 from .parametric import PARAMETRIC_METADATA_KEY, GridParametricModel, PatternMode
 from .parametric_families import parametric_model_from_payload
-from .placement_assignment import AssignmentEngine, PlacementAssignmentState
+from .placement_assignment import (
+    AssignmentEngine,
+    ImportedElementSlotProvider,
+    PlacementAssignmentState,
+)
 from .shared_modifiers import SharedModifierStack
 from .shared_fields import SharedFieldEngine
 
@@ -89,18 +93,30 @@ def evaluate_pattern_document(document: PatternDocument) -> list[Element]:
     # not carry this metadata and therefore follow the exact legacy path.
     placement_raw = document.metadata.get("xiaomang_pattern_lab.placement_assignment")
     shared_modifiers = SharedModifierStack.from_document(document)
+    model = parametric_model_from_document(document)
     if isinstance(placement_raw, dict) and bool(placement_raw.get("enabled", False)):
         state = PlacementAssignmentState.from_dict(placement_raw)
-        source = shared_modifiers.source_snapshot() if shared_modifiers and shared_modifiers.source_elements else document.elements
+        if model is not None:
+            # Structure changes (for example Grid rows/spacing) must rebuild
+            # their slots before replacement; shape assignment never freezes
+            # an old generated layout.
+            source = model.generate()
+            slots = ImportedElementSlotProvider.from_elements(source)
+        else:
+            source = (
+                state.source_snapshot() if state.source_elements
+                else shared_modifiers.source_snapshot() if shared_modifiers and shared_modifiers.source_elements
+                else document.elements
+            )
+            slots = state.slots or ImportedElementSlotProvider.from_elements(source)
         evaluated = AssignmentEngine(state.prototypes).evaluate(
-            state.slots,
+            slots,
             source,
             replacement_map=state.replacement_map,
             assignment=state.assignment,
             random_settings=state.random,
         )
         return _evaluate_shared_layers(document, evaluated, shared_modifiers)
-    model = parametric_model_from_document(document)
     if model is None:
         source = shared_modifiers.source_snapshot() if shared_modifiers and shared_modifiers.source_elements else document.elements
         return _evaluate_shared_layers(document, source, shared_modifiers)

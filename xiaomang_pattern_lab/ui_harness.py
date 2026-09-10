@@ -87,6 +87,16 @@ SCOPE_MODE_FIELDS = {
     ModifierScopeMode.RECTANGLE.value: ("center_x", "center_y", "width", "height"),
 }
 
+SHAPE_PROTOTYPE_LABELS = {
+    "circle": "圆形",
+    "square": "正方形",
+    "diamond": "菱形",
+    "triangle": "三角形",
+    "star": "星形",
+    "line": "线",
+}
+SHAPE_LABEL_TO_PROTOTYPE = {label: identifier for identifier, label in SHAPE_PROTOTYPE_LABELS.items()}
+
 
 def parse_int_ui_value(value: object, name: str, *, minimum: int = 1) -> int:
     """Parse an integer Tk value without silently truncating bad input."""
@@ -208,6 +218,8 @@ class PatternLabApp(tk.Tk):
         self.scope_width_var = tk.StringVar(value="100")
         self.scope_height_var = tk.StringVar(value="100")
         self._scope_selection_text = tk.StringVar(value="当前效果作用于全部元素。")
+        self.shape_replacement_display_var = tk.StringVar(value=SHAPE_PROTOTYPE_LABELS["circle"])
+        self._current_shape_text = tk.StringVar(value="当前形状：请先选择一个 Element。")
         self.family_size_display_var = tk.StringVar(value=field_label(SizeFieldMode.CONSTANT.value))
         self.family_rotation_display_var = tk.StringVar(value=rotation_label(RotationFieldMode.CONSTANT.value))
         self._family_description_var = tk.StringVar(value=field_description(SizeFieldMode.CONSTANT.value))
@@ -278,6 +290,24 @@ class PatternLabApp(tk.Tk):
         ttk.Button(element_tab, text="应用位置", command=self.apply_position).pack(fill="x", pady=(10, 3))
         ttk.Button(element_tab, text="应用尺寸", command=self.apply_size).pack(fill="x", pady=3)
         ttk.Button(element_tab, text="应用旋转", command=self.apply_rotation).pack(fill="x", pady=3)
+        shape_box = ttk.LabelFrame(element_tab, text="形状替换", padding=6)
+        shape_box.pack(fill="x", pady=(12, 3))
+        ttk.Label(shape_box, textvariable=self._current_shape_text, foreground="#44515e",
+                  wraplength=235).pack(anchor="w", pady=(0, 4))
+        ttk.Label(shape_box, text="替换为：").pack(anchor="w")
+        ttk.Combobox(
+            shape_box,
+            state="readonly",
+            values=tuple(SHAPE_PROTOTYPE_LABELS.values()),
+            textvariable=self.shape_replacement_display_var,
+        ).pack(fill="x", pady=(2, 5))
+        shape_actions = ttk.Frame(shape_box); shape_actions.pack(fill="x")
+        ttk.Button(shape_actions, text="应用替换", command=self.apply_shape_replacement).pack(
+            side="left", fill="x", expand=True,
+        )
+        ttk.Button(shape_actions, text="恢复原形", command=self.restore_shape).pack(
+            side="left", fill="x", expand=True, padx=(4, 0),
+        )
         ttk.Button(element_tab, text="复制选中元素", command=self.duplicate).pack(fill="x", pady=(12, 3))
         ttk.Button(element_tab, text="删除选中元素", command=self.delete).pack(fill="x", pady=3)
         ttk.Button(element_tab, text="布尔并集", command=self.union_selected).pack(fill="x", pady=(12, 3))
@@ -1451,6 +1481,11 @@ class PatternLabApp(tk.Tk):
         self._handle(lambda: (self.session.resize_selected(parse_float_ui_value(self.width_var.get(), "宽度", minimum=0.01), parse_float_ui_value(self.height_var.get(), "高度", minimum=0.01)), self._after_document_change()))
     def apply_rotation(self) -> None:
         self._handle(lambda: (self.session.rotate_selected(parse_float_ui_value(self.rotation_var.get(), "旋转")), self._after_document_change()))
+    def apply_shape_replacement(self) -> None:
+        prototype_id = SHAPE_LABEL_TO_PROTOTYPE.get(self.shape_replacement_display_var.get(), "circle")
+        self._handle(lambda: (self.session.replace_selected_shape(prototype_id), self._after_document_change()))
+    def restore_shape(self) -> None:
+        self._handle(lambda: (self.session.restore_selected_shape(), self._after_document_change()))
     def duplicate(self) -> None: self._handle(lambda: (self.session.duplicate_selected(), self._after_document_change()))
     def delete(self) -> None: self._handle(lambda: (self.session.delete_selected(), self._after_document_change()))
     def union_selected(self) -> None: self._handle(lambda: (self.session.union_selected(), self._after_document_change()))
@@ -1481,6 +1516,7 @@ class PatternLabApp(tk.Tk):
         self.metrics.inspector_refreshes += 1; document, selected = self.session.document, self.session.selected_id
         if not document or not selected:
             self.selection.set("未选择")
+            self._current_shape_text.set("当前形状：请先选择一个 Element。")
             for variable in (self.x_var, self.y_var, self.width_var, self.height_var, self.rotation_var): variable.set("")
             return
         element = document.element(selected)
@@ -1488,6 +1524,10 @@ class PatternLabApp(tk.Tk):
         else: x, y, width, height = element.x, element.y, element.width, element.height
         prefix = "%d 个元素；主选：" % len(self.session.selected_ids) if len(self.session.selected_ids) > 1 else ""
         self.selection.set("%s%s  (%s)" % (prefix, element.id, element.type)); self.x_var.set("%.4g" % x); self.y_var.set("%.4g" % y); self.width_var.set("%.4g" % width); self.height_var.set("%.4g" % height); self.rotation_var.set("%.4g" % element.rotation)
+        replacement = self.session.replacement_for(selected)
+        self._current_shape_text.set(
+            "当前形状：%s" % (SHAPE_PROTOTYPE_LABELS.get(replacement, replacement) if replacement else "原始")
+        )
     def refresh_log(self) -> None:
         self.log.configure(state="normal"); self.log.delete("1.0", "end"); self.log.insert("end", "\n".join("[%s] %s: %s" % (entry.timestamp, entry.level, entry.message) for entry in self.session.logs)); self.log.see("end"); self.log.configure(state="disabled")
 

@@ -1,5 +1,25 @@
 # 更新记录
 
+## 1.6.37 — Gate K：非破坏式形状替换（2026-09-10）
+
+### Added
+
+- 新增单元素形状替换，内置圆形、正方形、菱形、三角形、星形和线形；所有形状按现有 PlacementSlot 边界自动适配。
+- 替换关系保存于 PatternDocument 的 Placement Assignment metadata；原始 Element 快照保持不变，恢复原形只删除对应映射。
+- 形状替换位于结构生成之后、Size/Rotation/Position/Scope 等共享效果层之前，Grid 参数变化后仍保留稳定 ID 对应的替换。
+- Element 编辑页增加中文形状选择、应用替换、恢复原形和当前形状状态。
+
+### Compatibility
+
+- 旧项目没有 ReplacementMap 或 source snapshot 时继续按原始形状加载。
+- 星形、菱形、三角形和线形复用通用 FilledRegion 渲染与 SVG Path 导出，不增加 Canvas 专用分支。
+
+### Verification
+
+- Gate K 与 Placement/Gate J 定向回归：14/14 PASS。
+- 完整 unittest：177/177 PASS。
+- Pattern Lab 固定测试图自检：6/6 PASS。
+
 ## 1.6.36 — Gate J：Modifier Scope / 基础作用范围（2026-09-10）
 
 ### Added
