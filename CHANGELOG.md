@@ -11,7 +11,7 @@
 
 ### Verification
 
-- Tk 界面回归：5/5 PASS。
+- Tk 界面回归：5/5 PASS（含 768/900/1080 高度）。
 - 全量 unittest：164/164 PASS，0 skip。
 
 ## 1.6.31 — Shared Field Gate G：中文参数面板与兼容性审计（2026-09-10）

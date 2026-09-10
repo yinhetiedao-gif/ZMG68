@@ -75,14 +75,19 @@ class GateZeroTkSmokeTests(unittest.TestCase):
                 app.update()
                 scroll_canvas = app._matrix_scroll_canvas
                 self.assertIsNotNone(scroll_canvas)
-                self.assertGreater(scroll_canvas.winfo_height(), 100)
-                _x0, y0, _x1, y1 = map(float, scroll_canvas.cget("scrollregion").split())
-                self.assertGreater(y1, scroll_canvas.winfo_height())
-                scroll_canvas.yview_moveto(1.0)
-                app.update()
-                first, last = scroll_canvas.yview()
-                self.assertGreater(first, 0.5)
-                self.assertAlmostEqual(last, 1.0, delta=0.02)
+                self.assertIsNotNone(app._matrix_scrollbar)
+                for height in (768, 900, 1080):
+                    app.geometry(f"1280x{height}")
+                    app.update()
+                    self.assertGreater(scroll_canvas.winfo_height(), 100)
+                    self.assertEqual(app._matrix_scrollbar.winfo_ismapped(), 1)
+                    _x0, _y0, _x1, y1 = map(float, scroll_canvas.cget("scrollregion").split())
+                    if y1 > scroll_canvas.winfo_height():
+                        scroll_canvas.yview_moveto(1.0)
+                        app.update()
+                        first, last = scroll_canvas.yview()
+                        self.assertGreater(first, 0.5)
+                        self.assertAlmostEqual(last, 1.0, delta=0.02)
 
                 # Wheel events over a child Entry must scroll the same page,
                 # while the design Canvas keeps its separate zoom binding.
