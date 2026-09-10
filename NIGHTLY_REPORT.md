@@ -1,5 +1,12 @@
 # Nightly Shared Field Report
 
+## Gate H — 可组合 Modifier Stack（2026-09-10）
+
+- 根因：现有共享效果虽然按 Size/Rotation 分离，但没有用户可管理的有序层列表。
+- 修复：新增显式 `modifiers` 层记录和最小管理面板；每层可启停、复制、删除、上下移、重置。
+- 安全性：新列表存在时清空兼容 graph，统一由 Stack 从 source snapshot 派生；未启用新列表的旧项目路径不变。
+- 验证：Gate H 2/2 PASS；共享 Field/Canvas/滚动面板专项 PASS。
+
 ## Gate G follow-up — 参数面板滚动修复（2026-09-10）
 
 - 根因：矩阵页此前只有底部表单有局部滚动，顶部共享参数场和旋转场不在同一滚动区域，短窗口下后续控件被裁切。

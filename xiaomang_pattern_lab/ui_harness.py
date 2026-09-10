@@ -144,6 +144,7 @@ class PatternLabApp(tk.Tk):
         self._family_rotation_frame: ttk.Frame | None = None
         self._matrix_scroll_canvas: tk.Canvas | None = None
         self._matrix_scrollbar: ttk.Scrollbar | None = None
+        self._modifier_stack_list: tk.Listbox | None = None
         self._family_preview_after: str | None = None
         self._family_controls_ready = False
         self.grid_vars: dict[str, tk.StringVar] = {}
@@ -266,6 +267,7 @@ class PatternLabApp(tk.Tk):
         ttk.Button(fields, text="应用共享参数场", command=self.apply_family_fields).grid(row=8, column=0, columnspan=2, sticky="ew", pady=(3, 0))
         self._build_family_field_panel()
         self._family_controls_ready = True
+        self._build_modifier_stack_panel(parent)
         tolerance_row = ttk.Frame(parent); tolerance_row.pack(fill="x", pady=(0, 5))
         ttk.Label(tolerance_row, text="分析容差", width=9).pack(side="left")
         tolerance_combo = ttk.Combobox(tolerance_row, state="readonly", textvariable=self.analysis_tolerance_var,
@@ -316,6 +318,87 @@ class PatternLabApp(tk.Tk):
         self._add_grid_number(form, "mask_height", "矩形高度 (mm)", 0.1, 500, 0.1, "100")
         self._add_grid_number(form, "mask_radius", "圆形半径 (mm)", 0.1, 500, 0.1, "50")
         ttk.Label(form, text="滑块拖动仅预览；松开后一次提交。", foreground="#56616f", wraplength=245).pack(anchor="w", pady=(8, 2))
+
+    def _build_modifier_stack_panel(self, parent: ttk.Frame) -> None:
+        panel = ttk.LabelFrame(parent, text="效果堆栈（可组合）", padding=5)
+        panel.pack(fill="x", pady=(0, 6))
+        self._modifier_stack_list = tk.Listbox(panel, height=4, exportselection=False,
+                                               activestyle="dotbox", relief="solid", borderwidth=1)
+        self._modifier_stack_list.pack(fill="x", pady=(0, 4))
+        self._modifier_stack_list.bind("<<ListboxSelect>>", lambda _event: None)
+        add_row = ttk.Frame(panel); add_row.pack(fill="x", pady=(0, 3))
+        ttk.Button(add_row, text="添加尺寸层", command=lambda: self._add_current_stack_layer("size")).pack(side="left", fill="x", expand=True)
+        ttk.Button(add_row, text="添加旋转层", command=lambda: self._add_current_stack_layer("rotation")).pack(side="left", fill="x", expand=True, padx=(3, 0))
+        action_row = ttk.Frame(panel); action_row.pack(fill="x")
+        for label, callback in (("启用/停用", self._toggle_stack_layer), ("↑", lambda: self._move_stack_layer(-1)),
+                                ("↓", lambda: self._move_stack_layer(1)), ("复制", self._duplicate_stack_layer),
+                                ("删除", self._delete_stack_layer), ("重置", self._reset_stack_layer)):
+            ttk.Button(action_row, text=label, command=callback, width=7).pack(side="left", padx=(0, 2))
+        ttk.Label(panel, text="每层独立保存；调整顺序不会修改 source geometry。", foreground="#56616f",
+                  wraplength=245).pack(anchor="w", pady=(4, 0))
+
+    def _stack_from_document(self) -> SharedModifierStack | None:
+        document = self.session.document
+        if document is None:
+            return None
+        stack = SharedModifierStack.from_document(document)
+        return stack if stack is not None and stack.modifiers else None
+
+    def _refresh_modifier_stack(self) -> None:
+        if self._modifier_stack_list is None:
+            return
+        self._modifier_stack_list.delete(0, "end")
+        stack = self._stack_from_document()
+        if stack is None:
+            self._modifier_stack_list.insert("end", "暂无独立效果层（可从上方参数添加）")
+            return
+        labels = {"size": "尺寸", "rotation": "旋转"}
+        for item in stack.modifiers:
+            state = "启用" if bool(item.get("enabled", True)) else "停用"
+            self._modifier_stack_list.insert("end", "%s  %s → %s" % (state, item.get("id", "modifier"), labels.get(item.get("type"), item.get("type"))))
+
+    def _selected_stack_index(self) -> int | None:
+        if self._modifier_stack_list is None:
+            return None
+        selected = self._modifier_stack_list.curselection()
+        if not selected or self._stack_from_document() is None:
+            return None
+        return int(selected[0])
+
+    def _add_current_stack_layer(self, modifier_type: str) -> None:
+        def action() -> None:
+            size, rotation = self._family_modifiers_from_controls()
+            parameters = size.to_dict() if modifier_type == "size" else rotation.to_dict()
+            self.session.add_modifier_layer(modifier_type, parameters)
+            self._after_document_change()
+        self._handle(action)
+
+    def _toggle_stack_layer(self) -> None:
+        index = self._selected_stack_index()
+        stack = self._stack_from_document()
+        if index is None or stack is None:
+            return
+        self._handle(lambda: (self.session.set_modifier_enabled(index, not bool(stack.modifiers[index].get("enabled", True))), self._after_document_change()))
+
+    def _move_stack_layer(self, delta: int) -> None:
+        index = self._selected_stack_index()
+        if index is not None:
+            self._handle(lambda: (self.session.move_modifier_layer(index, delta), self._after_document_change()))
+
+    def _duplicate_stack_layer(self) -> None:
+        index = self._selected_stack_index()
+        if index is not None:
+            self._handle(lambda: (self.session.duplicate_modifier_layer(index), self._after_document_change()))
+
+    def _delete_stack_layer(self) -> None:
+        index = self._selected_stack_index()
+        if index is not None:
+            self._handle(lambda: (self.session.delete_modifier_layer(index), self._after_document_change()))
+
+    def _reset_stack_layer(self) -> None:
+        index = self._selected_stack_index()
+        if index is not None:
+            self._handle(lambda: (self.session.reset_modifier_layer(index), self._after_document_change()))
 
     def _route_matrix_mousewheel(self, event: tk.Event):
         """Scroll the matrix page when the pointer is over any child control."""
@@ -922,7 +1005,7 @@ class PatternLabApp(tk.Tk):
         if self.session.grid_model: self._load_grid_controls(self.session.grid_model)
         elif self.session.parametric_model is not None: self._load_family_field_controls(self.session.parametric_model)
         self.refresh_all()
-    def refresh_all(self) -> None: self.refresh_fields(force=True); self.refresh_element_debug(); self.refresh_log(); self.refresh_canvas()
+    def refresh_all(self) -> None: self.refresh_fields(force=True); self.refresh_element_debug(); self.refresh_log(); self._refresh_modifier_stack(); self.refresh_canvas()
     def refresh_fields(self, *, force: bool = False) -> None:
         self.metrics.inspector_refreshes += 1; document, selected = self.session.document, self.session.selected_id
         if not document or not selected:

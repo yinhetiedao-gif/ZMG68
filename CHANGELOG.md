@@ -1,5 +1,18 @@
 # 更新记录
 
+## 1.6.33 — Gate H：可组合效果堆栈（2026-09-10）
+
+### Added
+
+- 新增有序 Size/Rotation Modifier Stack；每层支持启用/停用、上移、下移、复制、删除和重置。
+- 堆栈从 source geometry 重新评估，支持 Wave → Size + Spiral → Rotation 等组合，保存/重开保留顺序与状态。
+- 左侧参数页增加最小堆栈管理面板；现有单层 Field 控件和旧项目兼容层保持不变。
+
+### Verification
+
+- Gate H 定向测试：2/2 PASS。
+- 既有共享 Field、Canvas 和滚动面板回归保持通过。
+
 ## 1.6.32 — 参数面板统一滚动修复（2026-09-10）
 
 ### Fixed

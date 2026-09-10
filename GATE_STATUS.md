@@ -1,5 +1,13 @@
 # Gate 状态（2026-09-10）
 
+## Gate H — 可组合 Modifier Stack（2026-09-10）
+
+- Status: PASS（核心与 UI 管理面板已接入）
+- `SharedModifierStack.modifiers` 提供稳定的有序 Size/Rotation 层；旧 `size_field/rotation_field` 兼容路径继续保留。
+- 每层支持启用/停用、复制、删除、上下移动、重置；Evaluate 始终从 source snapshot 派生，不写回 source。
+- Save/Load 保留层顺序、enabled 状态和参数；旧文档没有新列表时按原兼容逻辑加载。
+- Gate H 定向测试 2/2 PASS；已有 UI/共享 Field 回归 PASS。
+
 ## Gate G follow-up — 参数面板滚动修复（2026-09-10）
 
 - Status: PASS

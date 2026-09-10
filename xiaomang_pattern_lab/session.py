@@ -409,6 +409,70 @@ class PatternLabSession:
 
         self._mutate("停用共享参数化效果", action)
 
+    def _stack_for_edit(self) -> SharedModifierStack:
+        """Return an explicit Gate-H stack without changing source geometry."""
+        document = self.require_document()
+        current = SharedModifierStack.from_document(document)
+        if current is not None and current.modifiers:
+            return current
+        source = (deepcopy(current.source_elements) if current and current.source_elements
+                  else serialize_elements(document.elements))
+        stack = SharedModifierStack(
+            source_kind=current.source_kind if current else "imported_elements",
+            source_elements=source,
+        )
+        # Migrate the two legacy compatibility controls only when they carry a
+        # visible effect.  This keeps old documents byte-compatible until a
+        # user explicitly edits the new stack.
+        if current is not None:
+            size = current.size_field
+            if size.mode.value != "constant" or abs(size.min_scale - 1.0) > 1e-9 or abs(size.max_scale - 1.0) > 1e-9:
+                stack.add_modifier("size", size.to_dict(), modifier_id="legacy-size")
+            rotation = current.rotation_field
+            if rotation.mode.value != "constant" or abs(rotation.angle) > 1e-9:
+                stack.add_modifier("rotation", rotation.to_dict(), modifier_id="legacy-rotation")
+        return stack
+
+    def add_modifier_layer(self, modifier_type: str, parameters: dict[str, object], *, modifier_id: str | None = None) -> str:
+        """Add one ordered Size/Rotation layer as a single Undo command."""
+        result: list[str] = []
+
+        def action() -> None:
+            stack = self._stack_for_edit()
+            result.append(stack.add_modifier(modifier_type, parameters, modifier_id=modifier_id))
+            stack.attach(self.require_document(), source_kind=stack.source_kind)
+            materialize_evaluated_elements(self.require_document())
+
+        self._mutate("添加效果层", action)
+        return result[0]
+
+    def _edit_modifier_stack(self, label: str, operation) -> None:
+        def action() -> None:
+            stack = self._stack_for_edit()
+            operation(stack)
+            stack.attach(self.require_document(), source_kind=stack.source_kind)
+            materialize_evaluated_elements(self.require_document())
+        self._mutate(label, action)
+
+    def set_modifier_enabled(self, index: int, enabled: bool) -> None:
+        self._edit_modifier_stack("切换效果层", lambda stack: stack.set_enabled(index, enabled))
+
+    def delete_modifier_layer(self, index: int) -> None:
+        self._edit_modifier_stack("删除效果层", lambda stack: stack.delete_modifier(index))
+
+    def duplicate_modifier_layer(self, index: int) -> str:
+        result: list[str] = []
+        self._edit_modifier_stack("复制效果层", lambda stack: result.append(stack.duplicate_modifier(index)))
+        return result[0]
+
+    def move_modifier_layer(self, index: int, delta: int) -> int:
+        result: list[int] = []
+        self._edit_modifier_stack("调整效果层顺序", lambda stack: result.append(stack.move_modifier(index, delta)))
+        return result[0]
+
+    def reset_modifier_layer(self, index: int) -> None:
+        self._edit_modifier_stack("重置效果层", lambda stack: stack.reset_modifier(index))
+
     def deactivate_grid(self) -> None:
         """Compatibility name for the explicit non-destructive bake action."""
 
