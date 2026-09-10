@@ -25,7 +25,13 @@ from .faithful_mapping import ConversionMode, FaithfulMappingAdapter
 from .interaction import InteractionState
 from .parametric import GridParametricModel, MaskMode, MaskModifier, PatternMode, SizeGradientMode, SizeGradientModifier
 from .parametric_families import RotationFieldMode, RotationFieldModifier, SizeFieldMode, SizeFieldModifier
-from .shared_modifiers import POSITION_MODES, PositionModifier, SharedModifierStack
+from .shared_modifiers import (
+    POSITION_MODES,
+    ModifierScope,
+    ModifierScopeMode,
+    PositionModifier,
+    SharedModifierStack,
+)
 from .pattern_analyzer import AnalysisTolerance
 from .performance import PerformanceMetrics
 from .field_ui import (
@@ -65,6 +71,20 @@ POSITION_MODE_FIELDS = {
     # visible sine parameters, so those controls remain explicit rather than
     # hiding active model state from the user.
     "wave": ("angle", "wavelength", "phase", "amount", "center_x", "center_y", "strength", "radius", "falloff"),
+}
+
+SCOPE_MODE_LABELS = {
+    ModifierScopeMode.ALL.value: "全部元素",
+    ModifierScopeMode.SELECTED.value: "当前选择",
+    ModifierScopeMode.CIRCLE.value: "圆形区域",
+    ModifierScopeMode.RECTANGLE.value: "矩形区域",
+}
+SCOPE_LABEL_TO_MODE = {label: mode for mode, label in SCOPE_MODE_LABELS.items()}
+SCOPE_MODE_FIELDS = {
+    ModifierScopeMode.ALL.value: (),
+    ModifierScopeMode.SELECTED.value: (),
+    ModifierScopeMode.CIRCLE.value: ("center_x", "center_y", "radius"),
+    ModifierScopeMode.RECTANGLE.value: ("center_x", "center_y", "width", "height"),
 }
 
 
@@ -180,6 +200,14 @@ class PatternLabApp(tk.Tk):
         self.position_strength_var = tk.StringVar(value="100")
         self.position_falloff_var = tk.StringVar(value="20")
         self._position_description_var = tk.StringVar(value=POSITION_MODE_DESCRIPTIONS["offset"])
+        self.scope_mode_display_var = tk.StringVar(value=SCOPE_MODE_LABELS[ModifierScopeMode.ALL.value])
+        self.scope_invert_var = tk.BooleanVar(value=False)
+        self.scope_center_x_var = tk.StringVar(value="0")
+        self.scope_center_y_var = tk.StringVar(value="0")
+        self.scope_radius_var = tk.StringVar(value="50")
+        self.scope_width_var = tk.StringVar(value="100")
+        self.scope_height_var = tk.StringVar(value="100")
+        self._scope_selection_text = tk.StringVar(value="当前效果作用于全部元素。")
         self.family_size_display_var = tk.StringVar(value=field_label(SizeFieldMode.CONSTANT.value))
         self.family_rotation_display_var = tk.StringVar(value=rotation_label(RotationFieldMode.CONSTANT.value))
         self._family_description_var = tk.StringVar(value=field_description(SizeFieldMode.CONSTANT.value))
@@ -193,6 +221,10 @@ class PatternLabApp(tk.Tk):
         self._position_control_widgets: dict[str, tuple[tk.Scale, ttk.Entry]] = {}
         self._position_visible_keys: tuple[str, ...] = ()
         self._position_preview_after: str | None = None
+        self._scope_dynamic_frame: ttk.Frame | None = None
+        self._scope_control_widgets: dict[str, tuple[tk.Scale, ttk.Entry]] = {}
+        self._scope_selected_ids: tuple[str, ...] = ()
+        self._scope_preview_after: str | None = None
         self._pending_stack_selection: int | None = None
         self._family_preview_after: str | None = None
         self._family_controls_ready = False
@@ -395,6 +427,27 @@ class PatternLabApp(tk.Tk):
                                 ("↓", lambda: self._move_stack_layer(1)), ("复制", self._duplicate_stack_layer),
                                 ("删除", self._delete_stack_layer), ("重置", self._reset_stack_layer)):
             ttk.Button(action_row, text=label, command=callback, width=7).pack(side="left", padx=(0, 2))
+        scope_box = ttk.LabelFrame(panel, text="作用范围（当前效果层）", padding=4)
+        scope_box.pack(fill="x", pady=(5, 2))
+        scope_combo = ttk.Combobox(
+            scope_box,
+            state="readonly",
+            values=tuple(SCOPE_MODE_LABELS.values()),
+            textvariable=self.scope_mode_display_var,
+        )
+        scope_combo.pack(fill="x", pady=(0, 3))
+        scope_combo.bind("<<ComboboxSelected>>", self._on_scope_mode_selected)
+        ttk.Checkbutton(
+            scope_box,
+            text="反转范围",
+            variable=self.scope_invert_var,
+            command=lambda: self._commit_scope_controls(label="反转效果作用范围"),
+        ).pack(anchor="w")
+        ttk.Label(scope_box, textvariable=self._scope_selection_text, foreground="#56616f",
+                  wraplength=245, justify="left").pack(anchor="w", pady=(1, 3))
+        self._scope_dynamic_frame = ttk.Frame(scope_box)
+        self._scope_dynamic_frame.pack(fill="x")
+        self._build_scope_parameter_panel()
         ttk.Label(panel, text="每层独立保存；调整顺序不会修改 source geometry。", foreground="#56616f",
                   wraplength=245).pack(anchor="w", pady=(4, 0))
 
@@ -421,7 +474,15 @@ class PatternLabApp(tk.Tk):
         labels = {"size": "尺寸", "rotation": "旋转", "position": "位置/变形"}
         for item in stack.modifiers:
             state = "启用" if bool(item.get("enabled", True)) else "停用"
-            self._modifier_stack_list.insert("end", "%s  %s → %s" % (state, item.get("id", "modifier"), labels.get(item.get("type"), item.get("type"))))
+            scope = ModifierScope.from_dict(item.get("scope"))
+            scope_label = SCOPE_MODE_LABELS[scope.mode.value] + ("（反转）" if scope.invert else "")
+            self._modifier_stack_list.insert(
+                "end",
+                "%s  %s → %s [%s]" % (
+                    state, item.get("id", "modifier"),
+                    labels.get(item.get("type"), item.get("type")), scope_label,
+                ),
+            )
         if previous is not None and stack.modifiers:
             previous = min(max(0, previous), len(stack.modifiers) - 1)
             self._modifier_stack_list.selection_set(previous)
@@ -429,6 +490,7 @@ class PatternLabApp(tk.Tk):
             item = stack.modifiers[previous]
             if item.get("type") == "position":
                 self._load_position_controls(PositionModifier.from_dict(item.get("parameters")))
+            self._load_scope_controls(ModifierScope.from_dict(item.get("scope")))
         self._pending_stack_selection = None
 
     def _selected_stack_index(self) -> int | None:
@@ -556,6 +618,7 @@ class PatternLabApp(tk.Tk):
         if index is None or stack is None: return
         item = stack.modifiers[index]
         if item.get("type") == "position": self._load_position_controls(PositionModifier.from_dict(item.get("parameters")))
+        self._load_scope_controls(ModifierScope.from_dict(item.get("scope")))
 
     def _on_position_mode_selected(self, _event=None) -> None:
         mode = POSITION_LABEL_TO_MODE.get(self.position_mode_display_var.get(), "offset")
@@ -591,6 +654,181 @@ class PatternLabApp(tk.Tk):
         parameters = self._position_parameters_from_controls()
         self._pending_stack_selection = index
         self._handle(lambda: (self.session.update_modifier_parameters(index, parameters, label=label), self._after_document_change()))
+
+    def _scope_world_ranges(self) -> dict[str, tuple[float, float, float, str]]:
+        position_ranges = self._position_world_ranges()
+        min_x, max_x, _, _ = position_ranges["center_x"]
+        min_y, max_y, _, _ = position_ranges["center_y"]
+        width = max(1.0, max_x - min_x)
+        height = max(1.0, max_y - min_y)
+        diagonal = max(1.0, math.hypot(width, height))
+        return {
+            "center_x": (min_x, max_x, 0.1, "mm"),
+            "center_y": (min_y, max_y, 0.1, "mm"),
+            "radius": (0.1, diagonal * 2.0, 0.1, "mm"),
+            "width": (0.1, max(width * 2.0, diagonal), 0.1, "mm"),
+            "height": (0.1, max(height * 2.0, diagonal), 0.1, "mm"),
+        }
+
+    def _scope_variables(self) -> dict[str, tk.StringVar]:
+        return {
+            "center_x": self.scope_center_x_var,
+            "center_y": self.scope_center_y_var,
+            "radius": self.scope_radius_var,
+            "width": self.scope_width_var,
+            "height": self.scope_height_var,
+        }
+
+    def _add_scope_slider(self, parent: ttk.Frame, key: str, label: str,
+                          limits: tuple[float, float, float, str]) -> None:
+        minimum, maximum, resolution, unit = limits
+        variable = self._scope_variables()[key]
+        row = ttk.Frame(parent); row.pack(fill="x", pady=1)
+        ttk.Label(row, text=label, width=10, anchor="w").pack(side="left")
+        scale = tk.Scale(
+            row, from_=minimum, to=maximum, resolution=resolution,
+            orient="horizontal", showvalue=False, variable=variable,
+            highlightthickness=0, length=115,
+            command=lambda _value: self._schedule_scope_preview(),
+        )
+        scale.pack(side="left", fill="x", expand=True)
+        entry = ttk.Entry(row, textvariable=variable, width=7)
+        entry.pack(side="right", padx=(3, 0))
+        ttk.Label(row, text=unit, width=3).pack(side="right")
+        scale.bind("<ButtonRelease-1>", lambda _event: self._commit_scope_controls())
+        entry.bind("<KeyRelease>", lambda _event: self._schedule_scope_preview())
+        entry.bind("<Return>", lambda _event: self._commit_scope_controls())
+        entry.bind("<FocusOut>", lambda _event: self._commit_scope_controls())
+        self._scope_control_widgets[key] = (scale, entry)
+
+    def _scope_mode(self) -> ModifierScopeMode:
+        raw = SCOPE_LABEL_TO_MODE.get(self.scope_mode_display_var.get(), ModifierScopeMode.ALL.value)
+        return ModifierScopeMode(raw)
+
+    def _build_scope_parameter_panel(self) -> None:
+        frame = self._scope_dynamic_frame
+        if frame is None:
+            return
+        for child in frame.winfo_children():
+            child.destroy()
+        self._scope_control_widgets.clear()
+        mode = self._scope_mode()
+        if mode is ModifierScopeMode.SELECTED:
+            ttk.Button(frame, text="使用当前选择", command=self._capture_current_selection_scope).pack(fill="x", pady=(0, 2))
+        labels = {
+            "center_x": "中心 X", "center_y": "中心 Y", "radius": "半径",
+            "width": "宽度", "height": "高度",
+        }
+        ranges = self._scope_world_ranges()
+        for key in SCOPE_MODE_FIELDS[mode.value]:
+            self._add_scope_slider(frame, key, labels[key], ranges[key])
+
+    def _update_scope_description(self, scope: ModifierScope) -> None:
+        if scope.mode is ModifierScopeMode.ALL:
+            text = "当前效果作用于全部元素。"
+        elif scope.mode is ModifierScopeMode.SELECTED:
+            text = "已记录 %d 个 Element；选择变化不会静默改写范围。" % len(scope.selected_element_ids)
+        elif scope.mode is ModifierScopeMode.CIRCLE:
+            text = "仅影响圆形区域内的元素中心。"
+        else:
+            text = "仅影响矩形区域内的元素中心。"
+        if scope.invert:
+            text += " 当前已反转。"
+        self._scope_selection_text.set(text)
+
+    def _load_scope_controls(self, scope: ModifierScope, *, rebuild: bool = True) -> None:
+        self.scope_mode_display_var.set(SCOPE_MODE_LABELS[scope.mode.value])
+        self.scope_invert_var.set(scope.invert)
+        self.scope_center_x_var.set("%.6g" % scope.center_x)
+        self.scope_center_y_var.set("%.6g" % scope.center_y)
+        self.scope_radius_var.set("%.6g" % scope.radius)
+        self.scope_width_var.set("%.6g" % scope.width)
+        self.scope_height_var.set("%.6g" % scope.height)
+        self._scope_selected_ids = tuple(scope.selected_element_ids)
+        self._update_scope_description(scope)
+        if rebuild:
+            self._build_scope_parameter_panel()
+
+    def _scope_from_controls(self) -> ModifierScope:
+        variables = self._scope_variables()
+        return ModifierScope(
+            mode=self._scope_mode(),
+            invert=self.scope_invert_var.get(),
+            selected_element_ids=list(self._scope_selected_ids),
+            center_x=parse_float_ui_value(variables["center_x"].get(), "范围中心 X"),
+            center_y=parse_float_ui_value(variables["center_y"].get(), "范围中心 Y"),
+            radius=parse_float_ui_value(variables["radius"].get(), "圆形范围半径", minimum=0.01),
+            width=parse_float_ui_value(variables["width"].get(), "矩形范围宽度", minimum=0.01),
+            height=parse_float_ui_value(variables["height"].get(), "矩形范围高度", minimum=0.01),
+        )
+
+    def _default_scope_for_mode(self, mode: ModifierScopeMode) -> ModifierScope:
+        ranges = self._scope_world_ranges()
+        min_x, max_x = ranges["center_x"][0], ranges["center_x"][1]
+        min_y, max_y = ranges["center_y"][0], ranges["center_y"][1]
+        width = max(0.1, max_x - min_x)
+        height = max(0.1, max_y - min_y)
+        selected = list(self.session.selected_ids or ([self.session.selected_id] if self.session.selected_id else []))
+        return ModifierScope(
+            mode=mode,
+            invert=self.scope_invert_var.get(),
+            selected_element_ids=selected,
+            center_x=(min_x + max_x) / 2.0,
+            center_y=(min_y + max_y) / 2.0,
+            radius=max(0.1, min(width, height) / 2.0),
+            width=width,
+            height=height,
+        )
+
+    def _on_scope_mode_selected(self, _event=None) -> None:
+        scope = self._default_scope_for_mode(self._scope_mode())
+        self._load_scope_controls(scope)
+        self._commit_scope_controls(label="切换效果作用范围")
+
+    def _capture_current_selection_scope(self) -> None:
+        self._scope_selected_ids = tuple(
+            self.session.selected_ids or ([self.session.selected_id] if self.session.selected_id else [])
+        )
+        scope = self._scope_from_controls()
+        self._update_scope_description(scope)
+        self._commit_scope_controls(label="更新当前选择范围")
+
+    def _schedule_scope_preview(self) -> None:
+        if self._selected_stack_index() is None:
+            return
+        if self._scope_preview_after is None:
+            self._scope_preview_after = self.after(self.PARAMETER_PREVIEW_INTERVAL_MS, self._run_scope_preview)
+
+    def _run_scope_preview(self) -> None:
+        self._scope_preview_after = None
+        try:
+            index = self._selected_stack_index()
+            if index is None:
+                return
+            preview = self.session.preview_modifier_scope(index, self._scope_from_controls())
+            self._preview_grid_elements = preview
+            self._render_static_layer(elements=preview, update_index=False)
+            self._render_interaction_layer()
+        except Exception as error:
+            self._log_exception("效果作用范围预览", error)
+
+    def _commit_scope_controls(self, *, label: str = "更新效果作用范围") -> None:
+        if self._scope_preview_after:
+            try:
+                self.after_cancel(self._scope_preview_after)
+            except tk.TclError:
+                pass
+            self._scope_preview_after = None
+        index = self._selected_stack_index()
+        if index is None:
+            return
+        scope = self._scope_from_controls()
+        self._update_scope_description(scope)
+        self._pending_stack_selection = index
+        self._handle(lambda: (
+            self.session.update_modifier_scope(index, scope, label=label),
+            self._after_document_change(),
+        ))
 
     def _toggle_stack_layer(self) -> None:
         index = self._selected_stack_index()
@@ -1416,7 +1654,8 @@ class PatternLabApp(tk.Tk):
             return
         self._closing = True
         for callback_id in (self._interaction_after, self._inspector_after, self._parameter_after,
-                            self._family_preview_after, self._resize_after, self._performance_after):
+                            self._family_preview_after, self._position_preview_after,
+                            self._scope_preview_after, self._resize_after, self._performance_after):
             if callback_id:
                 try:
                     self.after_cancel(callback_id)

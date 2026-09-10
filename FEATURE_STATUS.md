@@ -1,4 +1,4 @@
-# 小芒造物｜功能状态（1.6.35）
+# 小芒造物｜功能状态（1.6.36）
 
 | 功能 | 状态 | 说明 |
 | --- | --- | --- |
@@ -30,5 +30,6 @@
 | Shared Parametric Modifier Stack | ✅ Working | `SharedModifierStack` 将 Geometry Source 与 Size Field、Rotation Field、Mask、Local Override 分离；Gate H 增加有序 Size/Rotation 层列表，支持启停、复制、删除、上下移、重置以及 Save/Load。导入 Elements 无需先识别 Grid 即可使用；Grid/Radial/Curve 作为结构源时也可叠加同一效果层。旧工程无此 metadata 时保持兼容。 |
 | Position / Deformation Modifier | ✅ Gate I | 有序堆栈位置层支持整体偏移、吸引、排斥、径向推出、扭转和波形位移；只修改派生几何，保留 source Elements。支持中文参数入口、启停、排序、复制、删除、重置及 Save/Load；Mask / Scope 仍待 Gate J。 |
 | Position / Deformation UI | ✅ Gate I-UI | 六种位置模式按需显示参数，并使用 Slider + Numeric Entry。范围根据 source bounds 与参数语义设置；拖动仅临时预览、释放一次提交，模式切换和同模式 Reset 均支持 Undo/Redo。内部英文 ID、mm/radian/0..1 schema 不变。 |
+| Modifier Scope / Mask | ✅ Gate J | Size、Rotation、Position 共用同一个 `ModifierScope`；支持全部、选择快照、圆形、矩形和反转。Scope 在每层 Evaluate 前按 Element 中心判定，未命中元素保留上一层结果；旧层缺少 scope 时等价于全部。UI 使用中文和毫米 Slider/Entry，支持预览、Undo/Redo、Save/Load 与 SVG。 |
 | Pattern Lab 结构路由与输入稳定性 | ✅ Working | Along Curve 先通过二维内在维度门禁，避免规则二维 Grid 被贪心最近邻链误判；Grid 数值统一严格解析，非 Grid 模式禁用 Grid 控件，UI 回调完整 traceback 写入 diagnostics。 |
 | Pattern Lab Halftone Element Debug | ✅ Working | 多尺度 small/medium/large Dot 识别会恢复/标注真实元素。显示 detected、renderable、visible filled、invalid 和 unknown 统计；闭合黑色语义 Path 以实心几何渲染，不再显示为空 Bounding Box。 |

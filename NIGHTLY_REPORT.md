@@ -1,5 +1,14 @@
 # Nightly Shared Field Report
 
+## Gate J — Modifier Scope / 基础作用范围（2026-09-10）
+
+- 根因：效果层只能全局作用；既有 Grid Mask 的语义是控制可见性，若复用会错误隐藏未命中元素。
+- 修复：新增统一 `ModifierScope`，以 0/1 influence 选择当前层结果；未命中项沿用上一层派生结果。
+- 范围：全部、当前选择快照、圆形、矩形、反转；Size/Rotation/Position 共用同一数据结构。
+- UI：所选效果层显示中文范围面板，连续范围参数使用动态毫米 Slider + Entry；临时预览和单次 Commit 分离。
+- 兼容：旧层无 scope 时按全部元素运行；Grid 可见性 Mask、source snapshot、Local Override 和 stable layer ID 均保持。
+- 验证：Gate 专项及 H/I/I-UI 回归 9/9 PASS；全量 173/173 PASS；固定图自检 6/6 PASS。
+
 ## Gate I-UI — 位置/变形参数面板产品化（2026-09-10）
 
 - 根因：六种位置模式此前共用十一项纯 Entry，当前模式无关参数仍然可见，且缺少已选层的双向参数编辑。

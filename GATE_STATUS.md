@@ -1,5 +1,17 @@
 # Gate 状态（2026-09-10）
 
+## Gate J — Modifier Scope / 基础作用范围（2026-09-10）
+
+- Status: PASS
+- 统一 `ModifierScope` 已接入 Size、Rotation、Position 三类有序效果层；没有建立三套独立 Mask 逻辑。
+- Scope 模式：All、Selected、Circle、Rectangle；Invert 适用于四种模式。
+- Selected 保存稳定 Element ID 快照；Circle/Rectangle 使用 PatternDocument 世界坐标/mm。
+- 未命中范围的 Element 保留前一层结果，不隐藏、不删除、不写回 source geometry。
+- 旧效果层缺少 scope 字段时自动等价于 All，开发前视觉结果保持不变；旧 Grid visibility Mask 未改动。
+- Preview 不写 PatternDocument/Undo；切换、反转和 Commit 均为正常单条 Undo。
+- Gate J + Gate H/I/I-UI 定向 9/9 PASS；完整 unittest 173/173 PASS；固定图自检 6/6 PASS。
+- Gate K（Shape Replacement）尚未开始。
+
 ## Gate I-UI — 位置/变形参数面板产品化（2026-09-10）
 
 - Status: PASS

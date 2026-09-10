@@ -22,7 +22,7 @@ from .parametric import (
 from .parametric_families import AlongCurveParametricModel, FreeParametricModel, ParametricModel, RadialParametricModel
 from .element_debug import ElementDebugRecord, ElementDebugSummary, element_debug_record, element_debug_summary
 from .evaluation import evaluate_pattern_document, materialize_evaluated_elements, serialize_elements
-from .shared_modifiers import SHARED_MODIFIER_METADATA_KEY, SharedModifierStack
+from .shared_modifiers import ModifierScope, SHARED_MODIFIER_METADATA_KEY, SharedModifierStack
 from .pattern_analyzer import AnalysisTolerance, GridAnalysisDebug, GridFitResult, MultiFamilyAnalysis, PatternAnalyzer
 from .recognition import MultiScaleDotRecognizer
 
@@ -471,6 +471,24 @@ class PatternLabSession:
             target["parameters"] = deepcopy(dict(parameters))
 
         self._edit_modifier_stack(label, update)
+
+    def preview_modifier_scope(self, index: int, scope: ModifierScope | dict[str, object]):
+        """Evaluate one temporary Scope without mutating document or Undo state."""
+
+        candidate = PatternDocument.from_dict(self.require_document().to_dict())
+        stack = SharedModifierStack.from_document(candidate)
+        if stack is None:
+            raise RuntimeError("当前文档没有可编辑的效果堆栈。")
+        stack.set_modifier_scope(index, scope)
+        stack.attach(candidate, source_kind=stack.source_kind)
+        return evaluate_pattern_document(candidate)
+
+    def update_modifier_scope(self, index: int,
+                              scope: ModifierScope | dict[str, object], *,
+                              label: str = "更新效果作用范围") -> None:
+        """Commit one layer Scope as exactly one Undo transaction."""
+
+        self._edit_modifier_stack(label, lambda stack: stack.set_modifier_scope(index, scope))
 
     def _edit_modifier_stack(self, label: str, operation) -> None:
         def action() -> None:

@@ -1,5 +1,26 @@
 # 更新记录
 
+## 1.6.36 — Gate J：Modifier Scope / 基础作用范围（2026-09-10）
+
+### Added
+
+- 为 Size、Rotation、Position 效果层增加统一 `ModifierScope`，支持全部元素、当前选择、圆形区域、矩形区域和反转。
+- Scope 只决定当前层是否影响 Element；未命中的元素保留上一层结果，不会被隐藏，也不会写回 `source_elements`。
+- 左侧效果堆栈增加中文作用范围面板；圆形/矩形参数使用世界坐标毫米和 Slider + Numeric Entry。
+- 当前选择以稳定 Element ID 快照保存；可通过“使用当前选择”明确更新，不会因后续选择变化而静默改变。
+- Scope 参数拖动使用只读临时 Evaluate，释放后一次提交；切换、反转和范围更新支持 Undo/Redo。
+
+### Compatibility
+
+- Gate J 之前没有 `scope` 字段的效果层自动按“全部元素”加载，视觉结果保持不变。
+- 旧 Grid 可见性 Mask 保持独立兼容路径，没有被 Scope 替换或改变语义。
+
+### Verification
+
+- Gate J + Gate H/I/I-UI 定向回归：9/9 PASS。
+- 完整 unittest：173/173 PASS。
+- Pattern Lab 固定测试图自检：6/6 PASS。
+
 ## 1.6.35 — Gate I-UI：位置/变形面板产品化（2026-09-10）
 
 ### Improved

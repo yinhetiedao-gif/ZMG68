@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 from dataclasses import asdict, dataclass, field
+from enum import Enum
 import math
 from typing import Any, Iterable, Mapping
 
@@ -33,6 +34,114 @@ POSITION_MODES = (
     "twist",
     "wave",
 )
+
+
+class ModifierScopeMode(str, Enum):
+    """Stable scope identifiers persisted independently from translated UI labels."""
+
+    ALL = "all"
+    SELECTED = "selected"
+    CIRCLE = "circle"
+    RECTANGLE = "rectangle"
+
+
+@dataclass
+class ModifierScope:
+    """Non-destructive 0/1 influence mask shared by every stack layer.
+
+    Scope evaluates an Element at the point where its Modifier is reached in
+    the ordered stack.  It never changes visibility or source geometry: a
+    non-matching Element simply keeps the result from the preceding layer.
+    """
+
+    mode: ModifierScopeMode = ModifierScopeMode.ALL
+    invert: bool = False
+    selected_element_ids: list[str] = field(default_factory=list)
+    center_x: float = 0.0
+    center_y: float = 0.0
+    radius: float = 50.0
+    width: float = 100.0
+    height: float = 100.0
+    _selected_lookup: frozenset[str] = field(default_factory=frozenset, init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.mode, ModifierScopeMode):
+            try:
+                self.mode = ModifierScopeMode(str(self.mode))
+            except ValueError as error:
+                raise ValueError("不支持的 Modifier 作用范围：%s" % self.mode) from error
+        self.selected_element_ids = list(dict.fromkeys(str(item) for item in self.selected_element_ids if str(item)))
+        self._selected_lookup = frozenset(self.selected_element_ids)
+        for name in ("center_x", "center_y", "radius", "width", "height"):
+            value = float(getattr(self, name))
+            if not math.isfinite(value):
+                raise ValueError("ModifierScope 参数必须是有限数字：%s" % name)
+            setattr(self, name, value)
+        if self.radius <= 0 or self.width <= 0 or self.height <= 0:
+            raise ValueError("ModifierScope 的半径、宽度和高度必须大于 0。")
+
+    def contains(self, element: Element) -> bool:
+        if self.mode is ModifierScopeMode.ALL:
+            inside = True
+        elif self.mode is ModifierScopeMode.SELECTED:
+            inside = element.id in self._selected_lookup
+        elif self.mode is ModifierScopeMode.CIRCLE:
+            inside = math.hypot(element.x - self.center_x, element.y - self.center_y) <= self.radius
+        elif self.mode is ModifierScopeMode.RECTANGLE:
+            inside = (
+                abs(element.x - self.center_x) <= self.width / 2.0
+                and abs(element.y - self.center_y) <= self.height / 2.0
+            )
+        else:  # pragma: no cover - guarded by __post_init__
+            inside = True
+        return not inside if self.invert else inside
+
+    def influence(self, element: Element) -> float:
+        return 1.0 if self.contains(element) else 0.0
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "mode": self.mode.value,
+            "invert": self.invert,
+            "selected_element_ids": list(self.selected_element_ids),
+            "center_x": self.center_x,
+            "center_y": self.center_y,
+            "radius": self.radius,
+            "width": self.width,
+            "height": self.height,
+        }
+
+    @classmethod
+    def from_dict(cls, value: Mapping[str, Any] | None) -> "ModifierScope":
+        raw = dict(value or {})
+        try:
+            mode = ModifierScopeMode(str(raw.get("mode", ModifierScopeMode.ALL.value)))
+        except ValueError:
+            mode = ModifierScopeMode.ALL
+        return cls(
+            mode=mode,
+            invert=bool(raw.get("invert", False)),
+            selected_element_ids=list(raw.get("selected_element_ids") or []),
+            center_x=float(raw.get("center_x", 0.0)),
+            center_y=float(raw.get("center_y", 0.0)),
+            radius=max(0.01, float(raw.get("radius", 50.0))),
+            width=max(0.01, float(raw.get("width", 100.0))),
+            height=max(0.01, float(raw.get("height", 100.0))),
+        )
+
+
+def _merge_scoped_results(before: list[Element], after: list[Element],
+                          scope: ModifierScope) -> list[Element]:
+    """Keep the prior layer result outside Scope without changing order/IDs."""
+
+    if len(before) != len(after):
+        raise ValueError("Modifier 作用范围合并时 Element 数量发生变化。")
+    result: list[Element] = []
+    for original, transformed in zip(before, after):
+        if original.id != transformed.id:
+            raise ValueError("Modifier 作用范围合并时 Element 顺序或 ID 发生变化。")
+        result.append(transformed if scope.contains(original) else original)
+    return result
 
 
 @dataclass
@@ -204,22 +313,25 @@ class SharedModifierStack:
                     continue
                 layer_type = str(layer.get("type", ""))
                 params = layer.get("parameters") or {}
+                scope = ModifierScope.from_dict(layer.get("scope"))
+                before = deepcopy(result)
                 if layer_type == "size":
                     size = SizeFieldModifier.from_dict(params)
-                    result = _apply_fields(
+                    transformed = _apply_fields(
                         result, size, RotationFieldModifier(), MaskModifier(), {},
                         apply_size=True, apply_rotation=False,
                     )
                 elif layer_type == "rotation":
                     rotation = RotationFieldModifier.from_dict(params)
-                    result = _apply_fields(
+                    transformed = _apply_fields(
                         result, SizeFieldModifier(), rotation, MaskModifier(), {},
                         apply_size=False, apply_rotation=True,
                     )
                 elif layer_type == "position":
-                    result = PositionModifier.from_dict(params).apply(result)
+                    transformed = PositionModifier.from_dict(params).apply(result)
                 else:
                     raise ValueError("不支持的 Modifier Stack 层类型：%s" % layer_type)
+                result = _merge_scoped_results(before, transformed, scope)
             result = _apply_fields(
                 result, SizeFieldModifier(), RotationFieldModifier(), self.mask, overrides,
                 apply_size=False, apply_rotation=False,
@@ -269,7 +381,8 @@ class SharedModifierStack:
         )
 
     def add_modifier(self, modifier_type: str, parameters: Mapping[str, Any], *,
-                     modifier_id: str | None = None, enabled: bool = True) -> str:
+                     modifier_id: str | None = None, enabled: bool = True,
+                     scope: ModifierScope | Mapping[str, Any] | None = None) -> str:
         """Append one explicit Size/Rotation/Position layer and return its stable ID."""
         modifier_type = str(modifier_type)
         if modifier_type not in ("size", "rotation", "position"):
@@ -277,9 +390,21 @@ class SharedModifierStack:
         identifier = str(modifier_id or "%s-%d" % (modifier_type, len(self.modifiers) + 1))
         if any(str(item.get("id")) == identifier for item in self.modifiers):
             raise ValueError("Modifier ID 不能重复：%s" % identifier)
+        normalized_scope = scope if isinstance(scope, ModifierScope) else ModifierScope.from_dict(scope)
         self.modifiers.append({"id": identifier, "type": modifier_type,
-                               "enabled": bool(enabled), "parameters": deepcopy(dict(parameters))})
+                               "enabled": bool(enabled), "parameters": deepcopy(dict(parameters)),
+                               "scope": normalized_scope.to_dict()})
         return identifier
+
+    def scope_for(self, index: int) -> ModifierScope:
+        item = self.modifiers[self._check_index(index)]
+        return ModifierScope.from_dict(item.get("scope"))
+
+    def set_modifier_scope(self, index: int,
+                           scope: ModifierScope | Mapping[str, Any]) -> None:
+        item = self.modifiers[self._check_index(index)]
+        normalized = scope if isinstance(scope, ModifierScope) else ModifierScope.from_dict(scope)
+        item["scope"] = normalized.to_dict()
 
     def _check_index(self, index: int) -> int:
         index = int(index)
