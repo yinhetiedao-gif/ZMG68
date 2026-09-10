@@ -4,6 +4,7 @@
 
 - Status: PASS
 - 规则矩阵页的共享参数、旋转、网格、渐变和掩膜控件统一进入单一垂直滚动容器。
+- 参数页子控件滚轮已通过祖先判断路由，中央 Canvas 的缩放事件保持独立。
 - Tk 界面回归 5/5 PASS；全量 unittest 164/164 PASS，0 skip。
 - 未修改 PatternDocument、Raster→SVG、Grid 分析、Canvas 操作或 Undo/Redo 业务逻辑。
 
