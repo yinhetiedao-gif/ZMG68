@@ -1,5 +1,20 @@
 # 更新记录
 
+## 1.6.35 — Gate I-UI：位置/变形面板产品化（2026-09-10）
+
+### Improved
+
+- 位置/变形面板按当前模式动态显示有效参数，不再同时展示全部输入项。
+- 连续参数统一为 Slider + Numeric Entry；强度/衰减以百分比显示，相位以角度显示，内部 schema 和英文 stable id 不变。
+- 偏移、中心、半径、幅度和波长范围根据当前 source geometry bounds 动态计算。
+- Slider 拖动走只读临时 Evaluate；释放后只提交一条 Undo。模式切换和同模式重置均可 Undo/Redo。
+- 选中 Position 层时自动同步参数；现有堆栈启停、排序、复制、删除与其他 Modifier 行为保持不变。
+
+### Verification
+
+- Gate I-UI 专项：2/2 PASS。
+- 完整 unittest：170/170 PASS。
+
 ## 1.6.34 — Gate I：位置与变形修饰器（2026-09-10）
 
 ### Added

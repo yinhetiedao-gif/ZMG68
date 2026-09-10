@@ -1,5 +1,13 @@
 # Nightly Shared Field Report
 
+## Gate I-UI — 位置/变形参数面板产品化（2026-09-10）
+
+- 根因：六种位置模式此前共用十一项纯 Entry，当前模式无关参数仍然可见，且缺少已选层的双向参数编辑。
+- 修复：按模式重建动态参数区，统一 Slider + Numeric Entry；范围从 source bounds 推导，内部单位仍为 mm/radian/0..1。
+- 交互：预览使用候选 PatternDocument 执行只读 Evaluate；不写文档、不增加 Undo，Commit 时一次性更新当前层。
+- 重置：Position 层保持当前模式并只重置该层；其他 Size/Rotation/Position 层不受影响。
+- 验证：专项 2/2 PASS；全量 170/170 PASS。
+
 ## Gate I — 位置与变形修饰器（2026-09-10）
 
 - 根因：Gate H 堆栈只支持尺寸和旋转，位置变化会被迫写入源几何或另起一套生成器。

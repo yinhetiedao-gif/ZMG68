@@ -434,7 +434,7 @@ class PatternLabSession:
         return stack
 
     def add_modifier_layer(self, modifier_type: str, parameters: dict[str, object], *, modifier_id: str | None = None) -> str:
-        """Add one ordered Size/Rotation layer as a single Undo command."""
+        """Add one ordered Size/Rotation/Position layer as one Undo command."""
         result: list[str] = []
 
         def action() -> None:
@@ -445,6 +445,32 @@ class PatternLabSession:
 
         self._mutate("添加效果层", action)
         return result[0]
+
+    def preview_modifier_parameters(self, index: int, parameters: dict[str, object]):
+        """Evaluate temporary layer parameters without mutating PatternDocument.
+
+        Slider motion uses this read-only route.  The real document, Undo stack
+        and source snapshot are touched only by ``update_modifier_parameters``
+        when the interaction is committed.
+        """
+
+        candidate = PatternDocument.from_dict(self.require_document().to_dict())
+        stack = SharedModifierStack.from_document(candidate)
+        if stack is None:
+            raise RuntimeError("当前文档没有可编辑的效果堆栈。")
+        target = stack.modifiers[stack._check_index(index)]
+        target["parameters"] = deepcopy(dict(parameters))
+        stack.attach(candidate, source_kind=stack.source_kind)
+        return evaluate_pattern_document(candidate)
+
+    def update_modifier_parameters(self, index: int, parameters: dict[str, object], *, label: str = "更新效果层") -> None:
+        """Commit one layer's parameters as exactly one Undo transaction."""
+
+        def update(stack: SharedModifierStack) -> None:
+            target = stack.modifiers[stack._check_index(index)]
+            target["parameters"] = deepcopy(dict(parameters))
+
+        self._edit_modifier_stack(label, update)
 
     def _edit_modifier_stack(self, label: str, operation) -> None:
         def action() -> None:

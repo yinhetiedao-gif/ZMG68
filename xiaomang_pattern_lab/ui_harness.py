@@ -38,6 +38,36 @@ from .spatial_index import BoundingBoxSpatialIndex
 from .view_transform import CanvasViewTransform
 
 
+POSITION_MODE_LABELS = {
+    "offset": "整体偏移",
+    "attractor": "吸引",
+    "repeller": "排斥",
+    "radial_push": "径向推开",
+    "twist": "扭曲",
+    "wave": "波浪位移",
+}
+POSITION_LABEL_TO_MODE = {label: mode for mode, label in POSITION_MODE_LABELS.items()}
+POSITION_MODE_DESCRIPTIONS = {
+    "offset": "将全部元素沿 X / Y 方向整体移动。",
+    "attractor": "将元素向指定控制点吸引。",
+    "repeller": "将元素从指定控制点向外推开。",
+    "radial_push": "元素根据距离中心的位置沿径向向外或向内移动。",
+    "twist": "围绕指定中心对元素位置进行旋转式扭曲。",
+    "wave": "让元素位置沿指定方向产生周期性波浪位移。",
+}
+POSITION_MODE_FIELDS = {
+    "offset": ("offset_x", "offset_y"),
+    "attractor": ("center_x", "center_y", "strength", "radius", "falloff"),
+    "repeller": ("center_x", "center_y", "strength", "radius", "falloff"),
+    "radial_push": ("center_x", "center_y", "amount", "radius", "falloff"),
+    "twist": ("center_x", "center_y", "angle", "strength", "radius", "falloff"),
+    # Gate I's Wave implementation uses a centre/radius falloff as well as the
+    # visible sine parameters, so those controls remain explicit rather than
+    # hiding active model state from the user.
+    "wave": ("angle", "wavelength", "phase", "amount", "center_x", "center_y", "strength", "radius", "falloff"),
+}
+
+
 def parse_int_ui_value(value: object, name: str, *, minimum: int = 1) -> int:
     """Parse an integer Tk value without silently truncating bad input."""
     text = str(value).strip()
@@ -147,8 +177,9 @@ class PatternLabApp(tk.Tk):
         self.position_angle_var = tk.StringVar(value="30")
         self.position_wavelength_var = tk.StringVar(value="50")
         self.position_phase_var = tk.StringVar(value="0")
-        self.position_strength_var = tk.StringVar(value="1")
-        self.position_falloff_var = tk.StringVar(value="1")
+        self.position_strength_var = tk.StringVar(value="100")
+        self.position_falloff_var = tk.StringVar(value="20")
+        self._position_description_var = tk.StringVar(value=POSITION_MODE_DESCRIPTIONS["offset"])
         self.family_size_display_var = tk.StringVar(value=field_label(SizeFieldMode.CONSTANT.value))
         self.family_rotation_display_var = tk.StringVar(value=rotation_label(RotationFieldMode.CONSTANT.value))
         self._family_description_var = tk.StringVar(value=field_description(SizeFieldMode.CONSTANT.value))
@@ -158,6 +189,11 @@ class PatternLabApp(tk.Tk):
         self._matrix_scroll_canvas: tk.Canvas | None = None
         self._matrix_scrollbar: ttk.Scrollbar | None = None
         self._modifier_stack_list: tk.Listbox | None = None
+        self._position_dynamic_frame: ttk.Frame | None = None
+        self._position_control_widgets: dict[str, tuple[tk.Scale, ttk.Entry]] = {}
+        self._position_visible_keys: tuple[str, ...] = ()
+        self._position_preview_after: str | None = None
+        self._pending_stack_selection: int | None = None
         self._family_preview_after: str | None = None
         self._family_controls_ready = False
         self.grid_vars: dict[str, tk.StringVar] = {}
@@ -338,33 +374,21 @@ class PatternLabApp(tk.Tk):
         self._modifier_stack_list = tk.Listbox(panel, height=4, exportselection=False,
                                                activestyle="dotbox", relief="solid", borderwidth=1)
         self._modifier_stack_list.pack(fill="x", pady=(0, 4))
-        self._modifier_stack_list.bind("<<ListboxSelect>>", lambda _event: None)
+        self._modifier_stack_list.bind("<<ListboxSelect>>", self._on_stack_selection)
         add_row = ttk.Frame(panel); add_row.pack(fill="x", pady=(0, 3))
         ttk.Button(add_row, text="添加尺寸层", command=lambda: self._add_current_stack_layer("size")).pack(side="left", fill="x", expand=True)
         ttk.Button(add_row, text="添加旋转层", command=lambda: self._add_current_stack_layer("rotation")).pack(side="left", fill="x", expand=True, padx=(3, 0))
         position_box = ttk.LabelFrame(panel, text="位置 / 变形", padding=4)
         position_box.pack(fill="x", pady=(2, 4))
-        mode_labels = {
-            "offset": "整体偏移", "attractor": "吸引", "repeller": "排斥",
-            "radial_push": "径向推出", "twist": "扭转", "wave": "波形位移",
-        }
-        reverse_mode_labels = {label: mode for mode, label in mode_labels.items()}
-        mode_combo = ttk.Combobox(position_box, state="readonly", values=tuple(mode_labels.values()),
+        mode_combo = ttk.Combobox(position_box, state="readonly", values=tuple(POSITION_MODE_LABELS.values()),
                                    textvariable=self.position_mode_display_var)
         mode_combo.pack(fill="x", pady=(0, 3))
-        mode_combo.bind("<<ComboboxSelected>>", lambda _event: self.position_mode_var.set(reverse_mode_labels.get(self.position_mode_display_var.get(), "offset")))
-        controls = (
-            ("偏移 X (mm)", self.position_offset_x_var), ("偏移 Y (mm)", self.position_offset_y_var),
-            ("中心 X (mm)", self.position_center_x_var), ("中心 Y (mm)", self.position_center_y_var),
-            ("强度", self.position_strength_var), ("幅度/距离 (mm)", self.position_amount_var),
-            ("影响半径 (mm)", self.position_radius_var), ("角度 (°)", self.position_angle_var),
-            ("波长 (mm)", self.position_wavelength_var), ("相位 (rad)", self.position_phase_var),
-            ("衰减", self.position_falloff_var),
-        )
-        for label, variable in controls:
-            row = ttk.Frame(position_box); row.pack(fill="x", pady=1)
-            ttk.Label(row, text=label, width=13, anchor="w").pack(side="left")
-            ttk.Entry(row, textvariable=variable, width=10).pack(side="right", fill="x", expand=True)
+        mode_combo.bind("<<ComboboxSelected>>", self._on_position_mode_selected)
+        ttk.Label(position_box, textvariable=self._position_description_var, foreground="#56616f",
+                  wraplength=245, justify="left").pack(anchor="w", pady=(0, 3))
+        self._position_dynamic_frame = ttk.Frame(position_box)
+        self._position_dynamic_frame.pack(fill="x")
+        self._build_position_parameter_panel()
         ttk.Button(position_box, text="添加位置/变形层", command=lambda: self._add_current_stack_layer("position")).pack(fill="x", pady=(3, 0))
         action_row = ttk.Frame(panel); action_row.pack(fill="x")
         for label, callback in (("启用/停用", self._toggle_stack_layer), ("↑", lambda: self._move_stack_layer(-1)),
@@ -384,15 +408,28 @@ class PatternLabApp(tk.Tk):
     def _refresh_modifier_stack(self) -> None:
         if self._modifier_stack_list is None:
             return
+        previous = self._pending_stack_selection
+        if previous is None:
+            selected = self._modifier_stack_list.curselection()
+            previous = int(selected[0]) if selected else None
         self._modifier_stack_list.delete(0, "end")
         stack = self._stack_from_document()
         if stack is None:
             self._modifier_stack_list.insert("end", "暂无独立效果层（可从上方参数添加）")
+            self._pending_stack_selection = None
             return
         labels = {"size": "尺寸", "rotation": "旋转", "position": "位置/变形"}
         for item in stack.modifiers:
             state = "启用" if bool(item.get("enabled", True)) else "停用"
             self._modifier_stack_list.insert("end", "%s  %s → %s" % (state, item.get("id", "modifier"), labels.get(item.get("type"), item.get("type"))))
+        if previous is not None and stack.modifiers:
+            previous = min(max(0, previous), len(stack.modifiers) - 1)
+            self._modifier_stack_list.selection_set(previous)
+            self._modifier_stack_list.see(previous)
+            item = stack.modifiers[previous]
+            if item.get("type") == "position":
+                self._load_position_controls(PositionModifier.from_dict(item.get("parameters")))
+        self._pending_stack_selection = None
 
     def _selected_stack_index(self) -> int | None:
         if self._modifier_stack_list is None:
@@ -410,6 +447,8 @@ class PatternLabApp(tk.Tk):
                 size, rotation = self._family_modifiers_from_controls()
                 parameters = size.to_dict() if modifier_type == "size" else rotation.to_dict()
             self.session.add_modifier_layer(modifier_type, parameters)
+            stack = self._stack_from_document()
+            self._pending_stack_selection = len(stack.modifiers) - 1 if stack else None
             self._after_document_change()
         self._handle(action)
 
@@ -420,41 +459,178 @@ class PatternLabApp(tk.Tk):
             "offset_y": parse_float_ui_value(self.position_offset_y_var.get(), "偏移 Y"),
             "center_x": parse_float_ui_value(self.position_center_x_var.get(), "中心 X"),
             "center_y": parse_float_ui_value(self.position_center_y_var.get(), "中心 Y"),
-            "strength": parse_float_ui_value(self.position_strength_var.get(), "强度"),
+            "strength": min(1.0, max(0.0, parse_float_ui_value(self.position_strength_var.get(), "强度", minimum=0.0) / 100.0)),
             "amount": parse_float_ui_value(self.position_amount_var.get(), "幅度/距离"),
             "radius": parse_float_ui_value(self.position_radius_var.get(), "影响半径", minimum=1e-9),
             "angle": parse_float_ui_value(self.position_angle_var.get(), "角度"),
             "wavelength": parse_float_ui_value(self.position_wavelength_var.get(), "波长", minimum=1e-9),
-            "phase": parse_float_ui_value(self.position_phase_var.get(), "相位"),
-            "falloff": parse_float_ui_value(self.position_falloff_var.get(), "衰减", minimum=1e-9),
+            "phase": math.radians(parse_float_ui_value(self.position_phase_var.get(), "相位")),
+            "falloff": max(0.05, parse_float_ui_value(self.position_falloff_var.get(), "衰减", minimum=0.0) / 20.0),
         }
         return PositionModifier(**values).to_dict()
+
+    def _position_world_ranges(self) -> dict[str, tuple[float, float, float, str]]:
+        document = self.session.document
+        stack = self._stack_from_document()
+        elements = stack.source_snapshot() if stack and stack.source_elements else (document.elements if document else [])
+        if elements:
+            min_x = min(item.x - item.width / 2 for item in elements); max_x = max(item.x + item.width / 2 for item in elements)
+            min_y = min(item.y - item.height / 2 for item in elements); max_y = max(item.y + item.height / 2 for item in elements)
+        elif document:
+            min_x, min_y = document.canvas.origin_x, document.canvas.origin_y
+            max_x, max_y = min_x + document.canvas.width, min_y + document.canvas.height
+        else:
+            min_x = min_y = -100.0; max_x = max_y = 100.0
+        width = max(1.0, max_x - min_x); height = max(1.0, max_y - min_y)
+        diagonal = max(1.0, math.hypot(width, height))
+        if max_x - min_x < 1e-9: min_x, max_x = min_x - 1.0, max_x + 1.0
+        if max_y - min_y < 1e-9: min_y, max_y = min_y - 1.0, max_y + 1.0
+        return {
+            "offset_x": (-width, width, 0.1, "mm"), "offset_y": (-height, height, 0.1, "mm"),
+            "center_x": (min_x, max_x, 0.1, "mm"), "center_y": (min_y, max_y, 0.1, "mm"),
+            "strength": (0.0, 100.0, 1.0, "%"), "amount": (-diagonal, diagonal, 0.1, "mm"),
+            "radius": (0.1, diagonal * 2.0, 0.1, "mm"), "angle": (-180.0, 180.0, 1.0, "°"),
+            "wavelength": (0.1, diagonal * 2.0, 0.1, "mm"), "phase": (-180.0, 180.0, 1.0, "°"),
+            "falloff": (0.0, 100.0, 1.0, "%"),
+        }
+
+    def _position_variables(self) -> dict[str, tk.StringVar]:
+        return {
+            "offset_x": self.position_offset_x_var, "offset_y": self.position_offset_y_var,
+            "center_x": self.position_center_x_var, "center_y": self.position_center_y_var,
+            "strength": self.position_strength_var, "amount": self.position_amount_var,
+            "radius": self.position_radius_var, "angle": self.position_angle_var,
+            "wavelength": self.position_wavelength_var, "phase": self.position_phase_var,
+            "falloff": self.position_falloff_var,
+        }
+
+    def _add_position_slider(self, parent: ttk.Frame, key: str, label: str,
+                             limits: tuple[float, float, float, str]) -> None:
+        minimum, maximum, resolution, unit = limits
+        variable = self._position_variables()[key]
+        row = ttk.Frame(parent); row.pack(fill="x", pady=1)
+        ttk.Label(row, text=label, width=11, anchor="w").pack(side="left")
+        scale = tk.Scale(row, from_=minimum, to=maximum, resolution=resolution, orient="horizontal",
+                         showvalue=False, variable=variable, highlightthickness=0, length=115,
+                         command=lambda _value: self._schedule_position_preview())
+        scale.pack(side="left", fill="x", expand=True)
+        entry = ttk.Entry(row, textvariable=variable, width=7); entry.pack(side="right", padx=(3, 0))
+        if unit: ttk.Label(row, text=unit, width=3).pack(side="right")
+        scale.bind("<ButtonRelease-1>", lambda _event: self._commit_position_controls())
+        entry.bind("<KeyRelease>", lambda _event: self._schedule_position_preview())
+        entry.bind("<Return>", lambda _event: self._commit_position_controls())
+        entry.bind("<FocusOut>", lambda _event: self._commit_position_controls())
+        self._position_control_widgets[key] = (scale, entry)
+
+    def _build_position_parameter_panel(self) -> None:
+        frame = self._position_dynamic_frame
+        if frame is None: return
+        for child in frame.winfo_children(): child.destroy()
+        self._position_control_widgets.clear()
+        mode = self.position_mode_var.get()
+        if mode not in POSITION_MODES: mode = "offset"; self.position_mode_var.set(mode)
+        self.position_mode_display_var.set(POSITION_MODE_LABELS[mode])
+        self._position_description_var.set(POSITION_MODE_DESCRIPTIONS[mode])
+        labels = {
+            "offset_x": "偏移 X", "offset_y": "偏移 Y", "center_x": "中心 X", "center_y": "中心 Y",
+            "strength": "强度", "amount": "幅度/距离", "radius": "影响半径", "angle": "角度",
+            "wavelength": "波长", "phase": "相位", "falloff": "衰减",
+        }
+        limits = self._position_world_ranges()
+        self._position_visible_keys = POSITION_MODE_FIELDS[mode]
+        for key in self._position_visible_keys:
+            self._add_position_slider(frame, key, labels[key], limits[key])
+
+    def _load_position_controls(self, modifier: PositionModifier, *, rebuild: bool = True) -> None:
+        self.position_mode_var.set(modifier.mode); self.position_mode_display_var.set(POSITION_MODE_LABELS[modifier.mode])
+        self.position_offset_x_var.set("%.6g" % modifier.offset_x); self.position_offset_y_var.set("%.6g" % modifier.offset_y)
+        self.position_center_x_var.set("%.6g" % modifier.center_x); self.position_center_y_var.set("%.6g" % modifier.center_y)
+        self.position_amount_var.set("%.6g" % modifier.amount); self.position_radius_var.set("%.6g" % modifier.radius)
+        self.position_angle_var.set("%.6g" % modifier.angle); self.position_wavelength_var.set("%.6g" % modifier.wavelength)
+        self.position_phase_var.set("%.6g" % math.degrees(modifier.phase)); self.position_strength_var.set("%.6g" % (modifier.strength * 100.0))
+        self.position_falloff_var.set("%.6g" % (modifier.falloff * 20.0))
+        if rebuild: self._build_position_parameter_panel()
+
+    def _on_stack_selection(self, _event=None) -> None:
+        index = self._selected_stack_index(); stack = self._stack_from_document()
+        if index is None or stack is None: return
+        item = stack.modifiers[index]
+        if item.get("type") == "position": self._load_position_controls(PositionModifier.from_dict(item.get("parameters")))
+
+    def _on_position_mode_selected(self, _event=None) -> None:
+        mode = POSITION_LABEL_TO_MODE.get(self.position_mode_display_var.get(), "offset")
+        self._load_position_controls(PositionModifier(mode=mode))
+        index = self._selected_stack_index(); stack = self._stack_from_document()
+        if index is not None and stack is not None and stack.modifiers[index].get("type") == "position":
+            self._commit_position_controls(label="切换位置/变形模式")
+
+    def _schedule_position_preview(self) -> None:
+        index = self._selected_stack_index(); stack = self._stack_from_document()
+        if index is None or stack is None or stack.modifiers[index].get("type") != "position": return
+        if self._position_preview_after is None:
+            self._position_preview_after = self.after(self.PARAMETER_PREVIEW_INTERVAL_MS, self._run_position_preview)
+
+    def _run_position_preview(self) -> None:
+        self._position_preview_after = None
+        try:
+            index = self._selected_stack_index(); stack = self._stack_from_document()
+            if index is None or stack is None or stack.modifiers[index].get("type") != "position": return
+            preview = self.session.preview_modifier_parameters(index, self._position_parameters_from_controls())
+            self._preview_grid_elements = preview
+            self._render_static_layer(elements=preview, update_index=False); self._render_interaction_layer()
+        except Exception as error:
+            self._log_exception("位置/变形参数预览", error)
+
+    def _commit_position_controls(self, *, label: str = "更新位置/变形层") -> None:
+        if self._position_preview_after:
+            try: self.after_cancel(self._position_preview_after)
+            except tk.TclError: pass
+            self._position_preview_after = None
+        index = self._selected_stack_index(); stack = self._stack_from_document()
+        if index is None or stack is None or stack.modifiers[index].get("type") != "position": return
+        parameters = self._position_parameters_from_controls()
+        self._pending_stack_selection = index
+        self._handle(lambda: (self.session.update_modifier_parameters(index, parameters, label=label), self._after_document_change()))
 
     def _toggle_stack_layer(self) -> None:
         index = self._selected_stack_index()
         stack = self._stack_from_document()
         if index is None or stack is None:
             return
+        self._pending_stack_selection = index
         self._handle(lambda: (self.session.set_modifier_enabled(index, not bool(stack.modifiers[index].get("enabled", True))), self._after_document_change()))
 
     def _move_stack_layer(self, delta: int) -> None:
         index = self._selected_stack_index()
         if index is not None:
-            self._handle(lambda: (self.session.move_modifier_layer(index, delta), self._after_document_change()))
+            def action() -> None:
+                self._pending_stack_selection = self.session.move_modifier_layer(index, delta)
+                self._after_document_change()
+            self._handle(action)
 
     def _duplicate_stack_layer(self) -> None:
         index = self._selected_stack_index()
         if index is not None:
+            self._pending_stack_selection = index + 1
             self._handle(lambda: (self.session.duplicate_modifier_layer(index), self._after_document_change()))
 
     def _delete_stack_layer(self) -> None:
         index = self._selected_stack_index()
         if index is not None:
+            self._pending_stack_selection = max(0, index - 1)
             self._handle(lambda: (self.session.delete_modifier_layer(index), self._after_document_change()))
 
     def _reset_stack_layer(self) -> None:
         index = self._selected_stack_index()
-        if index is not None:
+        stack = self._stack_from_document()
+        if index is None or stack is None: return
+        self._pending_stack_selection = index
+        if stack.modifiers[index].get("type") == "position":
+            mode = PositionModifier.from_dict(stack.modifiers[index].get("parameters")).mode
+            defaults = PositionModifier(mode=mode)
+            self._load_position_controls(defaults)
+            self._handle(lambda: (self.session.update_modifier_parameters(index, defaults.to_dict(), label="重置位置/变形层"), self._after_document_change()))
+        else:
             self._handle(lambda: (self.session.reset_modifier_layer(index), self._after_document_change()))
 
     def _route_matrix_mousewheel(self, event: tk.Event):

@@ -1,5 +1,15 @@
 # Gate 状态（2026-09-10）
 
+## Gate I-UI — 位置/变形参数面板产品化（2026-09-10）
+
+- Status: PASS
+- 六种 Position 模式使用动态参数区；只呈现当前算法真正读取的参数。
+- Slider 与 Numeric Entry 双向共享变量；拖动只读预览不写 PatternDocument，释放后一次提交一条 Undo。
+- 模式切换为一条可撤销参数更新；Reset 只恢复当前 Position 层且保留当前模式。
+- source geometry、stable type/id、Modifier Stack 与 Geometry Evaluate 算法未变。
+- Gate I-UI 专项 2/2 PASS；完整 unittest 170/170 PASS。
+- Gate J（Mask / Scope）尚未开始。
+
 ## Gate I — Position / Deformation Modifier（2026-09-10）
 
 - Status: PASS（核心与最小中文参数入口已接入）
