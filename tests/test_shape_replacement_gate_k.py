@@ -71,7 +71,9 @@ class ShapeReplacementCoreTests(unittest.TestCase):
         stack.add_modifier("position", PositionModifier(mode="offset", offset_x=3).to_dict(), scope=only_center)
         stack.attach(document)
 
-        session = PatternLabSession(FoundationPipeline(None, None), Path("."), document=document)
+        workspace = TemporaryDirectory()
+        self.addCleanup(workspace.cleanup)
+        session = PatternLabSession(FoundationPipeline(None, None), Path(workspace.name), document=document)
         session.select("dot-1")
         session.replace_selected_shape("star")
         star = session.document.element("dot-1")

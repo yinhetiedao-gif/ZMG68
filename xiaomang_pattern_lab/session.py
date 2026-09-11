@@ -160,14 +160,53 @@ class PatternLabSession:
         # is still reflected in Inspector and the Canvas immediately.
         return self.selected_id
 
-    def select_many(self, element_ids: List[str]) -> Optional[str]:
+    def select_many(self, element_ids: List[str], *, additive: bool = False) -> Optional[str]:
+        """Select real, currently editable Elements by their stable IDs.
+
+        Selection is deliberately session-only: rectangle selection and
+        Ctrl+A must not create document Undo records or a second selection
+        model.  ``additive`` appends unseen IDs for Shift + rectangle select;
+        Shift + click keeps its existing toggle behaviour in :meth:`select`.
+        """
         document = self.require_document()
         identifiers = list(dict.fromkeys(element_ids))
         for identifier in identifiers:
             document.element(identifier)
-        self.selected_ids = identifiers
+        if additive:
+            self.selected_ids = list(dict.fromkeys([*self.selected_ids, *identifiers]))
+        else:
+            self.selected_ids = identifiers
         self.selected_id = identifiers[-1] if identifiers else None
+        if additive and self.selected_ids:
+            self.selected_id = identifiers[-1] if identifiers else self.selected_ids[-1]
         return self.selected_id
+
+    def clear_selection(self) -> None:
+        """Clear transient selection without changing PatternDocument."""
+
+        self.selected_id = None
+        self.selected_ids.clear()
+
+    def select_all(self) -> Optional[str]:
+        """Select visible final Elements only; helpers and Mask controls stay out."""
+
+        return self.select_many([
+            element.id for element in self.require_document().elements if element.visible
+        ])
+
+    def select_rectangle(
+        self, left: float, top: float, right: float, bottom: float, *, additive: bool = False,
+    ) -> Optional[str]:
+        """Select visible Element centres in a world-coordinate rectangle."""
+
+        x0, x1 = sorted((float(left), float(right)))
+        y0, y1 = sorted((float(top), float(bottom)))
+        identifiers = [
+            element.id
+            for element in self.require_document().elements
+            if element.visible and x0 <= element.x <= x1 and y0 <= element.y <= y1
+        ]
+        return self.select_many(identifiers, additive=additive)
 
     def select_at(self, x: float, y: float) -> Optional[str]:
         selected = self.hit_test(x, y)
@@ -262,7 +301,9 @@ class PatternLabSession:
         else:
             self._mutate("缩放", lambda: document.resize_element(element_id, float(width), float(height)))
 
-    def commit_interaction(self, interaction: InteractionState) -> bool:
+    def commit_interaction(
+        self, interaction: InteractionState, *, element_ids: Optional[List[str]] = None,
+    ) -> bool:
         """Commit a transient Canvas preview once, on pointer-up only.
 
         No pointer-motion callback invokes this method.  The active transaction
@@ -272,6 +313,15 @@ class PatternLabSession:
         document = self.require_document()
         if not self.transaction_active:
             raise RuntimeError("Canvas 交互缺少事务起点。")
+        identifiers = list(dict.fromkeys(element_ids or [interaction.element_id]))
+        if len(identifiers) > 1 and interaction.kind == "move":
+            # The Canvas only previews a transient delta.  Apply it to all
+            # selected real Elements once on pointer-up, then commit one Undo.
+            self.move_selected(
+                interaction.current_x - interaction.start_x,
+                interaction.current_y - interaction.start_y,
+            )
+            return self.commit_transaction()
         if self.has_parametric_model:
             base = self.parametric_model.base_element(interaction.element_id)
             if base is None:
@@ -369,44 +419,46 @@ class PatternLabSession:
         return state
 
     def replace_selected_shape(self, prototype_id: str) -> None:
-        """Replace exactly one selected slot while preserving source geometry."""
+        """Replace selected slots while preserving their source geometry."""
 
         identifiers = list(self.selected_ids or ([self.selected_id] if self.selected_id else []))
-        if len(identifiers) != 1:
-            raise RuntimeError("Gate K 请先只选择一个 Element 进行形状替换。")
-        element_id = identifiers[0]
+        if not identifiers:
+            raise RuntimeError("请先选择至少一个 Element 进行形状替换。")
 
         def action() -> None:
             state = self._placement_state_for_edit()
             if prototype_id not in state.prototypes.ids():
                 raise ValueError("不支持的替换形状：%s" % prototype_id)
-            if not any(slot.slot_id == element_id or slot.source_element_id == element_id for slot in state.slots):
-                raise KeyError("找不到形状替换 Slot：%s" % element_id)
-            state.replacement_map.set(element_id, prototype_id)
+            slot_ids = {slot.slot_id for slot in state.slots} | {slot.source_element_id for slot in state.slots}
+            missing = [identifier for identifier in identifiers if identifier not in slot_ids]
+            if missing:
+                raise KeyError("找不到形状替换 Slot：%s" % ", ".join(missing))
+            for element_id in identifiers:
+                state.replacement_map.set(element_id, prototype_id)
             state.attach(self.require_document())
             materialize_evaluated_elements(self.require_document())
 
         self._mutate("替换形状", action)
-        self.log("替换形状 %s → %s" % (element_id, prototype_id))
+        self.log("替换形状 %d 个 Element → %s" % (len(identifiers), prototype_id))
 
     def restore_selected_shape(self) -> None:
         """Remove one replacement mapping; no raster/vector re-analysis."""
 
         identifiers = list(self.selected_ids or ([self.selected_id] if self.selected_id else []))
-        if len(identifiers) != 1:
-            raise RuntimeError("Gate K 请先只选择一个 Element 恢复原形。")
-        element_id = identifiers[0]
+        if not identifiers:
+            raise RuntimeError("请先选择至少一个 Element 恢复原形。")
 
         def action() -> None:
             state = self.active_placement_state()
             if state is None:
                 return
-            state.replacement_map.remove(element_id)
+            for element_id in identifiers:
+                state.replacement_map.remove(element_id)
             state.attach(self.require_document())
             materialize_evaluated_elements(self.require_document())
 
         self._mutate("恢复原始形状", action)
-        self.log("恢复原始形状：%s" % element_id)
+        self.log("恢复原始形状：%d 个 Element" % len(identifiers))
 
     def replacement_for(self, element_id: str) -> str | None:
         state = self.active_placement_state()
@@ -750,11 +802,104 @@ class PatternLabSession:
                     )
                 materialize_evaluated_elements(document)
             else:
-                document.resize_element(self.selected_id, width, height)
+                selected_ids = list(self.selected_ids or [self.selected_id])
+                primary = document.element(self.selected_id)
+                target_width = float(width)
+                target_height = float(height if height is not None else width)
+                scale_x = target_width / max(primary.width, 0.01)
+                scale_y = target_height / max(primary.height, 0.01)
+                for identifier in selected_ids:
+                    current = document.element(identifier)
+                    document.resize_element(
+                        identifier,
+                        current.width * scale_x,
+                        current.height * scale_y,
+                    )
         self._mutate("缩放", action)
         resized = document.element(self.selected_id)
         if not self.transaction_active:
             self.log("修改尺寸 %s：%g × %g" % (resized.id, resized.width, resized.height))
+
+    def scale_selected(self, scale_x: float, scale_y: Optional[float] = None) -> None:
+        """Scale the selected set around each Element's own centre.
+
+        The primary Element remains the Inspector reference.  Applying the
+        same relative factor preserves differing source sizes and uses the
+        existing resize/local-override path instead of introducing a second
+        transform engine.
+        """
+
+        if not self.selected_id:
+            raise RuntimeError("请先选择至少一个 Element。")
+        factor_x = max(0.01, float(scale_x))
+        factor_y = max(0.01, float(scale_y if scale_y is not None else scale_x))
+        primary = self.require_document().element(self.selected_id)
+        self.resize_selected(primary.width * factor_x, primary.height * factor_y)
+
+    def rotate_selected_by(self, angle: float) -> None:
+        """Rotate every selected Element by one shared angle in degrees."""
+
+        if not self.selected_id:
+            raise RuntimeError("请先选择至少一个 Element。")
+        primary = self.require_document().element(self.selected_id)
+        self.rotate_selected(primary.rotation + float(angle))
+
+    def hide_selected(self) -> None:
+        """Hide selected Elements without deleting source geometry."""
+
+        document = self.require_document()
+        identifiers = list(self.selected_ids or ([self.selected_id] if self.selected_id else []))
+        if not identifiers:
+            raise RuntimeError("请先选择至少一个 Element。")
+
+        def action() -> None:
+            if self.has_parametric_model:
+                for identifier in identifiers:
+                    override = self.parametric_model.local_overrides.get(identifier, LocalOverride())
+                    override.visible = False
+                    self.parametric_model.local_overrides[identifier] = override
+                self._rebuild_parametric_document()
+            elif self.active_placement_state() is not None:
+                state = self.active_placement_state()
+                state.slots = [
+                    replace(slot, visible=False)
+                    if slot.slot_id in identifiers or slot.source_element_id in identifiers else slot
+                    for slot in state.slots
+                ]
+                state.attach(document)
+                materialize_evaluated_elements(document)
+            else:
+                for identifier in identifiers:
+                    document.element(identifier).visible = False
+                document._sync_transforms()
+
+        self._mutate("隐藏选中", action)
+        self.clear_selection()
+        self.log("隐藏 %d 个 Element" % len(identifiers))
+
+    def show_all_elements(self) -> None:
+        """Remove Gate L visibility edits while retaining every Element record."""
+
+        document = self.require_document()
+
+        def action() -> None:
+            if self.has_parametric_model:
+                for override in self.parametric_model.local_overrides.values():
+                    if override.visible is False:
+                        override.visible = None
+                self._rebuild_parametric_document()
+            elif self.active_placement_state() is not None:
+                state = self.active_placement_state()
+                state.slots = [replace(slot, visible=True) for slot in state.slots]
+                state.attach(document)
+                materialize_evaluated_elements(document)
+            else:
+                for element in document.elements:
+                    element.visible = True
+                document._sync_transforms()
+
+        self._mutate("显示全部", action)
+        self.log("显示全部 Element")
 
     def delete_selected(self) -> None:
         document = self.require_document()
@@ -841,7 +986,15 @@ class PatternLabSession:
             self._mutate("旋转", action)
         else:
             selected_ids = list(self.selected_ids or [self.selected_id])
-            self._mutate("旋转", lambda: [document.rotate_element(identifier, float(rotation)) for identifier in selected_ids])
+            primary = document.element(self.selected_id)
+            delta = float(rotation) - primary.rotation
+            self._mutate(
+                "旋转",
+                lambda: [
+                    document.rotate_element(identifier, document.element(identifier).rotation + delta)
+                    for identifier in selected_ids
+                ],
+            )
 
     def union_selected(self) -> str:
         if self.has_parametric_model:

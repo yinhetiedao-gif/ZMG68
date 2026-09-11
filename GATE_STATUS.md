@@ -1,4 +1,15 @@
-# Gate 状态（2026-09-10）
+# Gate 状态（2026-09-11）
+
+## Gate L — Multi Selection & Batch Editing（2026-09-11）
+
+- Status: PASS
+- 选择架构：继续由 `PatternLabSession.selected_id + selected_ids` 作为唯一来源；未建立第二个 SelectionSystem。
+- 交互：Shift 点击切换、空白处世界坐标框选、Shift 框选追加、Ctrl+A 可见 Element 全选、Escape 清空。
+- 批量：替换/恢复形状、缩放、相对旋转、位移、隐藏选中与显示全部；每项业务操作仅一条 Undo。
+- Canvas：多选时绘制轻量单项边框和整体边界；成组拖动只变更瞬态 InteractionState，释放后一次 Commit。
+- 持久化：形状映射、变换和可见性随现有 PatternDocument / Local Override / PlacementSlot 保存；选择集合不保存。
+- 验证：Gate L + K/J/Canvas 定向 17/17 PASS；完整 unittest 184/184 PASS；固定图自检 6/6 PASS。
+- Gate M（Shape Pool + Seed Random）未开始。
 
 ## Gate K — Shape Replacement / 形状替换（2026-09-10）
 
@@ -9,7 +20,7 @@
 - Evaluate 顺序：结构源 → Shape Replacement → Size/Rotation/Position + Scope → Local Override → Final Geometry。
 - Element 编辑页提供中文形状下拉、应用替换、恢复原形；替换和恢复各产生一条 Undo。
 - Gate K + Placement/Gate J 定向回归 14/14 PASS；完整 unittest 177/177 PASS；固定图自检 6/6 PASS。
-- Gate L（多选/批量编辑）未开始。
+- Gate L（多选/批量编辑）已通过；Gate M（Shape Pool + Seed Random）未开始。
 
 ## Gate J — Modifier Scope / 基础作用范围（2026-09-10）
 

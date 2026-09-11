@@ -1,4 +1,4 @@
-# 小芒造物｜功能状态（1.6.37）
+# 小芒造物｜功能状态（1.6.38）
 
 | 功能 | 状态 | 说明 |
 | --- | --- | --- |
@@ -32,5 +32,6 @@
 | Position / Deformation UI | ✅ Gate I-UI | 六种位置模式按需显示参数，并使用 Slider + Numeric Entry。范围根据 source bounds 与参数语义设置；拖动仅临时预览、释放一次提交，模式切换和同模式 Reset 均支持 Undo/Redo。内部英文 ID、mm/radian/0..1 schema 不变。 |
 | Modifier Scope / Mask | ✅ Gate J | Size、Rotation、Position 共用同一个 `ModifierScope`；支持全部、选择快照、圆形、矩形和反转。Scope 在每层 Evaluate 前按 Element 中心判定，未命中元素保留上一层结果；旧层缺少 scope 时等价于全部。UI 使用中文和毫米 Slider/Entry，支持预览、Undo/Redo、Save/Load 与 SVG。 |
 | Shape Replacement / 形状替换 | ✅ Gate K | 单个 PlacementSlot 可非破坏式替换为圆形、正方形、菱形、三角形、星形或线形；默认 Fit Bounds。ReplacementMap 与原始 Element 快照写入 PatternDocument metadata，恢复、Undo/Redo、Save/Load、Grid 重建和 SVG 导出均保留一致性。当前不含批量替换、随机形状池和自定义 SVG。 |
+| Multi Selection / 批量编辑 | ✅ Gate L | 复用 `selected_ids` 实现 Shift 点击、世界坐标框选、Shift 追加、Ctrl+A 与 Escape；可批量替换/恢复形状、缩放、相对旋转、位移和非破坏式隐藏。多选拖动仅在释放时写一次事务；选择状态本身不写入项目。 |
 | Pattern Lab 结构路由与输入稳定性 | ✅ Working | Along Curve 先通过二维内在维度门禁，避免规则二维 Grid 被贪心最近邻链误判；Grid 数值统一严格解析，非 Grid 模式禁用 Grid 控件，UI 回调完整 traceback 写入 diagnostics。 |
 | Pattern Lab Halftone Element Debug | ✅ Working | 多尺度 small/medium/large Dot 识别会恢复/标注真实元素。显示 detected、renderable、visible filled、invalid 和 unknown 统计；闭合黑色语义 Path 以实心几何渲染，不再显示为空 Bounding Box。 |

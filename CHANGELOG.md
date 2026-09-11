@@ -1,5 +1,22 @@
 # 更新记录
 
+## 1.6.38 — Gate L：多选与批量编辑（2026-09-11）
+
+### Added
+
+- 复用现有 `selected_id + selected_ids` 作为唯一选择状态，新增 Shift 点击切换、空白区域框选、Shift + 框选追加、Ctrl+A 全选和 Escape 清空。
+- 框选始终通过 Canvas 的世界坐标变换判断 Element 中心，Zoom/Pan 后保持准确。
+- 多选集合可整体拖动；拖动只保留瞬态预览，鼠标释放后一次提交为一条 Undo。
+- 形状替换和恢复原形支持多选批量操作；一次操作只写入一条 ReplacementMap 事务。
+- 增加批量缩放、相对旋转、位移、隐藏选中与显示全部；隐藏不删除 Element 或 Placement source snapshot。
+- Element 编辑页增加中文批量编辑区、选择数量提示和无选择时的禁用状态。
+
+### Verification
+
+- Gate L 专项及 Gate K/J/Canvas 定向回归：17/17 PASS。
+- 完整 unittest：184/184 PASS。
+- Pattern Lab 固定测试图自检：6/6 PASS。
+
 ## 1.6.37 — Gate K：非破坏式形状替换（2026-09-10）
 
 ### Added

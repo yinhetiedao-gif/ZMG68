@@ -7,6 +7,7 @@ the PatternDocument and SVG are written once, on pointer release.
 from __future__ import annotations
 
 from copy import deepcopy
+from dataclasses import dataclass
 from pathlib import Path
 from time import perf_counter
 import math
@@ -98,6 +99,24 @@ SHAPE_PROTOTYPE_LABELS = {
 SHAPE_LABEL_TO_PROTOTYPE = {label: identifier for identifier, label in SHAPE_PROTOTYPE_LABELS.items()}
 
 
+@dataclass
+class SelectionRectangle:
+    """Transient world-coordinate marquee; never a second selection state."""
+
+    start_x: float
+    start_y: float
+    current_x: float
+    current_y: float
+    additive: bool = False
+
+    @property
+    def bounds(self) -> tuple[float, float, float, float]:
+        return (
+            min(self.start_x, self.current_x), min(self.start_y, self.current_y),
+            max(self.start_x, self.current_x), max(self.start_y, self.current_y),
+        )
+
+
 def parse_int_ui_value(value: object, name: str, *, minimum: int = 1) -> int:
     """Parse an integer Tk value without silently truncating bad input."""
     text = str(value).strip()
@@ -153,6 +172,8 @@ class PatternLabApp(tk.Tk):
         self._view_transform: CanvasViewTransform | None = None
         self._hover_id: str | None = None
         self._interaction: InteractionState | None = None
+        self._interaction_element_ids: tuple[str, ...] = ()
+        self._selection_rectangle: SelectionRectangle | None = None
         self._interaction_after: str | None = None
         self._inspector_after: str | None = None
         self._parameter_after: str | None = None
@@ -220,6 +241,14 @@ class PatternLabApp(tk.Tk):
         self._scope_selection_text = tk.StringVar(value="当前效果作用于全部元素。")
         self.shape_replacement_display_var = tk.StringVar(value=SHAPE_PROTOTYPE_LABELS["circle"])
         self._current_shape_text = tk.StringVar(value="当前形状：请先选择一个 Element。")
+        self._batch_selection_text = tk.StringVar(value="已选择：0 个元素")
+        self.batch_scale_x_var = tk.StringVar(value="1")
+        self.batch_scale_y_var = tk.StringVar(value="1")
+        self.batch_rotation_var = tk.StringVar(value="0")
+        self.batch_offset_x_var = tk.StringVar(value="0")
+        self.batch_offset_y_var = tk.StringVar(value="0")
+        self._selection_action_widgets: list[tk.Widget] = []
+        self._show_all_button: ttk.Button | None = None
         self.family_size_display_var = tk.StringVar(value=field_label(SizeFieldMode.CONSTANT.value))
         self.family_rotation_display_var = tk.StringVar(value=rotation_label(RotationFieldMode.CONSTANT.value))
         self._family_description_var = tk.StringVar(value=field_description(SizeFieldMode.CONSTANT.value))
@@ -246,6 +275,7 @@ class PatternLabApp(tk.Tk):
         for widget in self._grid_control_widgets:
             try: widget.configure(state="disabled")
             except tk.TclError: pass
+        self._refresh_batch_action_state()
         self._load_fixtures()
         self._performance_after = self.after(200, self._refresh_performance_panel)
 
@@ -287,32 +317,74 @@ class PatternLabApp(tk.Tk):
             ttk.Label(row, text=label, width=6).pack(side="left")
             entry = ttk.Entry(row, textvariable=variable, width=15); entry.pack(side="left", fill="x", expand=True)
             entry.bind("<Return>", lambda _event, position=label in {"X", "Y"}, rotation=label == "旋转": self.apply_position() if position else self.apply_rotation() if rotation else self.apply_size())
-        ttk.Button(element_tab, text="应用位置", command=self.apply_position).pack(fill="x", pady=(10, 3))
-        ttk.Button(element_tab, text="应用尺寸", command=self.apply_size).pack(fill="x", pady=3)
-        ttk.Button(element_tab, text="应用旋转", command=self.apply_rotation).pack(fill="x", pady=3)
+        position_button = ttk.Button(element_tab, text="应用位置", command=self.apply_position)
+        position_button.pack(fill="x", pady=(10, 3))
+        size_button = ttk.Button(element_tab, text="应用尺寸", command=self.apply_size)
+        size_button.pack(fill="x", pady=3)
+        rotation_button = ttk.Button(element_tab, text="应用旋转", command=self.apply_rotation)
+        rotation_button.pack(fill="x", pady=3)
+        self._selection_action_widgets.extend((position_button, size_button, rotation_button))
         shape_box = ttk.LabelFrame(element_tab, text="形状替换", padding=6)
         shape_box.pack(fill="x", pady=(12, 3))
         ttk.Label(shape_box, textvariable=self._current_shape_text, foreground="#44515e",
                   wraplength=235).pack(anchor="w", pady=(0, 4))
         ttk.Label(shape_box, text="替换为：").pack(anchor="w")
-        ttk.Combobox(
+        shape_box_selector = ttk.Combobox(
             shape_box,
             state="readonly",
             values=tuple(SHAPE_PROTOTYPE_LABELS.values()),
             textvariable=self.shape_replacement_display_var,
-        ).pack(fill="x", pady=(2, 5))
+        )
+        shape_box_selector.pack(fill="x", pady=(2, 5))
         shape_actions = ttk.Frame(shape_box); shape_actions.pack(fill="x")
-        ttk.Button(shape_actions, text="应用替换", command=self.apply_shape_replacement).pack(
+        replace_button = ttk.Button(shape_actions, text="应用替换", command=self.apply_shape_replacement)
+        replace_button.pack(
             side="left", fill="x", expand=True,
         )
-        ttk.Button(shape_actions, text="恢复原形", command=self.restore_shape).pack(
+        restore_button = ttk.Button(shape_actions, text="恢复原形", command=self.restore_shape)
+        restore_button.pack(
             side="left", fill="x", expand=True, padx=(4, 0),
         )
-        ttk.Button(element_tab, text="复制选中元素", command=self.duplicate).pack(fill="x", pady=(12, 3))
-        ttk.Button(element_tab, text="删除选中元素", command=self.delete).pack(fill="x", pady=3)
+        self._selection_action_widgets.extend((shape_box_selector, replace_button, restore_button))
+
+        batch_box = ttk.LabelFrame(element_tab, text="批量编辑", padding=6)
+        batch_box.pack(fill="x", pady=(12, 3))
+        ttk.Label(batch_box, textvariable=self._batch_selection_text, foreground="#44515e").pack(anchor="w", pady=(0, 4))
+        ttk.Label(batch_box, text="缩放以每个元素自身中心为基准；旋转为相对角度。", foreground="#56616f", wraplength=235).pack(anchor="w")
+        scale_row = ttk.Frame(batch_box); scale_row.pack(fill="x", pady=(5, 2))
+        ttk.Label(scale_row, text="缩放 X", width=7).pack(side="left")
+        scale_x_entry = ttk.Entry(scale_row, textvariable=self.batch_scale_x_var, width=6); scale_x_entry.pack(side="left")
+        ttk.Label(scale_row, text="Y", width=2).pack(side="left", padx=(5, 0))
+        scale_y_entry = ttk.Entry(scale_row, textvariable=self.batch_scale_y_var, width=6); scale_y_entry.pack(side="left")
+        scale_button = ttk.Button(scale_row, text="批量缩放", command=self.batch_scale); scale_button.pack(side="right")
+        rotate_row = ttk.Frame(batch_box); rotate_row.pack(fill="x", pady=2)
+        ttk.Label(rotate_row, text="旋转 +°", width=7).pack(side="left")
+        rotation_entry = ttk.Entry(rotate_row, textvariable=self.batch_rotation_var, width=8); rotation_entry.pack(side="left")
+        rotate_button = ttk.Button(rotate_row, text="批量旋转", command=self.batch_rotate); rotate_button.pack(side="right")
+        move_row = ttk.Frame(batch_box); move_row.pack(fill="x", pady=2)
+        ttk.Label(move_row, text="位移 X", width=7).pack(side="left")
+        offset_x_entry = ttk.Entry(move_row, textvariable=self.batch_offset_x_var, width=6); offset_x_entry.pack(side="left")
+        ttk.Label(move_row, text="Y", width=2).pack(side="left", padx=(5, 0))
+        offset_y_entry = ttk.Entry(move_row, textvariable=self.batch_offset_y_var, width=6); offset_y_entry.pack(side="left")
+        move_button = ttk.Button(move_row, text="批量位移", command=self.batch_move); move_button.pack(side="right")
+        hide_row = ttk.Frame(batch_box); hide_row.pack(fill="x", pady=(4, 0))
+        hide_button = ttk.Button(hide_row, text="隐藏选中", command=self.hide_selected)
+        hide_button.pack(side="left", fill="x", expand=True)
+        self._show_all_button = ttk.Button(hide_row, text="显示全部", command=self.show_all_elements)
+        self._show_all_button.pack(side="left", fill="x", expand=True, padx=(4, 0))
+        self._selection_action_widgets.extend((
+            scale_x_entry, scale_y_entry, scale_button, rotation_entry, rotate_button,
+            offset_x_entry, offset_y_entry, move_button, hide_button,
+        ))
+
+        duplicate_button = ttk.Button(element_tab, text="复制选中元素", command=self.duplicate)
+        duplicate_button.pack(fill="x", pady=(12, 3))
+        delete_button = ttk.Button(element_tab, text="删除选中元素", command=self.delete)
+        delete_button.pack(fill="x", pady=3)
+        self._selection_action_widgets.extend((duplicate_button, delete_button))
         ttk.Button(element_tab, text="布尔并集", command=self.union_selected).pack(fill="x", pady=(12, 3))
         ttk.Button(element_tab, text="布尔差集（主选 - 其余）", command=self.difference_selected).pack(fill="x", pady=3)
-        ttk.Label(element_tab, text="直接操作：点击选择；Shift+点击多选；拖动移动；\n拖动四角控制点缩放。Canvas 始终读取 PatternDocument。", foreground="#56616f", wraplength=250).pack(anchor="w", pady=(18, 0))
+        ttk.Label(element_tab, text="直接操作：点击选择；Shift+点击多选；空白处拖动框选；\n拖动已选集合可整体移动；单选时可拖动四角缩放。", foreground="#56616f", wraplength=250).pack(anchor="w", pady=(18, 0))
         self._build_matrix_panel(matrix_tab)
 
     def _build_matrix_panel(self, parent: ttk.Frame) -> None:
@@ -938,7 +1010,7 @@ class PatternLabApp(tk.Tk):
         self.canvas.bind("<ButtonPress-1>", self.canvas_press); self.canvas.bind("<B1-Motion>", self.canvas_drag); self.canvas.bind("<ButtonRelease-1>", self.canvas_release)
         self.canvas.bind("<Motion>", self.canvas_motion); self.canvas.bind("<Leave>", lambda _event: self._set_cursor_status(None))
         self.canvas.bind("<ButtonPress-2>", self.pan_press); self.canvas.bind("<B2-Motion>", self.pan_drag); self.canvas.bind("<ButtonRelease-2>", self.pan_release)
-        self.canvas.bind("<MouseWheel>", self.wheel_zoom); self.canvas.bind("<Escape>", self.cancel_interaction); self.canvas.bind("<Configure>", self._canvas_resized)
+        self.canvas.bind("<MouseWheel>", self.wheel_zoom); self.canvas.bind("<Escape>", self.escape_selection); self.canvas.bind("<Control-a>", self.select_all_elements); self.canvas.bind("<Configure>", self._canvas_resized)
         self.bind_all("<Control-z>", self._shortcut_undo); self.bind_all("<Control-Shift-Z>", self._shortcut_redo); self.bind_all("<Control-y>", self._shortcut_redo)
         self.ruler_x.bind("<Configure>", lambda _event: self.refresh_rulers()); self.ruler_y.bind("<Configure>", lambda _event: self.refresh_rulers())
         ttk.Label(center, textvariable=self._status_text, anchor="w", foreground="#56616f").pack(fill="x", pady=(4, 0))
@@ -993,26 +1065,54 @@ class PatternLabApp(tk.Tk):
     def canvas_press(self, event: tk.Event) -> None:
         document, transform = self.session.document, self._view_transform
         if not document or transform is None or self._preview_grid_elements is not None: return
-        world_x, world_y = transform.screenToWorld(event.x, event.y); handle = self._scale_handle_at(event.x, event.y); selected = self.session.selected_id
+        self.canvas.focus_set()
+        world_x, world_y = transform.screenToWorld(event.x, event.y)
+        handle = self._scale_handle_at(event.x, event.y)
+        selected = self.session.selected_id
         if handle and selected:
             self._begin_interaction("scale", document.element(selected), world_x, world_y, handle); return
         self.metrics.spatial_queries += 1; selected = self._spatial_index.hit_test(world_x, world_y, tolerance=1.5 / transform.scale)
         additive = bool(event.state & 0x0001)
-        self.session.select(selected, additive=additive)
-        if selected and not additive: self._begin_interaction("move", document.element(selected), world_x, world_y, None)
-        else: self._render_interaction_layer()
+        if selected:
+            # A regular press inside an existing multi-selection begins an
+            # aggregate drag instead of collapsing it back to one Element.
+            if not additive and selected not in self.session.selected_ids:
+                self.session.select(selected)
+            elif additive:
+                self.session.select(selected, additive=True)
+            if selected and not additive and self.session.selected_id:
+                self._begin_interaction("move", document.element(selected), world_x, world_y, None)
+            else:
+                self._render_interaction_layer()
+        else:
+            # Selection is committed only on release; a marquee is transient
+            # and uses the same screenToWorld/worldToScreen transform as drag.
+            self._selection_rectangle = SelectionRectangle(world_x, world_y, world_x, world_y, additive)
+            self._render_interaction_layer()
         self.refresh_fields(force=True); self.refresh_element_debug()
 
     def _begin_interaction(self, kind: str, element, world_x: float, world_y: float, handle: str | None) -> None:
         self._interaction = InteractionState(kind=kind, element_id=element.id, handle=handle, start_pointer_x=world_x, start_pointer_y=world_y, start_x=element.x, start_y=element.y, start_width=element.width, start_height=element.height, start_rotation=element.rotation, current_x=element.x, current_y=element.y, current_width=element.width, current_height=element.height, current_rotation=element.rotation)
+        self._interaction_element_ids = tuple(
+            self.session.selected_ids if kind == "move" and element.id in self.session.selected_ids else [element.id]
+        )
         self.session.begin_transaction("移动" if kind == "move" else "缩放")
-        for item in self._static_element_items.get(element.id, []):
-            self.canvas.itemconfigure(item, state="hidden")
+        for identifier in self._interaction_element_ids:
+            for item in self._static_element_items.get(identifier, []):
+                self.canvas.itemconfigure(item, state="hidden")
         self.canvas.configure(cursor="fleur" if kind == "move" else "sizing"); self._schedule_interaction_frame()
 
     def canvas_drag(self, event: tk.Event) -> None:
         interaction, transform = self._interaction, self._view_transform
-        if not interaction or not transform: return
+        if not transform: return
+        if self._selection_rectangle is not None:
+            world_x, world_y = transform.screenToWorld(event.x, event.y)
+            self._selection_rectangle.current_x = world_x
+            self._selection_rectangle.current_y = world_y
+            self._status_text.set("框选：X %.2f mm  Y %.2f mm" % (world_x, world_y))
+            self._render_interaction_layer()
+            return
+        if not interaction: return
         started = perf_counter(); world_x, world_y = transform.screenToWorld(event.x, event.y)
         if interaction.kind == "move":
             interaction.set_position(interaction.start_x + world_x - interaction.start_pointer_x, interaction.start_y + world_y - interaction.start_pointer_y); self._status_text.set("X: %.2f mm    Y: %.2f mm    移动预览" % (world_x, world_y))
@@ -1022,17 +1122,45 @@ class PatternLabApp(tk.Tk):
 
     def canvas_release(self, event: tk.Event) -> None:
         interaction = self._interaction
-        if interaction:
+        selection_rectangle = self._selection_rectangle
+        if selection_rectangle is not None:
+            self._selection_rectangle = None
+            self.session.select_rectangle(*selection_rectangle.bounds, additive=selection_rectangle.additive)
+        elif interaction:
             self._cancel_scheduled_interaction_frame(); commit_started = perf_counter()
-            self._handle(lambda: self.session.commit_interaction(interaction)); self.metrics.record_commit(perf_counter() - commit_started); self._interaction = None
-            self._update_static_element(interaction.element_id); self._spatial_index.rebuild(self.session.require_document().elements)
+            interaction_ids = list(self._interaction_element_ids or (interaction.element_id,))
+            self._handle(lambda: self.session.commit_interaction(interaction, element_ids=interaction_ids)); self.metrics.record_commit(perf_counter() - commit_started); self._interaction = None
+            self._interaction_element_ids = ()
+            for identifier in interaction_ids:
+                self._update_static_element(identifier)
+            self._spatial_index.rebuild(self.session.require_document().elements)
         self.canvas.configure(cursor="crosshair"); self.refresh_fields(force=True); self.refresh_element_debug(); self.refresh_log(); self._render_interaction_layer()
         if self._view_transform: self._set_cursor_status(self._view_transform.screenToWorld(event.x, event.y))
 
     def cancel_interaction(self, _event: tk.Event | None = None) -> None:
         if self._interaction:
-            selected = self._interaction.element_id; self._cancel_scheduled_interaction_frame(); self.session.cancel_transaction(); self._interaction = None
-            self._update_static_element(selected); self.canvas.configure(cursor="crosshair"); self.refresh_fields(force=True); self.refresh_element_debug(); self.refresh_log(); self._render_interaction_layer()
+            selected = tuple(self._interaction_element_ids or (self._interaction.element_id,))
+            self._cancel_scheduled_interaction_frame(); self.session.cancel_transaction(); self._interaction = None; self._interaction_element_ids = ()
+            for identifier in selected:
+                self._update_static_element(identifier)
+        self._selection_rectangle = None
+        self.canvas.configure(cursor="crosshair"); self.refresh_fields(force=True); self.refresh_element_debug(); self.refresh_log(); self._render_interaction_layer()
+
+    def escape_selection(self, event: tk.Event | None = None):
+        """Escape cancels an active gesture, otherwise clears transient selection."""
+
+        if self._interaction or self._selection_rectangle:
+            self.cancel_interaction(event)
+        else:
+            self.session.clear_selection()
+            self.refresh_fields(force=True); self.refresh_element_debug(); self._render_interaction_layer()
+        return "break"
+
+    def select_all_elements(self, _event: tk.Event | None = None):
+        if self.session.document and self._preview_grid_elements is None:
+            self.session.select_all()
+            self.refresh_fields(force=True); self.refresh_element_debug(); self._render_interaction_layer()
+        return "break"
 
     def canvas_motion(self, event: tk.Event) -> None:
         transform = self._view_transform
@@ -1481,6 +1609,29 @@ class PatternLabApp(tk.Tk):
         self._handle(lambda: (self.session.resize_selected(parse_float_ui_value(self.width_var.get(), "宽度", minimum=0.01), parse_float_ui_value(self.height_var.get(), "高度", minimum=0.01)), self._after_document_change()))
     def apply_rotation(self) -> None:
         self._handle(lambda: (self.session.rotate_selected(parse_float_ui_value(self.rotation_var.get(), "旋转")), self._after_document_change()))
+    def batch_scale(self) -> None:
+        self._handle(lambda: (
+            self.session.scale_selected(
+                parse_float_ui_value(self.batch_scale_x_var.get(), "缩放 X", minimum=0.01),
+                parse_float_ui_value(self.batch_scale_y_var.get(), "缩放 Y", minimum=0.01),
+            ), self._after_document_change(),
+        ))
+    def batch_rotate(self) -> None:
+        self._handle(lambda: (
+            self.session.rotate_selected_by(parse_float_ui_value(self.batch_rotation_var.get(), "批量旋转角度")),
+            self._after_document_change(),
+        ))
+    def batch_move(self) -> None:
+        self._handle(lambda: (
+            self.session.move_selected(
+                parse_float_ui_value(self.batch_offset_x_var.get(), "位移 X"),
+                parse_float_ui_value(self.batch_offset_y_var.get(), "位移 Y"),
+            ), self._after_document_change(),
+        ))
+    def hide_selected(self) -> None:
+        self._handle(lambda: (self.session.hide_selected(), self._after_document_change()))
+    def show_all_elements(self) -> None:
+        self._handle(lambda: (self.session.show_all_elements(), self._after_document_change()))
     def apply_shape_replacement(self) -> None:
         prototype_id = SHAPE_LABEL_TO_PROTOTYPE.get(self.shape_replacement_display_var.get(), "circle")
         self._handle(lambda: (self.session.replace_selected_shape(prototype_id), self._after_document_change()))
@@ -1514,20 +1665,42 @@ class PatternLabApp(tk.Tk):
     def refresh_all(self) -> None: self.refresh_fields(force=True); self.refresh_element_debug(); self.refresh_log(); self._refresh_modifier_stack(); self.refresh_canvas()
     def refresh_fields(self, *, force: bool = False) -> None:
         self.metrics.inspector_refreshes += 1; document, selected = self.session.document, self.session.selected_id
+        self._refresh_batch_action_state()
         if not document or not selected:
             self.selection.set("未选择")
+            self._batch_selection_text.set("已选择：0 个元素")
             self._current_shape_text.set("当前形状：请先选择一个 Element。")
             for variable in (self.x_var, self.y_var, self.width_var, self.height_var, self.rotation_var): variable.set("")
             return
         element = document.element(selected)
         if self._interaction and self._interaction.element_id == selected: x, y, width, height = self._interaction.current_x, self._interaction.current_y, self._interaction.current_width, self._interaction.current_height
         else: x, y, width, height = element.x, element.y, element.width, element.height
-        prefix = "%d 个元素；主选：" % len(self.session.selected_ids) if len(self.session.selected_ids) > 1 else ""
+        count = len(self.session.selected_ids)
+        self._batch_selection_text.set("已选择：%d 个元素" % count)
+        prefix = "已选择：%d 个元素；主选：" % count if count > 1 else "已选择：1 个元素；"
         self.selection.set("%s%s  (%s)" % (prefix, element.id, element.type)); self.x_var.set("%.4g" % x); self.y_var.set("%.4g" % y); self.width_var.set("%.4g" % width); self.height_var.set("%.4g" % height); self.rotation_var.set("%.4g" % element.rotation)
         replacement = self.session.replacement_for(selected)
         self._current_shape_text.set(
             "当前形状：%s" % (SHAPE_PROTOTYPE_LABELS.get(replacement, replacement) if replacement else "原始")
         )
+
+    def _refresh_batch_action_state(self) -> None:
+        """Disable all selection-dependent controls when selection is empty."""
+
+        enabled = bool(self.session.document and self.session.selected_ids)
+        for widget in self._selection_action_widgets:
+            try:
+                if isinstance(widget, ttk.Combobox):
+                    widget.configure(state="readonly" if enabled else "disabled")
+                else:
+                    widget.configure(state="normal" if enabled else "disabled")
+            except tk.TclError:
+                pass
+        if self._show_all_button is not None:
+            try:
+                self._show_all_button.configure(state="normal" if self.session.document else "disabled")
+            except tk.TclError:
+                pass
     def refresh_log(self) -> None:
         self.log.configure(state="normal"); self.log.delete("1.0", "end"); self.log.insert("end", "\n".join("[%s] %s: %s" % (entry.timestamp, entry.level, entry.message) for entry in self.session.logs)); self.log.see("end"); self.log.configure(state="disabled")
 
@@ -1609,17 +1782,40 @@ class PatternLabApp(tk.Tk):
         if not self._view_transform: return
         started = perf_counter(); self.canvas.delete("interaction"); interaction, document = self._interaction, self.session.document
         if interaction and document:
-            base = document.element(interaction.element_id); self._draw_geometry(interaction.current_x, interaction.current_y, interaction.current_width, interaction.current_height, base, fill="#161b22", outline="#1577c0")
-            self._draw_bounds(interaction.current_x, interaction.current_y, interaction.current_width, interaction.current_height, "#1577c0", (5, 2), 2)
-            for x, y in self._handle_positions_for(interaction.current_x, interaction.current_y, interaction.current_width, interaction.current_height).values(): self.canvas.create_rectangle(x - 5, y - 5, x + 5, y + 5, fill="white", outline="#1577c0", width=2, tags="interaction")
+            interaction_ids = self._interaction_element_ids or (interaction.element_id,)
+            dx, dy = interaction.current_x - interaction.start_x, interaction.current_y - interaction.start_y
+            preview_bounds: list[tuple[float, float, float, float]] = []
+            for identifier in interaction_ids:
+                base = document.element(identifier)
+                if identifier == interaction.element_id:
+                    x, y, width, height = interaction.current_x, interaction.current_y, interaction.current_width, interaction.current_height
+                else:
+                    x, y, width, height = base.x + dx, base.y + dy, base.width, base.height
+                self._draw_geometry(x, y, width, height, base, fill="#161b22", outline="#1577c0")
+                self._draw_bounds(x, y, width, height, "#1577c0", (5, 2), 1)
+                preview_bounds.append((x - width / 2, y - height / 2, x + width / 2, y + height / 2))
+            if len(preview_bounds) == 1:
+                for x, y in self._handle_positions_for(interaction.current_x, interaction.current_y, interaction.current_width, interaction.current_height).values():
+                    self.canvas.create_rectangle(x - 5, y - 5, x + 5, y + 5, fill="white", outline="#1577c0", width=2, tags="interaction")
+            elif preview_bounds:
+                self._draw_world_bounds(self._combined_bounds(preview_bounds), "#1577c0", (2, 2), 2)
             interaction.dirty = False; self.metrics.interaction_renders += 1
         elif document and self.session.selected_id:
-            for selected_id in self.session.selected_ids or [self.session.selected_id]:
+            selected_ids = self.session.selected_ids or [self.session.selected_id]
+            selected_bounds: list[tuple[float, float, float, float]] = []
+            for selected_id in selected_ids:
                 element = document.element(selected_id); color = "#1577c0" if selected_id == self.session.selected_id else "#5c8fb7"
                 self._draw_bounds(element.x, element.y, element.width, element.height, color, (5, 2), 2)
-            element = document.element(self.session.selected_id)
-            for x, y in self._handle_positions_for(element.x, element.y, element.width, element.height).values(): self.canvas.create_rectangle(x - 5, y - 5, x + 5, y + 5, fill="white", outline="#1577c0", width=2, tags="interaction")
-        if document and self._hover_id and self._hover_id != self.session.selected_id:
+                selected_bounds.append((element.x - element.width / 2, element.y - element.height / 2, element.x + element.width / 2, element.y + element.height / 2))
+            if len(selected_ids) == 1:
+                element = document.element(self.session.selected_id)
+                for x, y in self._handle_positions_for(element.x, element.y, element.width, element.height).values():
+                    self.canvas.create_rectangle(x - 5, y - 5, x + 5, y + 5, fill="white", outline="#1577c0", width=2, tags="interaction")
+            elif selected_bounds:
+                self._draw_world_bounds(self._combined_bounds(selected_bounds), "#1577c0", (2, 2), 2)
+        if self._selection_rectangle is not None:
+            self._draw_world_bounds(self._selection_rectangle.bounds, "#1577c0", (4, 2), 1)
+        if document and self._hover_id and self._hover_id not in self.session.selected_ids:
             element = document.element(self._hover_id); self._draw_bounds(element.x, element.y, element.width, element.height, "#6d7d8d", (3, 2), 1)
         self.metrics.record_frame(perf_counter() - started)
     def _draw_geometry(self, x: float, y: float, width: float, height: float, source, *, fill: str, outline: str) -> None:
@@ -1654,9 +1850,20 @@ class PatternLabApp(tk.Tk):
     def _screen_bounds(self, x: float, y: float, width: float, height: float) -> tuple[float, float, float, float]:
         transform = self._view_transform; x0, y0 = transform.worldToScreen(x - width / 2, y - height / 2); x1, y1 = transform.worldToScreen(x + width / 2, y + height / 2); return x0, y0, x1, y1
     def _draw_bounds(self, x: float, y: float, width: float, height: float, color: str, dash: tuple[int, int], stroke: int) -> None: self.canvas.create_rectangle(*self._screen_bounds(x, y, width, height), outline=color, width=stroke, dash=dash, tags="interaction")
+    def _draw_world_bounds(self, bounds: tuple[float, float, float, float], color: str, dash: tuple[int, int], stroke: int) -> None:
+        transform = self._view_transform
+        x0, y0 = transform.worldToScreen(bounds[0], bounds[1])
+        x1, y1 = transform.worldToScreen(bounds[2], bounds[3])
+        self.canvas.create_rectangle(x0, y0, x1, y1, outline=color, width=stroke, dash=dash, tags="interaction")
+    @staticmethod
+    def _combined_bounds(bounds: list[tuple[float, float, float, float]]) -> tuple[float, float, float, float]:
+        return (
+            min(item[0] for item in bounds), min(item[1] for item in bounds),
+            max(item[2] for item in bounds), max(item[3] for item in bounds),
+        )
     def _scale_handle_at(self, screen_x: float, screen_y: float) -> str | None:
         document, selected = self.session.document, self.session.selected_id
-        if not document or not selected or not self._view_transform: return None
+        if not document or not selected or len(self.session.selected_ids) != 1 or not self._view_transform: return None
         element = document.element(selected)
         for name, (x, y) in self._handle_positions_for(element.x, element.y, element.width, element.height).items():
             if (screen_x - x) ** 2 + (screen_y - y) ** 2 <= 10 ** 2: return name

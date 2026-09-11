@@ -1,5 +1,14 @@
 # Nightly Shared Field Report
 
+## Gate L — 多选与批量编辑（2026-09-11）
+
+- 目标：让数百至数千个真实 Element 可以一次选择、一次编辑，保持 PatternDocument 为唯一数据源。
+- 实现：在既有 `selected_ids` 上增加世界坐标框选、Shift 追加、Ctrl+A、Escape 和成组拖动；不新建第二套选择/Transform 状态。
+- 批量操作：形状替换/恢复、按元素自身中心缩放、相对旋转、位移、隐藏/显示；业务提交均使用一条 Undo Transaction。
+- 可见性：自由元素保留 Element record，参数化模型使用 LocalOverride，Placement 模式使用 PlacementSlot；均不删除 source geometry。
+- 性能：100/500/1000 Element 的选择、移动和缩放已在专项测试中执行；当前实现保持既有 SpatialIndex，不做额外 Canvas 架构重写。
+- 验证：专项及 K/J/Canvas 回归 17/17 PASS；完整 unittest 184/184 PASS；固定图 self-test 6/6 PASS。
+
 ## Gate K — 非破坏式形状替换（2026-09-10）
 
 - 目标：让单个槽位更换视觉形状，同时保留原始几何、稳定 ID、现有效果堆栈和可逆编辑。
