@@ -1,5 +1,24 @@
 # 更新记录
 
+## 1.6.40 — Gate M.1：形状池作用范围（2026-09-14）
+
+### Added
+
+- 形状池随机分配现已复用既有 `ModifierScope`，支持全部元素、当前选择快照、圆形区域、矩形区域及反转；范围外 Slot 保持原始形状。
+- 形状池作用范围独立写入 Placement Assignment metadata，随 Undo/Redo、Save/Load 与 SVG 导出链路保持一致。
+- 手动 `ReplacementMap` 仍优先于 Shape Pool Scope，范围外的局部手工形状不会因修改范围或 Seed 被覆盖。
+- 形状池面板新增中文“作用范围”子区，连续范围参数使用现有世界坐标/mm Slider + Numeric Entry，并保留只读预览、释放后一次提交的交互规则。
+
+### Compatibility
+
+- 历史 PatternDocument 缺少 `shape_pool_scope` 时自动按“全部元素”加载；Shape Pool 默认关闭的旧工程视觉结果不变。
+- 本次不新增随机尺寸、随机旋转、随机位置、密度、占用率或新的 Generator。
+
+### Verification
+
+- Shape Pool Scope 核心、UI、Placement/Gate J/K/L 定向覆盖：7/7 PASS。
+- 完整 unittest：191/191 PASS；Pattern Lab 固定测试图自检：6/6 PASS。
+
 ## 1.6.39 — Gate M：形状池与确定性随机（2026-09-11）
 
 ### Added
@@ -17,7 +36,7 @@
 ### Verification
 
 - Gate M + Gate K/L/Placement 定向回归：23/23 PASS。
-- 完整 unittest：189/189 PASS。
+- 完整 unittest：190/190 PASS（Gate M 提交时）。
 - Pattern Lab 固定测试图自检：6/6 PASS。
 
 ## 1.6.38 — Gate L：多选与批量编辑（2026-09-11）

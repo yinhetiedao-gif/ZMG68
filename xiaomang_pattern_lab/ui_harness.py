@@ -245,6 +245,17 @@ class PatternLabApp(tk.Tk):
         self._current_shape_text = tk.StringVar(value="当前形状：请先选择一个 Element。")
         self.shape_pool_enabled_var = tk.BooleanVar(value=False)
         self.shape_random_seed_var = tk.StringVar(value="1")
+        self.shape_pool_scope_mode_display_var = tk.StringVar(value=SCOPE_MODE_LABELS[ModifierScopeMode.ALL.value])
+        self.shape_pool_scope_invert_var = tk.BooleanVar(value=False)
+        self.shape_pool_scope_center_x_var = tk.StringVar(value="0")
+        self.shape_pool_scope_center_y_var = tk.StringVar(value="0")
+        self.shape_pool_scope_radius_var = tk.StringVar(value="50")
+        self.shape_pool_scope_width_var = tk.StringVar(value="100")
+        self.shape_pool_scope_height_var = tk.StringVar(value="100")
+        self._shape_pool_scope_selection_text = tk.StringVar(value="形状池作用于全部元素。")
+        self._shape_pool_scope_selected_ids: tuple[str, ...] = ()
+        self._shape_pool_scope_dynamic_frame: ttk.Frame | None = None
+        self._shape_pool_scope_control_widgets: dict[str, tuple[tk.Scale, ttk.Entry]] = {}
         self.shape_pool_enabled_vars = {
             identifier: tk.BooleanVar(value=False) for identifier in SHAPE_PROTOTYPE_LABELS
         }
@@ -606,6 +617,24 @@ class PatternLabApp(tk.Tk):
         ttk.Button(panel, text="🎲 换一种", command=self._randomize_shape_pool).pack(fill="x", pady=(3, 2))
         ttk.Button(panel, text="恢复默认", command=self._reset_shape_pool).pack(fill="x")
 
+        scope_box = ttk.LabelFrame(panel, text="作用范围", padding=4)
+        scope_box.pack(fill="x", pady=(6, 0))
+        scope_combo = ttk.Combobox(
+            scope_box, state="readonly", textvariable=self.shape_pool_scope_mode_display_var,
+            values=[SCOPE_MODE_LABELS[item.value] for item in ModifierScopeMode],
+        )
+        scope_combo.pack(fill="x", pady=(0, 2))
+        scope_combo.bind("<<ComboboxSelected>>", self._on_shape_pool_scope_mode_selected)
+        ttk.Checkbutton(
+            scope_box, text="反转范围", variable=self.shape_pool_scope_invert_var,
+            command=self._commit_shape_pool_controls,
+        ).pack(anchor="w")
+        ttk.Label(scope_box, textvariable=self._shape_pool_scope_selection_text,
+                  foreground="#56616f", wraplength=245, justify="left").pack(anchor="w", pady=(1, 3))
+        self._shape_pool_scope_dynamic_frame = ttk.Frame(scope_box)
+        self._shape_pool_scope_dynamic_frame.pack(fill="x")
+        self._build_shape_pool_scope_parameter_panel()
+
     def _shape_pool_entries_from_controls(self) -> list[ShapePoolEntry]:
         return [
             ShapePoolEntry(
@@ -618,6 +647,124 @@ class PatternLabApp(tk.Tk):
             for identifier, label in SHAPE_PROTOTYPE_LABELS.items()
         ]
 
+    def _shape_pool_scope_mode(self) -> ModifierScopeMode:
+        raw = SCOPE_LABEL_TO_MODE.get(
+            self.shape_pool_scope_mode_display_var.get(), ModifierScopeMode.ALL.value,
+        )
+        return ModifierScopeMode(raw)
+
+    def _shape_pool_scope_variables(self) -> dict[str, tk.StringVar]:
+        return {
+            "center_x": self.shape_pool_scope_center_x_var,
+            "center_y": self.shape_pool_scope_center_y_var,
+            "radius": self.shape_pool_scope_radius_var,
+            "width": self.shape_pool_scope_width_var,
+            "height": self.shape_pool_scope_height_var,
+        }
+
+    def _shape_pool_scope_from_controls(self) -> ModifierScope:
+        variables = self._shape_pool_scope_variables()
+        return ModifierScope(
+            mode=self._shape_pool_scope_mode(),
+            invert=bool(self.shape_pool_scope_invert_var.get()),
+            selected_element_ids=list(self._shape_pool_scope_selected_ids),
+            center_x=parse_float_ui_value(variables["center_x"].get(), "形状池范围中心 X"),
+            center_y=parse_float_ui_value(variables["center_y"].get(), "形状池范围中心 Y"),
+            radius=parse_float_ui_value(variables["radius"].get(), "形状池圆形范围半径", minimum=0.01),
+            width=parse_float_ui_value(variables["width"].get(), "形状池矩形范围宽度", minimum=0.01),
+            height=parse_float_ui_value(variables["height"].get(), "形状池矩形范围高度", minimum=0.01),
+        )
+
+    def _default_shape_pool_scope_for_mode(self, mode: ModifierScopeMode) -> ModifierScope:
+        ranges = self._scope_world_ranges()
+        min_x, max_x = ranges["center_x"][0], ranges["center_x"][1]
+        min_y, max_y = ranges["center_y"][0], ranges["center_y"][1]
+        width, height = max(0.1, max_x - min_x), max(0.1, max_y - min_y)
+        selected = list(self.session.selected_ids or ([self.session.selected_id] if self.session.selected_id else []))
+        return ModifierScope(
+            mode=mode,
+            invert=bool(self.shape_pool_scope_invert_var.get()),
+            selected_element_ids=selected,
+            center_x=(min_x + max_x) / 2.0,
+            center_y=(min_y + max_y) / 2.0,
+            radius=max(0.1, min(width, height) / 2.0), width=width, height=height,
+        )
+
+    def _update_shape_pool_scope_description(self, scope: ModifierScope) -> None:
+        if scope.mode is ModifierScopeMode.ALL:
+            text = "形状池作用于全部元素。"
+        elif scope.mode is ModifierScopeMode.SELECTED:
+            text = "已记录 %d 个 Element；后续选择不会静默改写范围。" % len(scope.selected_element_ids)
+        elif scope.mode is ModifierScopeMode.CIRCLE:
+            text = "仅在圆形区域内按形状池随机分配。"
+        else:
+            text = "仅在矩形区域内按形状池随机分配。"
+        if scope.invert:
+            text += " 当前已反转。"
+        self._shape_pool_scope_selection_text.set(text)
+
+    def _load_shape_pool_scope_controls(self, scope: ModifierScope, *, rebuild: bool = True) -> None:
+        self.shape_pool_scope_mode_display_var.set(SCOPE_MODE_LABELS[scope.mode.value])
+        self.shape_pool_scope_invert_var.set(scope.invert)
+        self.shape_pool_scope_center_x_var.set("%.6g" % scope.center_x)
+        self.shape_pool_scope_center_y_var.set("%.6g" % scope.center_y)
+        self.shape_pool_scope_radius_var.set("%.6g" % scope.radius)
+        self.shape_pool_scope_width_var.set("%.6g" % scope.width)
+        self.shape_pool_scope_height_var.set("%.6g" % scope.height)
+        self._shape_pool_scope_selected_ids = tuple(scope.selected_element_ids)
+        self._update_shape_pool_scope_description(scope)
+        if rebuild:
+            self._build_shape_pool_scope_parameter_panel()
+
+    def _add_shape_pool_scope_slider(self, parent: ttk.Frame, key: str, label: str,
+                                     config: tuple[float, float, float, str]) -> None:
+        minimum, maximum, resolution, unit = config
+        row = ttk.Frame(parent); row.pack(fill="x", pady=1)
+        ttk.Label(row, text=label, width=9).pack(side="left")
+        variable = self._shape_pool_scope_variables()[key]
+        scale = tk.Scale(
+            row, from_=minimum, to=maximum, resolution=resolution, orient="horizontal",
+            showvalue=False, variable=variable, highlightthickness=0, length=115,
+            command=lambda _value: self._schedule_shape_pool_preview(),
+        )
+        scale.pack(side="left", fill="x", expand=True)
+        entry = ttk.Entry(row, textvariable=variable, width=7)
+        entry.pack(side="right", padx=(3, 0))
+        ttk.Label(row, text=unit, width=3).pack(side="right")
+        scale.bind("<ButtonRelease-1>", lambda _event: self._commit_shape_pool_controls())
+        entry.bind("<KeyRelease>", lambda _event: self._schedule_shape_pool_preview())
+        entry.bind("<Return>", lambda _event: self._commit_shape_pool_controls())
+        entry.bind("<FocusOut>", lambda _event: self._commit_shape_pool_controls())
+        self._shape_pool_scope_control_widgets[key] = (scale, entry)
+
+    def _build_shape_pool_scope_parameter_panel(self) -> None:
+        frame = self._shape_pool_scope_dynamic_frame
+        if frame is None:
+            return
+        for child in frame.winfo_children():
+            child.destroy()
+        self._shape_pool_scope_control_widgets.clear()
+        mode = self._shape_pool_scope_mode()
+        if mode is ModifierScopeMode.SELECTED:
+            ttk.Button(frame, text="使用当前选择", command=self._capture_current_shape_pool_selection_scope).pack(fill="x", pady=(0, 2))
+        labels = {"center_x": "中心 X", "center_y": "中心 Y", "radius": "半径", "width": "宽度", "height": "高度"}
+        ranges = self._scope_world_ranges()
+        for key in SCOPE_MODE_FIELDS[mode.value]:
+            self._add_shape_pool_scope_slider(frame, key, labels[key], ranges[key])
+
+    def _on_shape_pool_scope_mode_selected(self, _event=None) -> None:
+        scope = self._default_shape_pool_scope_for_mode(self._shape_pool_scope_mode())
+        self._load_shape_pool_scope_controls(scope)
+        self._commit_shape_pool_controls()
+
+    def _capture_current_shape_pool_selection_scope(self) -> None:
+        self._shape_pool_scope_selected_ids = tuple(
+            self.session.selected_ids or ([self.session.selected_id] if self.session.selected_id else [])
+        )
+        scope = self._shape_pool_scope_from_controls()
+        self._update_shape_pool_scope_description(scope)
+        self._commit_shape_pool_controls()
+
     def _load_shape_pool_controls(self) -> None:
         if self.session.document is None:
             return
@@ -625,6 +772,7 @@ class PatternLabApp(tk.Tk):
         by_id = {entry.prototype_id: entry for entry in state.shape_pool}
         self.shape_pool_enabled_var.set(bool(state.shape_pool_enabled))
         self.shape_random_seed_var.set(str(state.shape_random_seed))
+        self._load_shape_pool_scope_controls(state.shape_pool_scope)
         for identifier in SHAPE_PROTOTYPE_LABELS:
             entry = by_id.get(identifier, ShapePoolEntry(identifier))
             self.shape_pool_enabled_vars[identifier].set(bool(entry.enabled))
@@ -657,6 +805,7 @@ class PatternLabApp(tk.Tk):
             state.shape_random_seed = max(0, parse_int_ui_value(
                 self.shape_random_seed_var.get(), "随机种子", minimum=0,
             ))
+            state.shape_pool_scope = self._shape_pool_scope_from_controls()
             state.attach(preview_document)
             self._preview_grid_elements = evaluate_pattern_document(preview_document)
             self._render_static_layer(elements=self._preview_grid_elements, update_index=False)
@@ -676,6 +825,7 @@ class PatternLabApp(tk.Tk):
                 self._shape_pool_entries_from_controls(),
                 enabled=bool(self.shape_pool_enabled_var.get()),
                 seed=parse_int_ui_value(self.shape_random_seed_var.get(), "随机种子", minimum=0),
+                scope=self._shape_pool_scope_from_controls(),
             )
             self._after_document_change()
         self._handle(action)
@@ -1829,7 +1979,7 @@ class PatternLabApp(tk.Tk):
             if state.shape_pool_enabled:
                 slot = next((item for item in state.slots if item.slot_id == selected or item.source_element_id == selected), None)
                 assigned = None
-                if slot is not None:
+                if slot is not None and state.shape_pool_scope.contains(element):
                     from .placement_assignment import AssignmentEngine
                     assigned = AssignmentEngine(state.prototypes).shape_assignment_for(
                         slot, shape_pool=state.shape_pool, seed=state.shape_random_seed,

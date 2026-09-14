@@ -17,6 +17,7 @@ from xiaomang_pattern_lab.placement_assignment import (
     ShapePrototypeRegistry,
 )
 from xiaomang_pattern_lab.session import PatternLabSession
+from xiaomang_pattern_lab.shared_modifiers import ModifierScope, ModifierScopeMode
 from xiaomang_pattern_lab.ui_harness import PatternLabApp
 
 
@@ -131,6 +132,51 @@ class ShapePoolCoreTests(unittest.TestCase):
             self.assertEqual(len(result), count)
             self.assertLess(perf_counter() - started, 3.0, "%d slots" % count)
 
+    def test_scope_limits_seeded_pool_but_manual_replacement_still_wins(self):
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            session = PatternLabSession(FoundationPipeline(None, None), root, document=make_document(12))
+            star_only = [ShapePoolEntry("star", 100.0, True)]
+            selected_scope = ModifierScope(
+                mode=ModifierScopeMode.SELECTED,
+                selected_element_ids=["dot-001", "dot-004"],
+            )
+            session.update_shape_pool(star_only, enabled=True, seed=41, scope=selected_scope)
+            self.assertEqual(session.document.element("dot-001").type, "filled_region")
+            self.assertEqual(session.document.element("dot-004").type, "filled_region")
+            self.assertEqual(session.document.element("dot-002").type, "circle")
+
+            # A direct local edit is intentionally stronger than the pool
+            # Scope; it remains editable outside the generated region.
+            session.select("dot-002")
+            session.replace_selected_shape("diamond")
+            self.assertEqual(session.document.element("dot-002").type, "filled_region")
+            before_scope_undo = session.undo_record_count
+            session.set_shape_pool_scope(ModifierScope(
+                mode=ModifierScopeMode.CIRCLE, center_x=11.0, center_y=0.0, radius=0.5,
+            ))
+            self.assertEqual(session.undo_record_count, before_scope_undo + 1)
+            self.assertEqual(session.document.element("dot-001").type, "filled_region")
+            self.assertEqual(session.document.element("dot-004").type, "circle")
+            self.assertEqual(session.document.element("dot-002").type, "filled_region")
+
+            session.undo()
+            self.assertEqual(session.shape_pool_state().shape_pool_scope.mode, ModifierScopeMode.SELECTED)
+            self.assertEqual(session.document.element("dot-004").type, "filled_region")
+            session.redo()
+            self.assertEqual(session.document.element("dot-004").type, "circle")
+            svg = session.export_svg(root / "scoped-shape-pool.svg").read_text(encoding="utf-8")
+            self.assertIn("<path", svg)
+            self.assertIn("<circle", svg)
+
+            saved = session.save_document(root / "scoped-shape-pool.pattern.json")
+            restored = PatternLabSession(FoundationPipeline(None, None), root / "reload")
+            restored.load_document(str(saved))
+            scope = restored.shape_pool_state().shape_pool_scope
+            self.assertEqual(scope.mode, ModifierScopeMode.CIRCLE)
+            self.assertEqual(scope.radius, 0.5)
+            self.assertEqual(restored.document.element("dot-002").type, "filled_region")
+
 
 class ShapePoolUITests(unittest.TestCase):
     def test_chinese_pool_controls_commit_and_reset_without_mutating_sources(self):
@@ -152,6 +198,13 @@ class ShapePoolUITests(unittest.TestCase):
                 self.assertEqual(state.shape_random_seed, 58321)
                 self.assertTrue(all(element.type == "filled_region" for element in app.session.document.elements))
                 self.assertEqual(state.source_snapshot(), source_before)
+                selected_ids = [element.id for element in app.session.document.elements[:2]]
+                app.session.select_many(selected_ids)
+                app.shape_pool_scope_mode_display_var.set("当前选择")
+                app._on_shape_pool_scope_mode_selected(); app.update()
+                state = app.session.shape_pool_state()
+                self.assertEqual(state.shape_pool_scope.mode, ModifierScopeMode.SELECTED)
+                self.assertEqual(set(state.shape_pool_scope.selected_element_ids), set(selected_ids))
                 app._reset_shape_pool(); app.update()
                 state = app.session.shape_pool_state()
                 self.assertFalse(state.shape_pool_enabled)

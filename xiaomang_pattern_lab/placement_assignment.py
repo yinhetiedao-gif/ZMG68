@@ -30,6 +30,7 @@ from .parametric import (
     PolygonPrototype,
     RectPrototype,
 )
+from .shared_modifiers import ModifierScope, ModifierScopeMode
 
 
 PLACEMENT_METADATA_KEY = "xiaomang_pattern_lab.placement_assignment"
@@ -390,11 +391,21 @@ class AssignmentEngine:
                           replacement_map: ReplacementMap, random_settings: RandomSettings,
                           shape_pool: Sequence[ShapePoolEntry] | None = None,
                           shape_pool_enabled: bool = False,
-                          shape_random_seed: int | None = None) -> str | None:
+                          shape_random_seed: int | None = None,
+                          shape_pool_scope: ModifierScope | None = None,
+                          scope_element: Element | None = None) -> str | None:
         # Manual editing always wins over any generated assignment.
         if slot.slot_id in replacement_map.values:
             return replacement_map.values[slot.slot_id]
         if shape_pool_enabled:
+            # Scope is deliberately evaluated after the manual ReplacementMap
+            # precedence rule.  A local, explicit edit must survive a later
+            # change to the generated Shape Pool area.
+            if shape_pool_scope is not None:
+                if scope_element is None and shape_pool_scope.mode is not ModifierScopeMode.ALL:
+                    return None
+                if scope_element is not None and not shape_pool_scope.contains(scope_element):
+                    return None
             return self.shape_assignment_for(
                 slot,
                 shape_pool=shape_pool or (),
@@ -415,7 +426,8 @@ class AssignmentEngine:
                  random_settings: RandomSettings | None = None,
                  shape_pool: Sequence[ShapePoolEntry] | None = None,
                  shape_pool_enabled: bool = False,
-                 shape_random_seed: int | None = None) -> list[Element]:
+                 shape_random_seed: int | None = None,
+                 shape_pool_scope: ModifierScope | None = None) -> list[Element]:
         source_map = {element.id: element for element in source_elements} if not isinstance(source_elements, Mapping) else dict(source_elements)
         replacement_map = replacement_map or ReplacementMap()
         assignment = assignment or AssignmentSettings()
@@ -423,11 +435,23 @@ class AssignmentEngine:
         output: list[Element] = []
         for slot in slots:
             source = source_map.get(slot.source_element_id) or source_map.get(slot.slot_id)
+            # A Scope measures the current placement position rather than the
+            # stale source snapshot.  It therefore remains correct after a
+            # Grid structure rebuild or a persisted local slot transform.
+            scope_element = None
+            if source is not None:
+                scope_element = deepcopy(source)
+                scope_element.id = slot.source_element_id or slot.slot_id
+                scope_element.x, scope_element.y = slot.center_x, slot.center_y
+                scope_element.width, scope_element.height = slot.width, slot.height
+                scope_element.rotation, scope_element.visible = slot.rotation, slot.visible
             prototype_id = self._prototype_id_for(
                 slot, assignment, replacement_map, random_settings,
                 shape_pool=shape_pool,
                 shape_pool_enabled=shape_pool_enabled,
                 shape_random_seed=shape_random_seed,
+                shape_pool_scope=shape_pool_scope,
+                scope_element=scope_element,
             )
             if prototype_id is None:
                 if source is None:
@@ -471,6 +495,9 @@ class PlacementAssignmentState:
     shape_pool: list[ShapePoolEntry] = field(default_factory=default_shape_pool)
     shape_pool_enabled: bool = False
     shape_random_seed: int = 1
+    # Gate M.1 reuses the one shared scope value object used by Modifier Stack.
+    # An omitted field in a historical PatternDocument safely means All.
+    shape_pool_scope: ModifierScope = field(default_factory=ModifierScope)
     # Durable audit/source snapshot used to restore the original shape after
     # any number of evaluations or a Save/Load cycle.  It is never Canvas
     # state and is absent in old payloads, which remain valid.
@@ -480,7 +507,7 @@ class PlacementAssignmentState:
     def to_dict(self) -> dict[str, Any]:
         assignment_payload = self.assignment.to_dict()
         return {
-            "version": 2,
+            "version": 3,
             "enabled": self.enabled,
             "slots": [slot.to_dict() for slot in self.slots],
             "shape_prototypes": self.prototypes.to_dict(),
@@ -488,6 +515,7 @@ class PlacementAssignmentState:
             "shape_pool": [entry.to_dict() for entry in self.shape_pool],
             "shape_pool_enabled": bool(self.shape_pool_enabled),
             "shape_random_seed": int(self.shape_random_seed),
+            "shape_pool_scope": self.shape_pool_scope.to_dict(),
             "assignment_settings": assignment_payload,
             "random_settings": self.random.to_dict(),
             "source_elements": deepcopy(self.source_elements),
@@ -521,6 +549,7 @@ class PlacementAssignmentState:
             shape_pool=pool,
             shape_pool_enabled=bool(value.get("shape_pool_enabled", False)),
             shape_random_seed=int(value.get("shape_random_seed", value.get("random_settings", {}).get("seed", 1))),
+            shape_pool_scope=ModifierScope.from_dict(value.get("shape_pool_scope")),
             source_elements=[deepcopy(dict(item)) for item in value.get("source_elements") or [] if isinstance(item, Mapping)],
             enabled=bool(value.get("enabled", False)),
         )
@@ -556,6 +585,7 @@ class PlacementAssignmentState:
         self.shape_pool = default_shape_pool()
         self.shape_pool_enabled = False
         self.shape_random_seed = 1
+        self.shape_pool_scope = ModifierScope()
 
     @classmethod
     def from_document(cls, document: PatternDocument) -> "PlacementAssignmentState":

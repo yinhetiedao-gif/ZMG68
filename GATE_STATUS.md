@@ -1,5 +1,15 @@
 # Gate 状态（2026-09-11）
 
+## Gate M.1 — Shape Pool Scope（2026-09-14）
+
+- Status: PASS
+- 数据模型：在既有 Placement Assignment metadata 新增 `shape_pool_scope: ModifierScope`；历史项目缺失该字段时等价于 All。
+- 作用范围：全部元素、当前选择稳定 ID 快照、圆形、矩形与反转；Scope 根据当前 PlacementSlot 世界坐标判断，因而 Grid 重建后仍正确。
+- 优先级：`Manual Replacement > Scoped Shape Pool > Original Shape`；范围外的元素保留原形，局部手动替换不受范围或 Seed 改变影响。
+- UI：形状池面板增加中文范围子区与世界坐标/mm Slider + Entry；参数拖动仅预览，释放后提交一条 Undo。
+- 验证：Scope 核心和 Tk UI 定向 7/7 PASS；完整 unittest 191/191 PASS；固定图 self-test 6/6 PASS。
+- Gate N（Density / Occupancy）未开始。
+
 ## Gate M — Shape Pool + Deterministic Random（2026-09-11）
 
 - Status: PASS

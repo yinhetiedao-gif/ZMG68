@@ -480,6 +480,7 @@ class PatternLabSession:
         *,
         enabled: bool | None = None,
         seed: int | None = None,
+        scope: ModifierScope | dict[str, object] | None = None,
         label: str = "更新形状池",
     ) -> None:
         """Persist a Shape Pool as one non-destructive Undo transaction."""
@@ -503,6 +504,10 @@ class PatternLabSession:
                 state.shape_pool_enabled = bool(enabled)
             if seed is not None:
                 state.shape_random_seed = max(0, int(seed))
+            if scope is not None:
+                state.shape_pool_scope = (
+                    scope if isinstance(scope, ModifierScope) else ModifierScope.from_dict(scope)
+                )
             state.attach(self.require_document())
             materialize_evaluated_elements(self.require_document())
             if state.shape_pool_enabled and not state.has_active_pool_candidates():
@@ -528,6 +533,18 @@ class PatternLabSession:
             label="修改形状随机种子",
         )
 
+    def set_shape_pool_scope(self, scope: ModifierScope | dict[str, object]) -> None:
+        """Commit one shared Scope update without changing pool/seed values."""
+
+        state = self.shape_pool_state()
+        self.update_shape_pool(
+            state.shape_pool,
+            enabled=state.shape_pool_enabled,
+            seed=state.shape_random_seed,
+            scope=scope,
+            label="更新形状池作用范围",
+        )
+
     def randomize_shape_seed(self) -> int:
         """Generate and commit a fresh seed; assignment remains derived."""
 
@@ -539,6 +556,7 @@ class PatternLabSession:
             state.shape_pool,
             enabled=state.shape_pool_enabled,
             seed=new_seed,
+            scope=state.shape_pool_scope,
             label="形状池换一种",
         )
         return new_seed

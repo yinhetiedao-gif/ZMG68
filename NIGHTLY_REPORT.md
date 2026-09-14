@@ -1,5 +1,13 @@
 # Nightly Shared Field Report
 
+## Gate M.1 — 形状池作用范围（2026-09-14）
+
+- 目标：让稳定 Seed 形状分配可限制到全部、选择快照、圆形或矩形区域，而不建立第二套 Mask/随机系统。
+- 实现：Placement Assignment 保存复用的 `ModifierScope`；Evaluate 用当前 Slot 的中心与尺寸判断范围，范围外回退原始形状，手动 ReplacementMap 继续优先。
+- UI：在既有形状池面板添加中文范围、反转和按模式显示的毫米 Slider + Entry；预览不写文档，提交一次生成一条 Undo。
+- 兼容：旧工程缺少该字段时按 All；不改写 source snapshot，不增加新 Field、Density 或位置/尺寸随机。
+- 验证：Scope 核心和 Tk UI 定向 7/7 PASS；完整 unittest 191/191 PASS；固定图 self-test 6/6 PASS。
+
 ## Gate M — 形状池与稳定随机（2026-09-11）
 
 - 目标：让多个既有 ShapePrototype 按权重分配至同一组 PlacementSlot，同时让同一 Document + Seed 永远产生同一图案。
