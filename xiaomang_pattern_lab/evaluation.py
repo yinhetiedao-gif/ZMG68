@@ -62,8 +62,17 @@ def field_engine_from_document(document: PatternDocument) -> SharedFieldEngine |
     """
     if not document.fields and not document.modifiers:
         return None
-    return SharedFieldEngine.from_dict({"version": 1, "fields": document.fields,
-                                        "modifiers": document.modifiers})
+    # ImageField intentionally follows the active Reference at evaluation
+    # time.  A preset/project may omit its path or point to an old source; the
+    # document reference is the canonical, current image association.
+    fields = deepcopy(document.fields)
+    for raw in fields:
+        if isinstance(raw, dict) and raw.get("type") == "image":
+            parameters = raw.setdefault("parameters", {})
+            if not parameters.get("image_path"):
+                parameters["image_path"] = document.reference.source_path
+    return SharedFieldEngine.from_dict({"version": 1, "fields": fields,
+                                        "modifiers": deepcopy(document.modifiers)})
 
 
 def _evaluate_shared_layers(document: PatternDocument, source: Iterable[Element],

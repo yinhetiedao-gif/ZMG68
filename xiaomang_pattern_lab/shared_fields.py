@@ -9,6 +9,7 @@ from __future__ import annotations
 from copy import deepcopy
 from dataclasses import asdict, dataclass
 import math
+from pathlib import Path
 from typing import Iterable, Protocol
 
 from ppg.foundation.models import Element
@@ -210,6 +211,108 @@ class WaveField:
             "amplitude": self.amplitude, "offset": self.offset, "invert": self.invert}}
 
 
+_IMAGE_SAMPLE_CACHE: dict[tuple[str, int, int], tuple[int, int, tuple[int, ...]]] = {}
+
+
+@dataclass(frozen=True)
+class ImageField:
+    """Read-only grayscale field sampled from the current Reference image.
+
+    World coordinates are mapped against the source-element center bounds
+    supplied by :class:`FieldContext`; Canvas zoom/pan therefore never changes
+    the sampled value.  The cached tuple is only an acceleration detail and is
+    invalidated automatically by file mtime/size changes.
+    """
+
+    id: str
+    image_path: str = ""
+    contrast: float = 1.0
+    black_point: float = 0.0
+    white_point: float = 1.0
+    invert: bool = False
+    out_of_bounds: str = "clamp"
+
+    def __post_init__(self):
+        if not isinstance(self.id, str) or not self.id:
+            raise ValueError("图片场 ID 不能为空。")
+        object.__setattr__(self, "image_path", str(self.image_path or ""))
+        contrast = _finite(self.contrast)
+        if contrast <= 0:
+            raise ValueError("图片场对比度必须大于 0。")
+        object.__setattr__(self, "contrast", contrast)
+        black, white = _unit(self.black_point), _unit(self.white_point)
+        if white <= black:
+            raise ValueError("图片场白场必须大于黑场。")
+        object.__setattr__(self, "black_point", black)
+        object.__setattr__(self, "white_point", white)
+        if self.out_of_bounds not in ("clamp", "zero"):
+            raise ValueError("图片场超出范围策略只能是 clamp 或 zero。")
+
+    def available(self) -> bool:
+        return bool(self.image_path) and Path(self.image_path).is_file()
+
+    def _pixels(self) -> tuple[int, int, tuple[int, ...]] | None:
+        path = Path(self.image_path)
+        if not path.is_file():
+            return None
+        try:
+            stat = path.stat()
+            key = (str(path.resolve()), int(stat.st_mtime_ns), int(stat.st_size))
+            cached = _IMAGE_SAMPLE_CACHE.get(key)
+            if cached is not None:
+                return cached
+            # Pillow remains an optional/lazy dependency for the field module;
+            # importing a document without an ImageField never reads an image.
+            from PIL import Image
+            with Image.open(path) as image:
+                gray = image.convert("L")
+                width, height = gray.size
+                pixels = tuple(int(item) for item in gray.getdata())
+            # Drop stale versions of the same path to keep long sessions bounded.
+            resolved = str(path.resolve())
+            for old in tuple(_IMAGE_SAMPLE_CACHE):
+                if old[0] == resolved and old != key:
+                    _IMAGE_SAMPLE_CACHE.pop(old, None)
+            _IMAGE_SAMPLE_CACHE[key] = (width, height, pixels)
+            return _IMAGE_SAMPLE_CACHE[key]
+        except (OSError, ValueError):
+            return None
+
+    def evaluate(self, element: Element, context: FieldContext) -> float:
+        image = self._pixels()
+        if image is None:
+            # Missing Reference is a safe neutral scalar; the caller can expose
+            # ``available()`` in diagnostics without breaking project loading.
+            return 0.5
+        width, height, pixels = image
+        x0, y0, x1, y1 = context.bounds
+        span_x, span_y = max(x1 - x0, 1e-9), max(y1 - y0, 1e-9)
+        u = (float(element.x) - x0) / span_x
+        v = (float(element.y) - y0) / span_y
+        if self.out_of_bounds == "zero" and (u < 0 or u > 1 or v < 0 or v > 1):
+            return 0.0
+        u, v = min(1.0, max(0.0, u)), min(1.0, max(0.0, v))
+        fx, fy = u * (width - 1), v * (height - 1)
+        x_left, y_top = int(math.floor(fx)), int(math.floor(fy))
+        x_right, y_bottom = min(x_left + 1, width - 1), min(y_top + 1, height - 1)
+        tx, ty = fx - x_left, fy - y_top
+        row = width
+        p00 = pixels[y_top * row + x_left] / 255.0
+        p10 = pixels[y_top * row + x_right] / 255.0
+        p01 = pixels[y_bottom * row + x_left] / 255.0
+        p11 = pixels[y_bottom * row + x_right] / 255.0
+        value = (p00 * (1 - tx) + p10 * tx) * (1 - ty) + (p01 * (1 - tx) + p11 * tx) * ty
+        value = _unit((value - self.black_point) / max(self.white_point - self.black_point, 1e-9))
+        value = _unit((value - 0.5) * self.contrast + 0.5)
+        return _unit(1.0 - value if self.invert else value)
+
+    def to_dict(self) -> dict:
+        return {"id": self.id, "type": "image", "parameters": {
+            "image_path": self.image_path, "contrast": self.contrast,
+            "black_point": self.black_point, "white_point": self.white_point,
+            "invert": self.invert, "out_of_bounds": self.out_of_bounds}}
+
+
 @dataclass(frozen=True)
 class StripeField:
     """Periodic banded scalar field with an optional soft edge."""
@@ -366,7 +469,7 @@ class FieldRegistry:
     def from_list(cls, payload: list[dict]) -> "FieldRegistry":
         constructors = {"constant": ConstantField, "linear": LinearField, "ring": RingField,
                         "wave": WaveField, "stripe": StripeField, "checker": CheckerField,
-                        "spiral": SpiralField}
+                        "spiral": SpiralField, "image": ImageField}
         fields = []
         for raw in payload:
             constructor = constructors.get(raw.get("type"))

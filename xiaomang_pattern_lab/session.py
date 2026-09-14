@@ -37,6 +37,7 @@ from .presets import (
     ParametricPreset,
     PresetRepository,
     adapt_effect_config,
+    bind_reference_image,
     bounds_from_elements,
 )
 
@@ -696,11 +697,20 @@ class PatternLabSession:
             current_stack = SharedModifierStack.from_document(document)
             current_placement = PlacementAssignmentState.from_document(document)
 
-            stack_payload = adapt_effect_config(
-                preset.shared_modifier_stack, preset.source_bounds, target_bounds,
+            stack_payload = bind_reference_image(
+                adapt_effect_config(
+                    preset.shared_modifier_stack, preset.source_bounds, target_bounds,
+                ),
+                document.reference.source_path,
             )
-            fields = adapt_effect_config(preset.fields, preset.source_bounds, target_bounds)
-            graph_modifiers = adapt_effect_config(preset.modifiers, preset.source_bounds, target_bounds)
+            fields = bind_reference_image(
+                adapt_effect_config(preset.fields, preset.source_bounds, target_bounds),
+                document.reference.source_path,
+            )
+            graph_modifiers = bind_reference_image(
+                adapt_effect_config(preset.modifiers, preset.source_bounds, target_bounds),
+                document.reference.source_path,
+            )
 
             if stack_payload:
                 # Unknown future stack layers are skipped rather than making a

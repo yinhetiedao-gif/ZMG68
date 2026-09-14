@@ -1,5 +1,18 @@
 # 更新记录
 
+## 1.6.43 — Gate P：图片驱动共享参数场（2026-09-14）
+
+### Added
+
+- 新增只读 `ImageField`：按当前 Reference 的世界坐标范围采样灰度，输出确定性的 `0..1` 标量；支持黑白反转、对比度、黑场/白场阈值与超界 Clamp/Zero。
+- 采用 Pillow 灰度缓存（路径、修改时间、文件大小为键），图片缺失或不可读时安全回退为中性值，不触发重新矢量化、Grid 分析或修改 `source_elements`。
+- 共享尺寸参数场面板新增“图片场”及中文滑杆/数值输入；图片场结果沿用既有 Size Modifier、Evaluate、Undo/Save/Load、Preset 与 SVG 输出链路。
+
+### Compatibility & Verification
+
+- Preset 应用时自动把 ImageField 绑定到目标文档当前 Reference，不保存像素数据；旧工程无图片场字段时行为不变。
+- Gate P 专项测试 3/3 PASS；完整 unittest 205/205 PASS（160.335 秒）；固定图 self-test 6/6 PASS。证据：`work/gate-p-full-regression.log`、`work/gate-p-self-test.log`。
+
 ## 1.6.42 — Gate O：本地参数预设系统（2026-09-14）
 
 ### Added

@@ -25,6 +25,7 @@
 - `xiaomang_pattern_lab/placement_assignment.py`：Gate 1 的统一 Placement / Prototype / Assignment 基础层。`PlacementSlot` 同时适配导入图元和既有 Grid；`ShapePrototypeRegistry` 复用 `ElementPrototype`；Replacement/Assignment/Random 通过可选 metadata 接入，默认必须是 Circle Grid 的兼容 no-op。
 - `xiaomang_pattern_lab/shared_modifiers.py`：公共参数化效果层。`SharedModifierStack` 可作用于 Imported Elements、Grid、Radial 和 Curve source；结构参数与 Size/Rotation/Mask/Local Override 效果分离，源快照必须可保存恢复。
 - `xiaomang_pattern_lab/presets.py`：Gate O 本地预设边界。`ParametricPreset` 只保存可复用的 Field/Modifier/Scope/ShapePool/Random 配置，绝不承载 PatternDocument、Raster、`source_elements`、Selection 或 View State；跨几何应用必须按 source Bounds 适配世界坐标。
+- `ImageField`（Gate P）：只读 Reference 灰度共享场；按世界坐标双线性采样并缓存派生像素，缺失图片回退中性值，不保存像素、不重新矢量化。
 - `xiaomang_pattern_lab/family_analyzers.py`：多结构路由的 Along Curve 门禁。先以二维协方差特征值和局部邻域方向一致性确认内在一维性，再进行链路评分；规则二维晶格不得因贪心最近邻链进入 Along Curve。
 - `xiaomang_pattern_lab/ui_harness.py`：所有 Tk 数值先经 `parse_int_ui_value` / `parse_float_ui_value`，Grid 控件只在实际 Grid 结构激活时可编辑；UI callback traceback 持久化到 `work/diagnostics/pattern_lab-ui.log`。
 - `xiaomang_pattern_lab/element_debug.py`：实验台元素可渲染性审计。任何“空框/缺失元素”必须先检查 detected、renderable、visible filled、invalid 与 unknown 统计，再修改识别或渲染。

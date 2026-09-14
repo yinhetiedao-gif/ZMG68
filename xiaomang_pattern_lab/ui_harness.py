@@ -219,6 +219,9 @@ class PatternLabApp(tk.Tk):
         self.family_smoothness_var = tk.StringVar(value="0"); self.family_cell_width_var = tk.StringVar(value="20")
         self.family_cell_height_var = tk.StringVar(value="20"); self.family_turns_var = tk.StringVar(value="3")
         self.family_direction_var = tk.StringVar(value="1"); self.family_rotation_var = tk.StringVar(value="0")
+        self.family_image_contrast_var = tk.StringVar(value="1.0")
+        self.family_image_black_var = tk.StringVar(value="0.0")
+        self.family_image_white_var = tk.StringVar(value="1.0")
         self.position_mode_var = tk.StringVar(value="offset")
         self.position_mode_display_var = tk.StringVar(value="整体偏移")
         self.position_offset_x_var = tk.StringVar(value="0")
@@ -2081,6 +2084,15 @@ class PatternLabApp(tk.Tk):
             direction_combo.bind("<<ComboboxSelected>>", lambda _event: self._schedule_family_preview())
             self._add_family_slider(self._family_dynamic_frame, "衰减", self.family_falloff_var, 0.1, 5.0, 0.05)
             self._add_family_checkbox(self._family_dynamic_frame, "反转", self.family_ring_invert_var)
+        elif mode == SizeFieldMode.IMAGE.value:
+            reference_path = self.session.document.reference.source_path if self.session.document else ""
+            label = Path(reference_path).name if reference_path else "尚未导入参考图"
+            ttk.Label(self._family_dynamic_frame, text="来源图片：当前参考图（%s）" % label,
+                      foreground="#56616f", wraplength=245).pack(anchor="w", pady=(0, 3))
+            self._add_family_slider(self._family_dynamic_frame, "对比度", self.family_image_contrast_var, 0.1, 3.0, 0.01)
+            self._add_family_slider(self._family_dynamic_frame, "黑场阈值", self.family_image_black_var, 0.0, 0.99, 0.01)
+            self._add_family_slider(self._family_dynamic_frame, "白场阈值", self.family_image_white_var, 0.01, 1.0, 0.01)
+            self._add_family_checkbox(self._family_dynamic_frame, "反转黑白", self.family_ring_invert_var)
 
         self._build_family_rotation_panel()
 
@@ -2164,6 +2176,7 @@ class PatternLabApp(tk.Tk):
         self.family_duty_cycle_var.set(str(size.duty_cycle)); self.family_smoothness_var.set(str(size.smoothness))
         self.family_cell_width_var.set(str(size.cell_width)); self.family_cell_height_var.set(str(size.cell_height))
         self.family_turns_var.set(str(size.turns)); self.family_direction_var.set(str(size.direction))
+        self.family_image_contrast_var.set(str(size.image_contrast)); self.family_image_black_var.set(str(size.image_black_point)); self.family_image_white_var.set(str(size.image_white_point))
         self.family_rotation_var.set(str(rotation.angle))
         self._build_family_field_panel()
 
@@ -2190,7 +2203,16 @@ class PatternLabApp(tk.Tk):
             cell_height=max(.01, parse_float_ui_value(self.family_cell_height_var.get(), "格高", minimum=0.0)),
             turns=max(0.0, parse_float_ui_value(self.family_turns_var.get(), "圈数", minimum=0.0)),
             direction=1 if int(parse_float_ui_value(self.family_direction_var.get(), "方向")) >= 0 else -1,
+            image_path=(self.session.document.reference.source_path if self.session.document else ""),
+            image_contrast=max(.01, parse_float_ui_value(self.family_image_contrast_var.get(), "图片对比度", minimum=0.01)),
+            image_black_point=min(.98, max(0.0, parse_float_ui_value(self.family_image_black_var.get(), "黑场阈值", minimum=0.0))),
+            image_white_point=0.0,
         )
+        # Keep the transfer interval valid even when the user drags the black
+        # and white threshold sliders across one another.
+        requested_white = min(1.0, max(.01, parse_float_ui_value(self.family_image_white_var.get(), "白场阈值", minimum=0.01)))
+        size.image_white_point = max(size.image_black_point + .01, requested_white)
+        size.image_white_point = min(1.0, size.image_white_point)
         rotation = RotationFieldModifier(
             mode=RotationFieldMode(self.family_rotation_mode_var.get()),
             angle=parse_float_ui_value(self.family_rotation_var.get(), "固定角度"),

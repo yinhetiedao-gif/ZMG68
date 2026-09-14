@@ -16,7 +16,7 @@ from typing import Iterable, Optional, Protocol
 from ppg.foundation.models import ELEMENT_TYPES, Element
 
 from .parametric import ElementPrototype, LocalOverride, MaskModifier
-from .shared_fields import (FieldMapping, FieldRegistry, LinearField, RingField, SharedFieldEngine,
+from .shared_fields import (FieldMapping, FieldRegistry, ImageField, LinearField, RingField, SharedFieldEngine,
                              SizeModifier, StripeField, CheckerField, SpiralField, WaveField)
 
 
@@ -47,6 +47,7 @@ class SizeFieldMode(str, Enum):
     STRIPE = "stripe"
     CHECKER = "checker"
     SPIRAL = "spiral"
+    IMAGE = "image"
 
 
 class RotationFieldMode(str, Enum):
@@ -79,6 +80,11 @@ class SizeFieldModifier:
     turns: float = 3.0
     direction: int = 1
     falloff: float = 1.0
+    image_path: str = ""
+    image_contrast: float = 1.0
+    image_black_point: float = 0.0
+    image_white_point: float = 1.0
+    image_out_of_bounds: str = "clamp"
 
     def shared_engine(self) -> SharedFieldEngine | None:
         """Gate 1 compatibility adapter; old UI/project parameters stay authoritative.
@@ -88,9 +94,18 @@ class SizeFieldModifier:
         """
         if self.mode not in (SizeFieldMode.LINEAR_X, SizeFieldMode.LINEAR_Y, SizeFieldMode.RING,
                              SizeFieldMode.WAVE, SizeFieldMode.STRIPE, SizeFieldMode.CHECKER,
-                             SizeFieldMode.SPIRAL):
+                             SizeFieldMode.SPIRAL, SizeFieldMode.IMAGE):
             return None
-        if self.mode is SizeFieldMode.RING:
+        if self.mode is SizeFieldMode.IMAGE:
+            scalar = ImageField("legacy-image-size", image_path=self.image_path,
+                                contrast=self.image_contrast,
+                                black_point=self.image_black_point,
+                                white_point=self.image_white_point,
+                                invert=self.invert,
+                                out_of_bounds=self.image_out_of_bounds)
+            field_id = scalar.id
+            modifier_id = "legacy-image-size"
+        elif self.mode is SizeFieldMode.RING:
             scalar = RingField("legacy-ring-size", center_x=self.center_x, center_y=self.center_y,
                                radius=self.radius, ring_width=self.ring_width, falloff=self.falloff, invert=self.invert)
             field_id = scalar.id
@@ -147,6 +162,12 @@ class SizeFieldModifier:
         elif self.mode is SizeFieldMode.SPIRAL:
             result.update({"turns": self.turns, "phase": self.phase, "direction": self.direction,
                            "falloff": self.falloff, "invert": self.invert})
+        elif self.mode is SizeFieldMode.IMAGE:
+            result.update({"image_path": self.image_path, "image_contrast": self.image_contrast,
+                           "image_black_point": self.image_black_point,
+                           "image_white_point": self.image_white_point,
+                           "image_out_of_bounds": self.image_out_of_bounds,
+                           "invert": self.invert})
         return result
 
     @classmethod
@@ -154,6 +175,9 @@ class SizeFieldModifier:
         value = value or {}
         try: mode = SizeFieldMode(value.get("mode", SizeFieldMode.CONSTANT.value))
         except ValueError: mode = SizeFieldMode.CONSTANT
+        image_black = min(0.98, max(0.0, float(value.get("image_black_point", 0.0))))
+        image_white = min(1.0, max(0.01, float(value.get("image_white_point", 1.0))))
+        image_white = min(1.0, max(image_black + 0.01, image_white))
         return cls(mode=mode, min_scale=max(0.01, float(value.get("min_scale", 1.0))),
                    max_scale=max(0.01, float(value.get("max_scale", 1.0))),
                    center_x=float(value.get("center_x", 0.0)), center_y=float(value.get("center_y", 0.0)),
@@ -166,7 +190,12 @@ class SizeFieldModifier:
                    smoothness=min(0.5, max(0.0, float(value.get("smoothness", 0.0)))),
                    cell_width=max(0.01, float(value.get("cell_width", 20.0))), cell_height=max(0.01, float(value.get("cell_height", 20.0))),
                    turns=max(0.0, float(value.get("turns", 3.0))), direction=1 if int(value.get("direction", 1)) >= 0 else -1,
-                   falloff=max(0.01, float(value.get("falloff", 1.0))))
+                   falloff=max(0.01, float(value.get("falloff", 1.0))),
+                   image_path=str(value.get("image_path", "")),
+                   image_contrast=max(0.01, float(value.get("image_contrast", 1.0))),
+                   image_black_point=image_black,
+                   image_white_point=image_white,
+                   image_out_of_bounds=str(value.get("image_out_of_bounds", "clamp")))
 
 
 @dataclass

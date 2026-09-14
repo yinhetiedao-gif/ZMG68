@@ -17,6 +17,7 @@ FIELD_DISPLAY_NAMES = {
     "stripe": "条纹场",
     "checker": "棋盘场",
     "spiral": "螺旋场",
+    "image": "图片场",
 }
 
 FIELD_DESCRIPTIONS = {
@@ -30,6 +31,7 @@ FIELD_DESCRIPTIONS = {
     "stripe": "产生重复条带区域。",
     "checker": "产生二维交替区域。",
     "spiral": "围绕指定中心产生螺旋规律。",
+    "image": "读取当前参考图灰度，驱动尺寸等参数连续变化。",
 }
 
 ROTATION_DISPLAY_NAMES = {
@@ -59,4 +61,3 @@ def rotation_label(mode: str) -> str:
 
 def rotation_description(mode: str) -> str:
     return ROTATION_DESCRIPTIONS.get(str(mode), "当前旋转方式没有可用说明。")
-

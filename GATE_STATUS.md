@@ -1,5 +1,16 @@
 # Gate 状态（2026-09-11）
 
+## Gate P — Image Field / 图片驱动共享参数场（2026-09-14）
+
+- Status: PASS
+- 数据模型：新增 `ImageField(id, image_path, contrast, black_point, white_point, invert, out_of_bounds)`，仅输出归一化灰度标量；`PatternDocument` 仍是唯一 Source of Truth，源元素与 Reference 均只读。
+- 采样：按 `FieldContext.bounds` 将世界坐标映射到图像，使用双线性插值；支持 Clamp/Zero 超界、黑场/白场重映射、对比度与反转。Pillow 像素缓存按绝对路径、mtime_ns、文件大小失效。
+- 接入：`FieldRegistry`、统一 `SharedFieldEngine`、既有 Size Modifier、Grid/导入元素和 SVG/Save/Load 均复用同一 Evaluate 路径；不触发 Raster→SVG 或分析器。
+- UI/预设：参数化效果面板新增“图片场”中文控件；缺失图片输出中性值并保持可编辑。Preset 只保存参数，应用时绑定目标文档的当前 Reference，不保存像素。
+- 验证：Gate P 专项 3/3 PASS；完整 unittest 205/205 PASS；固定图 self-test 6/6 PASS。日志：`work/gate-p-full-regression.log`、`work/gate-p-self-test.log`。
+
+Gate R 暂缓：当前仓库尚未完成并验证 Gate Q NoiseField，不能跳过前置条件直接实现 Field Combine。
+
 ## Gate O — Parametric Preset System（2026-09-14）
 
 - Status: PASS

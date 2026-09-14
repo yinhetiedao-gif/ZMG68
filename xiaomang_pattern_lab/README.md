@@ -42,7 +42,7 @@ xiaomang_pattern_lab/parametric_families.py # Radial / Along Curve / Free Parame
 xiaomang_pattern_lab/evaluation.py # 唯一 Evaluate Pipeline：任一 ParametricModel → Modifier → Local Override → Element
 xiaomang_pattern_lab/placement_assignment.py # PlacementSlot → Prototype Registry → Assignment / Replacement / Shape Pool（Gate 1/M）
 xiaomang_pattern_lab/shared_modifiers.py # Geometry Source 之上的公共 Size/Rotation/Mask/Override 效果层
-xiaomang_pattern_lab/shared_fields.py # Gate 1 纯 Scalar Field / Registry / Mapping / Size Consumer
+xiaomang_pattern_lab/shared_fields.py # Gate 1 纯 Scalar Field / Registry / Mapping / Size Consumer；Gate P ImageField
 xiaomang_pattern_lab/presets.py # Gate O 本地、版本化的效果预设；不保存项目或源几何
 xiaomang_pattern_lab/element_debug.py # Element、可渲染性与实心填充统计
 xiaomang_pattern_lab/verification.py # 六图无界面验收和量化指标
@@ -91,6 +91,10 @@ Modifier Stack → Local Override → Final Geometry`。范围继续复用 `Modi
 Grid 继续只负责行列、间距、Basis、旋转和 Origin；导入图片即使没有可靠 Grid，也可以直接应用 Size Field、Rotation Field、Mask 和 Local Override。提取 Grid 后，已有共享效果状态不会被清除。源元素快照写入 metadata，防止连续调整在前一次结果上累乘，并支持 Save/Load。
 
 Core Engine 的任何模块都不会导入 Tk、Pillow、MCP、CLI 或第三方 Skill。具体的 `ImageToSVGVectorizationAdapter` 位于 `ppg.integrations`，实验台的 SVG 预览也使用独立 Adapter；两者均不属于 Core Engine。
+
+### ImageField — Gate P
+
+`ImageField` 是一个可替换的只读灰度共享场：它把当前 Reference 在 `FieldContext` 世界坐标范围内映射到图像采样坐标，经过双线性插值、黑/白场、对比度与反转后输出 `0..1`。它只由既有 `SizeModifier` 等消费者使用，不改变 `source_elements`，也不会在参数调整时重新矢量化或分析 Grid。Pillow 像素只在内存缓存（绝对路径 + mtime + 文件大小），项目与参数预设只保存图片路径和参数；图片缺失时安全返回中性值并记录可诊断状态。
 
 ### Shared Field Engine — Gate 1
 

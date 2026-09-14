@@ -229,6 +229,19 @@ def adapt_effect_config(value: Any, source: GeometryBounds | None, target: Geome
     return deepcopy(value)
 
 
+def bind_reference_image(value: Any, image_path: str) -> Any:
+    """Bind ImageField recipes to the target document's current Reference."""
+
+    if isinstance(value, Mapping):
+        result = {str(key): bind_reference_image(item, image_path) for key, item in value.items()}
+        if "image_path" in result and image_path:
+            result["image_path"] = str(image_path)
+        return result
+    if isinstance(value, list):
+        return [bind_reference_image(item, image_path) for item in value]
+    return deepcopy(value)
+
+
 class PresetRepository:
     """Independent local storage; failures in one file cannot block the Lab."""
 
