@@ -26,6 +26,7 @@ from .placement_assignment import (
     PLACEMENT_METADATA_KEY,
     ImportedElementSlotProvider,
     PlacementAssignmentState,
+    ShapePoolEntry,
     ShapePrototypeRegistry,
 )
 from .shared_modifiers import ModifierScope, SHARED_MODIFIER_METADATA_KEY, SharedModifierStack
@@ -463,6 +464,95 @@ class PatternLabSession:
     def replacement_for(self, element_id: str) -> str | None:
         state = self.active_placement_state()
         return state.replacement_map.values.get(str(element_id)) if state is not None else None
+
+    def shape_pool_state(self) -> PlacementAssignmentState:
+        """Read Gate M state without mutating an old PatternDocument.
+
+        This is deliberately a read facade.  Merely opening the Shape Pool UI
+        must not attach metadata or change an old document's visual output.
+        """
+
+        return PlacementAssignmentState.from_document(self.require_document())
+
+    def update_shape_pool(
+        self,
+        entries: list[ShapePoolEntry],
+        *,
+        enabled: bool | None = None,
+        seed: int | None = None,
+        label: str = "更新形状池",
+    ) -> None:
+        """Persist a Shape Pool as one non-destructive Undo transaction."""
+
+        clean_entries = [
+            ShapePoolEntry(
+                prototype_id=str(entry.prototype_id),
+                weight=max(0.0, float(entry.weight)),
+                enabled=bool(entry.enabled),
+            )
+            for entry in entries
+        ]
+
+        def action() -> None:
+            state = self._placement_state_for_edit()
+            unknown = [entry.prototype_id for entry in clean_entries if entry.prototype_id not in state.prototypes.ids()]
+            if unknown:
+                raise ValueError("形状池包含未注册 Shape：%s" % ", ".join(unknown))
+            state.shape_pool = clean_entries
+            if enabled is not None:
+                state.shape_pool_enabled = bool(enabled)
+            if seed is not None:
+                state.shape_random_seed = max(0, int(seed))
+            state.attach(self.require_document())
+            materialize_evaluated_elements(self.require_document())
+            if state.shape_pool_enabled and not state.has_active_pool_candidates():
+                self.log("形状池没有有效权重，已回退为原始形状。", "INFO")
+
+        self._mutate(label, action)
+
+    def set_shape_pool_enabled(self, enabled: bool) -> None:
+        state = self.shape_pool_state()
+        self.update_shape_pool(
+            state.shape_pool,
+            enabled=bool(enabled),
+            seed=state.shape_random_seed,
+            label="启用形状池" if enabled else "停用形状池",
+        )
+
+    def set_shape_random_seed(self, seed: int) -> None:
+        state = self.shape_pool_state()
+        self.update_shape_pool(
+            state.shape_pool,
+            enabled=state.shape_pool_enabled,
+            seed=max(0, int(seed)),
+            label="修改形状随机种子",
+        )
+
+    def randomize_shape_seed(self) -> int:
+        """Generate and commit a fresh seed; assignment remains derived."""
+
+        import secrets
+
+        new_seed = secrets.randbelow(2_147_483_647) + 1
+        state = self.shape_pool_state()
+        self.update_shape_pool(
+            state.shape_pool,
+            enabled=state.shape_pool_enabled,
+            seed=new_seed,
+            label="形状池换一种",
+        )
+        return new_seed
+
+    def reset_shape_pool(self) -> None:
+        """Reset Gate M state only; manual replacements and source persist."""
+
+        def action() -> None:
+            state = self._placement_state_for_edit()
+            state.reset_shape_pool()
+            state.attach(self.require_document())
+            materialize_evaluated_elements(self.require_document())
+
+        self._mutate("恢复形状池默认值", action)
 
     def _set_placement_slot_geometry(
         self, element_id: str, *, x: float | None = None, y: float | None = None,

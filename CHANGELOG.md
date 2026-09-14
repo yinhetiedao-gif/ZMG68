@@ -1,5 +1,25 @@
 # 更新记录
 
+## 1.6.39 — Gate M：形状池与确定性随机（2026-09-11）
+
+### Added
+
+- 新增统一 `ShapePoolEntry`：只保存 `prototype_id`、`weight` 与 `enabled`，继续复用 Gate K 的 ShapePrototypeRegistry，不建立第二套形状或元素系统。
+- 形状池以 `shape_random_seed + PlacementSlot.slot_id + "shape_assignment"` 的 SHA-256 稳定哈希分配；保存、重开、缩放、遍历顺序变化后结果一致。
+- 左侧参数页增加中文“形状池”面板：可启用圆形、正方形、菱形、三角形、星形、线形，调权重，填写 Seed，并使用“换一种”或“恢复默认”。
+- 手动 ReplacementMap 优先于形状池。清除手动替换后，槽位会重新显示该 Seed 对应的随机形状。
+
+### Compatibility
+
+- 旧 PatternDocument 未包含 Gate M metadata 时形状池默认关闭，视觉结果保持不变。
+- 形状池始终为派生 Geometry；不改写 `source_elements`，不引入 Density、位置/尺寸/旋转随机或其他 Generator。
+
+### Verification
+
+- Gate M + Gate K/L/Placement 定向回归：23/23 PASS。
+- 完整 unittest：189/189 PASS。
+- Pattern Lab 固定测试图自检：6/6 PASS。
+
 ## 1.6.38 — Gate L：多选与批量编辑（2026-09-11）
 
 ### Added

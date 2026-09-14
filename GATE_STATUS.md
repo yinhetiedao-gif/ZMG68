@@ -1,5 +1,15 @@
 # Gate 状态（2026-09-11）
 
+## Gate M — Shape Pool + Deterministic Random（2026-09-11）
+
+- Status: PASS
+- 数据模型：`ShapePoolEntry(prototype_id, weight, enabled)`、`shape_pool_enabled`、`shape_random_seed` 均保存于既有 Placement Assignment metadata；旧项目默认关闭且不变。
+- 确定性：使用 SHA-256(`seed|slot_id|shape_assignment`)；不依赖全局 `random()` 或 Element 遍历顺序。导入 Element 使用稳定 Element ID，Grid 使用 `grid:r{row}:c{column}`。
+- 优先级：`Manual Replacement > Shape Pool Assignment > Original Shape`；清除手动替换会重新显示对应的随机形状。
+- UI：规则矩阵页的单一滚动容器新增中文形状池，支持圆/方/菱形/三角/星/线、启用、权重 Slider + Entry、Seed、“换一种”与“恢复默认”。
+- 验证：Gate M + K/L/Placement 定向 23/23 PASS；完整 unittest 189/189 PASS；固定图 self-test 6/6 PASS。3,000 Slot 分配性能已验证。
+- Gate N（Density / Occupancy）未开始。
+
 ## Gate L — Multi Selection & Batch Editing（2026-09-11）
 
 - Status: PASS

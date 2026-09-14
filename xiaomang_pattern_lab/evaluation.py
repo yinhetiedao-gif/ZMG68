@@ -115,6 +115,9 @@ def evaluate_pattern_document(document: PatternDocument) -> list[Element]:
             replacement_map=state.replacement_map,
             assignment=state.assignment,
             random_settings=state.random,
+            shape_pool=state.shape_pool,
+            shape_pool_enabled=state.shape_pool_enabled,
+            shape_random_seed=state.shape_random_seed,
         )
         return _evaluate_shared_layers(document, evaluated, shared_modifiers)
     if model is None:

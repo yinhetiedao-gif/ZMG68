@@ -1,5 +1,13 @@
 # Nightly Shared Field Report
 
+## Gate M — 形状池与稳定随机（2026-09-11）
+
+- 目标：让多个既有 ShapePrototype 按权重分配至同一组 PlacementSlot，同时让同一 Document + Seed 永远产生同一图案。
+- 实现：新增正式 `ShapePoolEntry`、`shape_pool_enabled`、`shape_random_seed`。分配只使用 SHA-256 stable hash，不使用全局随机数或列表下标。
+- 安全性：Evaluate 保持 `Source → Slot → Manual Replacement → Shape Pool → Modifier Stack → Local Override → Final Geometry`；手动替换优先，源快照不变；全零权重回退原始形状。
+- UI：在既有单一可滚动参数页加入中文权重、Seed、“换一种”和重置控件；拖动权重先走只读预览，释放/确认后提交一条 Undo。
+- 验证：定向 23/23 PASS；全量 189/189 PASS；self-test 6/6 PASS；100/500/1000/3000 Slot 分配均已自动验证。
+
 ## Gate L — 多选与批量编辑（2026-09-11）
 
 - 目标：让数百至数千个真实 Element 可以一次选择、一次编辑，保持 PatternDocument 为唯一数据源。

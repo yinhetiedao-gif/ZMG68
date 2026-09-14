@@ -26,6 +26,8 @@ from .faithful_mapping import ConversionMode, FaithfulMappingAdapter
 from .interaction import InteractionState
 from .parametric import GridParametricModel, MaskMode, MaskModifier, PatternMode, SizeGradientMode, SizeGradientModifier
 from .parametric_families import RotationFieldMode, RotationFieldModifier, SizeFieldMode, SizeFieldModifier
+from .placement_assignment import ShapePoolEntry
+from .evaluation import evaluate_pattern_document
 from .shared_modifiers import (
     POSITION_MODES,
     ModifierScope,
@@ -241,6 +243,15 @@ class PatternLabApp(tk.Tk):
         self._scope_selection_text = tk.StringVar(value="当前效果作用于全部元素。")
         self.shape_replacement_display_var = tk.StringVar(value=SHAPE_PROTOTYPE_LABELS["circle"])
         self._current_shape_text = tk.StringVar(value="当前形状：请先选择一个 Element。")
+        self.shape_pool_enabled_var = tk.BooleanVar(value=False)
+        self.shape_random_seed_var = tk.StringVar(value="1")
+        self.shape_pool_enabled_vars = {
+            identifier: tk.BooleanVar(value=False) for identifier in SHAPE_PROTOTYPE_LABELS
+        }
+        self.shape_pool_weight_vars = {
+            identifier: tk.StringVar(value="0") for identifier in SHAPE_PROTOTYPE_LABELS
+        }
+        self._shape_pool_preview_after: str | None = None
         self._batch_selection_text = tk.StringVar(value="已选择：0 个元素")
         self.batch_scale_x_var = tk.StringVar(value="1")
         self.batch_scale_y_var = tk.StringVar(value="1")
@@ -451,6 +462,7 @@ class PatternLabApp(tk.Tk):
         self._build_family_field_panel()
         self._family_controls_ready = True
         self._build_modifier_stack_panel(parent)
+        self._build_shape_pool_panel(parent)
         tolerance_row = ttk.Frame(parent); tolerance_row.pack(fill="x", pady=(0, 5))
         ttk.Label(tolerance_row, text="分析容差", width=9).pack(side="left")
         tolerance_combo = ttk.Combobox(tolerance_row, state="readonly", textvariable=self.analysis_tolerance_var,
@@ -552,6 +564,130 @@ class PatternLabApp(tk.Tk):
         self._build_scope_parameter_panel()
         ttk.Label(panel, text="每层独立保存；调整顺序不会修改 source geometry。", foreground="#56616f",
                   wraplength=245).pack(anchor="w", pady=(4, 0))
+
+    # Gate M: Shape Pool is a compact Assignment configuration.  It does not
+    # own a second list of Elements, a Generator, or a Canvas-specific state.
+    def _build_shape_pool_panel(self, parent: ttk.Frame) -> None:
+        panel = ttk.LabelFrame(parent, text="形状池（稳定随机）", padding=5)
+        panel.pack(fill="x", pady=(0, 6))
+        ttk.Checkbutton(
+            panel, text="启用形状池", variable=self.shape_pool_enabled_var,
+            command=self._commit_shape_pool_controls,
+        ).pack(anchor="w")
+        ttk.Label(
+            panel, text="按权重为稳定 Slot 分配形状；手动替换始终优先。",
+            foreground="#56616f", wraplength=245,
+        ).pack(anchor="w", pady=(1, 4))
+        for identifier, label in SHAPE_PROTOTYPE_LABELS.items():
+            row = ttk.Frame(panel); row.pack(fill="x", pady=1)
+            ttk.Checkbutton(
+                row, text=label, variable=self.shape_pool_enabled_vars[identifier],
+                command=self._commit_shape_pool_controls,
+            ).pack(side="left")
+            scale = tk.Scale(
+                row, from_=0, to=100, resolution=1, orient="horizontal",
+                showvalue=False, variable=self.shape_pool_weight_vars[identifier],
+                highlightthickness=0, length=102,
+                command=lambda _value: self._schedule_shape_pool_preview(),
+            )
+            scale.pack(side="left", fill="x", expand=True, padx=(4, 2))
+            scale.bind("<ButtonRelease-1>", lambda _event: self._commit_shape_pool_controls())
+            entry = ttk.Entry(row, textvariable=self.shape_pool_weight_vars[identifier], width=5)
+            entry.pack(side="right")
+            entry.bind("<KeyRelease>", lambda _event: self._schedule_shape_pool_preview())
+            entry.bind("<Return>", lambda _event: self._commit_shape_pool_controls())
+            entry.bind("<FocusOut>", lambda _event: self._commit_shape_pool_controls())
+        seed_row = ttk.Frame(panel); seed_row.pack(fill="x", pady=(4, 1))
+        ttk.Label(seed_row, text="随机种子", width=9).pack(side="left")
+        seed_entry = ttk.Entry(seed_row, textvariable=self.shape_random_seed_var, width=11)
+        seed_entry.pack(side="left", fill="x", expand=True)
+        seed_entry.bind("<Return>", lambda _event: self._commit_shape_pool_controls())
+        seed_entry.bind("<FocusOut>", lambda _event: self._commit_shape_pool_controls())
+        ttk.Button(panel, text="🎲 换一种", command=self._randomize_shape_pool).pack(fill="x", pady=(3, 2))
+        ttk.Button(panel, text="恢复默认", command=self._reset_shape_pool).pack(fill="x")
+
+    def _shape_pool_entries_from_controls(self) -> list[ShapePoolEntry]:
+        return [
+            ShapePoolEntry(
+                prototype_id=identifier,
+                weight=min(100.0, max(0.0, parse_float_ui_value(
+                    self.shape_pool_weight_vars[identifier].get(), "%s 权重" % label,
+                ))),
+                enabled=bool(self.shape_pool_enabled_vars[identifier].get()),
+            )
+            for identifier, label in SHAPE_PROTOTYPE_LABELS.items()
+        ]
+
+    def _load_shape_pool_controls(self) -> None:
+        if self.session.document is None:
+            return
+        state = self.session.shape_pool_state()
+        by_id = {entry.prototype_id: entry for entry in state.shape_pool}
+        self.shape_pool_enabled_var.set(bool(state.shape_pool_enabled))
+        self.shape_random_seed_var.set(str(state.shape_random_seed))
+        for identifier in SHAPE_PROTOTYPE_LABELS:
+            entry = by_id.get(identifier, ShapePoolEntry(identifier))
+            self.shape_pool_enabled_vars[identifier].set(bool(entry.enabled))
+            self.shape_pool_weight_vars[identifier].set("%.6g" % entry.weight)
+
+    def _schedule_shape_pool_preview(self) -> None:
+        if self.session.document is None or self._shape_pool_preview_after is not None:
+            return
+        self._shape_pool_preview_after = self.after(
+            self.PARAMETER_PREVIEW_INTERVAL_MS, self._run_shape_pool_preview,
+        )
+
+    def _run_shape_pool_preview(self) -> None:
+        self._shape_pool_preview_after = None
+        if self.session.document is None:
+            return
+        try:
+            # Build a throw-away document: slider motion must not update
+            # PatternDocument, SVG, or Undo until mouse release/Entry commit.
+            preview_document = deepcopy(self.session.document)
+            state = self.session.shape_pool_state()
+            if not state.source_elements:
+                state.set_source_elements(self.session._replacement_source())
+            if not state.slots:
+                from .placement_assignment import ImportedElementSlotProvider
+                state.slots = ImportedElementSlotProvider.from_elements(self.session._replacement_source())
+            state.enabled = True
+            state.shape_pool = self._shape_pool_entries_from_controls()
+            state.shape_pool_enabled = bool(self.shape_pool_enabled_var.get())
+            state.shape_random_seed = max(0, parse_int_ui_value(
+                self.shape_random_seed_var.get(), "随机种子", minimum=0,
+            ))
+            state.attach(preview_document)
+            self._preview_grid_elements = evaluate_pattern_document(preview_document)
+            self._render_static_layer(elements=self._preview_grid_elements, update_index=False)
+            self._render_interaction_layer()
+        except Exception as error:
+            self._log_exception("形状池参数预览", error)
+
+    def _commit_shape_pool_controls(self) -> None:
+        if self._shape_pool_preview_after:
+            try: self.after_cancel(self._shape_pool_preview_after)
+            except tk.TclError: pass
+            self._shape_pool_preview_after = None
+        if self.session.document is None:
+            return
+        def action() -> None:
+            self.session.update_shape_pool(
+                self._shape_pool_entries_from_controls(),
+                enabled=bool(self.shape_pool_enabled_var.get()),
+                seed=parse_int_ui_value(self.shape_random_seed_var.get(), "随机种子", minimum=0),
+            )
+            self._after_document_change()
+        self._handle(action)
+
+    def _randomize_shape_pool(self) -> None:
+        def action() -> None:
+            self.shape_random_seed_var.set(str(self.session.randomize_shape_seed()))
+            self._after_document_change()
+        self._handle(action)
+
+    def _reset_shape_pool(self) -> None:
+        self._handle(lambda: (self.session.reset_shape_pool(), self._after_document_change()))
 
     def _stack_from_document(self) -> SharedModifierStack | None:
         document = self.session.document
@@ -1653,6 +1789,7 @@ class PatternLabApp(tk.Tk):
 
     def _after_document_change(self) -> None:
         self._preview_grid_elements = None; self.pattern_mode_var.set(self.session.pattern_mode.value)
+        self._load_shape_pool_controls()
         grid_enabled = self.session.pattern_mode is PatternMode.GRID
         for widget in self._grid_control_widgets:
             try:
@@ -1662,7 +1799,9 @@ class PatternLabApp(tk.Tk):
         if self.session.grid_model: self._load_grid_controls(self.session.grid_model)
         elif self.session.parametric_model is not None: self._load_family_field_controls(self.session.parametric_model)
         self.refresh_all()
-    def refresh_all(self) -> None: self.refresh_fields(force=True); self.refresh_element_debug(); self.refresh_log(); self._refresh_modifier_stack(); self.refresh_canvas()
+    def refresh_all(self) -> None:
+        self._load_shape_pool_controls()
+        self.refresh_fields(force=True); self.refresh_element_debug(); self.refresh_log(); self._refresh_modifier_stack(); self.refresh_canvas()
     def refresh_fields(self, *, force: bool = False) -> None:
         self.metrics.inspector_refreshes += 1; document, selected = self.session.document, self.session.selected_id
         self._refresh_batch_action_state()
@@ -1680,9 +1819,26 @@ class PatternLabApp(tk.Tk):
         prefix = "已选择：%d 个元素；主选：" % count if count > 1 else "已选择：1 个元素；"
         self.selection.set("%s%s  (%s)" % (prefix, element.id, element.type)); self.x_var.set("%.4g" % x); self.y_var.set("%.4g" % y); self.width_var.set("%.4g" % width); self.height_var.set("%.4g" % height); self.rotation_var.set("%.4g" % element.rotation)
         replacement = self.session.replacement_for(selected)
-        self._current_shape_text.set(
-            "当前形状：%s" % (SHAPE_PROTOTYPE_LABELS.get(replacement, replacement) if replacement else "原始")
-        )
+        if replacement:
+            current_shape = SHAPE_PROTOTYPE_LABELS.get(replacement, replacement)
+            # Keep Gate K's established Inspector wording stable.  The Shape
+            # Pool annotation is useful only when there is no manual mapping.
+            self._current_shape_text.set("当前形状：%s" % current_shape)
+        else:
+            state = self.session.shape_pool_state()
+            if state.shape_pool_enabled:
+                slot = next((item for item in state.slots if item.slot_id == selected or item.source_element_id == selected), None)
+                assigned = None
+                if slot is not None:
+                    from .placement_assignment import AssignmentEngine
+                    assigned = AssignmentEngine(state.prototypes).shape_assignment_for(
+                        slot, shape_pool=state.shape_pool, seed=state.shape_random_seed,
+                    )
+                self._current_shape_text.set(
+                    "当前形状：%s（形状池）" % (SHAPE_PROTOTYPE_LABELS.get(assigned, assigned) if assigned else "原始")
+                )
+            else:
+                self._current_shape_text.set("当前形状：原始")
 
     def _refresh_batch_action_state(self) -> None:
         """Disable all selection-dependent controls when selection is empty."""

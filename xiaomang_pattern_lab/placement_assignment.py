@@ -231,6 +231,52 @@ class ReplacementMap:
 
 
 @dataclass
+class ShapePoolEntry:
+    """One enabled/weighted prototype in the Gate M Shape Pool.
+
+    This intentionally contains no geometry.  Shape geometry remains owned by
+    :class:`ShapePrototypeRegistry`, so a pool cannot become a second Shape
+    system or silently copy source Elements.
+    """
+
+    prototype_id: str
+    weight: float = 0.0
+    enabled: bool = False
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "prototype_id": str(self.prototype_id),
+            "weight": max(0.0, float(self.weight)),
+            "enabled": bool(self.enabled),
+        }
+
+    @classmethod
+    def from_dict(cls, value: Mapping[str, Any] | str) -> "ShapePoolEntry":
+        # A historical payload used a simple list of ids.  It remains readable
+        # and is intentionally not treated as an active pool unless enabled.
+        if isinstance(value, str):
+            return cls(prototype_id=value, weight=1.0, enabled=True)
+        return cls(
+            prototype_id=str(value.get("prototype_id", value.get("id", ""))),
+            weight=max(0.0, float(value.get("weight", 0.0))),
+            enabled=bool(value.get("enabled", False)),
+        )
+
+
+def default_shape_pool() -> list[ShapePoolEntry]:
+    """Return fresh, deterministic product defaults without enabling them."""
+
+    return [
+        ShapePoolEntry("circle", 40.0, True),
+        ShapePoolEntry("diamond", 25.0, True),
+        ShapePoolEntry("star", 20.0, True),
+        ShapePoolEntry("triangle", 15.0, True),
+        ShapePoolEntry("square", 0.0, False),
+        ShapePoolEntry("line", 0.0, False),
+    ]
+
+
+@dataclass
 class AssignmentSettings:
     strategy: str = "manual"
     single_prototype_id: str | None = None
@@ -305,30 +351,59 @@ class AssignmentEngine:
         self.registry = registry or ShapePrototypeRegistry.with_builtins()
 
     @staticmethod
-    def _weighted_pick(settings: AssignmentSettings, slots: Sequence[PlacementSlot], slot: PlacementSlot,
-                      random_settings: RandomSettings) -> str | None:
-        candidates = list(settings.shape_pool)
-        if not candidates:
-            return settings.single_prototype_id
-        weights = [max(0.0, float(settings.weights.get(identifier, 1.0))) for identifier in candidates]
+    def _weighted_pick_entries(entries: Sequence[ShapePoolEntry], slot: PlacementSlot,
+                               seed: int) -> str | None:
+        """Select a prototype using only stable persisted inputs.
+
+        SHA-256 is deliberately used rather than Python ``hash`` or global
+        ``random``.  Evaluation order, canvas zoom and a process restart can
+        therefore never change the selected shape for a stable PlacementSlot.
+        """
+
+        candidates = [entry for entry in entries if entry.enabled and entry.weight > 0.0]
+        weights = [max(0.0, float(entry.weight)) for entry in candidates]
         total = sum(weights)
         if total <= 0.0:
-            return candidates[0]
-        target = deterministic_unit(random_settings.seed, slot.slot_id, "shape") * total
-        for identifier, weight in zip(candidates, weights):
+            return None
+        target = deterministic_unit(seed, slot.slot_id, "shape_assignment") * total
+        for entry, weight in zip(candidates, weights):
             target -= weight
             if target <= 0:
-                return identifier
-        return candidates[-1]
+                return entry.prototype_id
+        return candidates[-1].prototype_id
+
+    @staticmethod
+    def _legacy_pool_entries(settings: AssignmentSettings) -> list[ShapePoolEntry]:
+        return [
+            ShapePoolEntry(identifier, settings.weights.get(identifier, 1.0), True)
+            for identifier in settings.shape_pool
+        ]
+
+    @classmethod
+    def shape_assignment_for(cls, slot: PlacementSlot, *, shape_pool: Sequence[ShapePoolEntry],
+                             seed: int) -> str | None:
+        """Public deterministic Shape Pool lookup used by tests and diagnostics."""
+
+        return cls._weighted_pick_entries(shape_pool, slot, int(seed))
 
     def _prototype_id_for(self, slot: PlacementSlot, settings: AssignmentSettings,
-                          replacement_map: ReplacementMap, random_settings: RandomSettings) -> str | None:
+                          replacement_map: ReplacementMap, random_settings: RandomSettings,
+                          shape_pool: Sequence[ShapePoolEntry] | None = None,
+                          shape_pool_enabled: bool = False,
+                          shape_random_seed: int | None = None) -> str | None:
+        # Manual editing always wins over any generated assignment.
         if slot.slot_id in replacement_map.values:
             return replacement_map.values[slot.slot_id]
+        if shape_pool_enabled:
+            return self.shape_assignment_for(
+                slot,
+                shape_pool=shape_pool or (),
+                seed=random_settings.seed if shape_random_seed is None else shape_random_seed,
+            )
         if settings.strategy == "single":
             return settings.single_prototype_id
         if settings.strategy in {"weighted_random", "random"} and random_settings.enabled and random_settings.shape_random:
-            return self._weighted_pick(settings, (), slot, random_settings)
+            return self.shape_assignment_for(slot, shape_pool=self._legacy_pool_entries(settings), seed=random_settings.seed)
         if settings.strategy == "checkerboard" and settings.shape_pool:
             index = ((slot.row or 0) + (slot.column or 0)) % len(settings.shape_pool)
             return settings.shape_pool[index]
@@ -337,7 +412,10 @@ class AssignmentEngine:
     def evaluate(self, slots: Iterable[PlacementSlot], source_elements: Mapping[str, Element] | Iterable[Element],
                  *, replacement_map: ReplacementMap | None = None,
                  assignment: AssignmentSettings | None = None,
-                 random_settings: RandomSettings | None = None) -> list[Element]:
+                 random_settings: RandomSettings | None = None,
+                 shape_pool: Sequence[ShapePoolEntry] | None = None,
+                 shape_pool_enabled: bool = False,
+                 shape_random_seed: int | None = None) -> list[Element]:
         source_map = {element.id: element for element in source_elements} if not isinstance(source_elements, Mapping) else dict(source_elements)
         replacement_map = replacement_map or ReplacementMap()
         assignment = assignment or AssignmentSettings()
@@ -345,7 +423,12 @@ class AssignmentEngine:
         output: list[Element] = []
         for slot in slots:
             source = source_map.get(slot.source_element_id) or source_map.get(slot.slot_id)
-            prototype_id = self._prototype_id_for(slot, assignment, replacement_map, random_settings)
+            prototype_id = self._prototype_id_for(
+                slot, assignment, replacement_map, random_settings,
+                shape_pool=shape_pool,
+                shape_pool_enabled=shape_pool_enabled,
+                shape_random_seed=shape_random_seed,
+            )
             if prototype_id is None:
                 if source is None:
                     continue
@@ -383,6 +466,11 @@ class PlacementAssignmentState:
     replacement_map: ReplacementMap = field(default_factory=ReplacementMap)
     assignment: AssignmentSettings = field(default_factory=AssignmentSettings)
     random: RandomSettings = field(default_factory=RandomSettings)
+    # Gate M's product-facing state.  ``assignment`` / ``random`` above stay
+    # only as a backward-compatible reader for early experimental documents.
+    shape_pool: list[ShapePoolEntry] = field(default_factory=default_shape_pool)
+    shape_pool_enabled: bool = False
+    shape_random_seed: int = 1
     # Durable audit/source snapshot used to restore the original shape after
     # any number of evaluations or a Save/Load cycle.  It is never Canvas
     # state and is absent in old payloads, which remain valid.
@@ -392,12 +480,14 @@ class PlacementAssignmentState:
     def to_dict(self) -> dict[str, Any]:
         assignment_payload = self.assignment.to_dict()
         return {
-            "version": 1,
+            "version": 2,
             "enabled": self.enabled,
             "slots": [slot.to_dict() for slot in self.slots],
             "shape_prototypes": self.prototypes.to_dict(),
             "replacement_map": self.replacement_map.to_dict(),
-            "shape_pool": list(self.assignment.shape_pool),
+            "shape_pool": [entry.to_dict() for entry in self.shape_pool],
+            "shape_pool_enabled": bool(self.shape_pool_enabled),
+            "shape_random_seed": int(self.shape_random_seed),
             "assignment_settings": assignment_payload,
             "random_settings": self.random.to_dict(),
             "source_elements": deepcopy(self.source_elements),
@@ -412,14 +502,25 @@ class PlacementAssignmentState:
         # ``shape_pool`` was initially nested under assignment_settings; keep
         # accepting and emitting the explicit top-level field for schema
         # migration and easier project inspection.
-        if "shape_pool" in value and "shape_pool" not in assignment_payload:
-            assignment_payload["shape_pool"] = value.get("shape_pool")
+        raw_pool = value.get("shape_pool") or []
+        if ("shape_pool" in value and "shape_pool" not in assignment_payload
+                and all(isinstance(item, str) for item in raw_pool)):
+            assignment_payload["shape_pool"] = raw_pool
+        if raw_pool and all(isinstance(item, str) for item in raw_pool):
+            pool = [ShapePoolEntry.from_dict(item) for item in raw_pool]
+        elif raw_pool:
+            pool = [ShapePoolEntry.from_dict(item) for item in raw_pool if isinstance(item, (str, Mapping))]
+        else:
+            pool = default_shape_pool()
         return cls(
             slots=[PlacementSlot.from_dict(item) for item in value.get("slots") or []],
             prototypes=prototypes,
             replacement_map=ReplacementMap.from_dict(value.get("replacement_map")),
             assignment=AssignmentSettings.from_dict(assignment_payload),
             random=RandomSettings.from_dict(value.get("random_settings")),
+            shape_pool=pool,
+            shape_pool_enabled=bool(value.get("shape_pool_enabled", False)),
+            shape_random_seed=int(value.get("shape_random_seed", value.get("random_settings", {}).get("seed", 1))),
             source_elements=[deepcopy(dict(item)) for item in value.get("source_elements") or [] if isinstance(item, Mapping)],
             enabled=bool(value.get("enabled", False)),
         )
@@ -437,6 +538,24 @@ class PlacementAssignmentState:
 
     def attach(self, document: PatternDocument) -> None:
         document.metadata[PLACEMENT_METADATA_KEY] = self.to_dict()
+
+    def pool_entry(self, prototype_id: str) -> ShapePoolEntry:
+        for entry in self.shape_pool:
+            if entry.prototype_id == str(prototype_id):
+                return entry
+        entry = ShapePoolEntry(str(prototype_id), 0.0, False)
+        self.shape_pool.append(entry)
+        return entry
+
+    def has_active_pool_candidates(self) -> bool:
+        return any(entry.enabled and entry.weight > 0.0 for entry in self.shape_pool)
+
+    def reset_shape_pool(self) -> None:
+        """Reset only Gate M state; replacements and source snapshots survive."""
+
+        self.shape_pool = default_shape_pool()
+        self.shape_pool_enabled = False
+        self.shape_random_seed = 1
 
     @classmethod
     def from_document(cls, document: PatternDocument) -> "PlacementAssignmentState":

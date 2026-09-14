@@ -4,7 +4,7 @@
 
 开发前必须读取仓库根的 `AGENTS.md`、`DEVELOPMENT_SAFETY.md`、`GATE_STATUS.md`。
 源码已纳入本地 Git；新功能仅在 feature/*，保护快照不可覆盖。
-Gate 0 至 Gate F 已完成并由备份分支保护；当前 Gate G 只进行 Shared Field UI 与兼容性收尾。
+Gate 0 至 Gate M 已完成并由备份分支保护；当前不自动进入下一 Gate。
 测试通过前不得继续下一 Gate。Git 备份不包含 .venv/.runtime/node_modules。
 独立回退目录需安装 requirements 和构建 external/imagetosvg-mcp（锁文件已纳入 Git）。
 
@@ -40,20 +40,30 @@ xiaomang_pattern_lab/recognition.py # 多尺度 dot 恢复；只从二值图标�
 xiaomang_pattern_lab/pattern_analyzer.py # 只读取 PatternDocument.elements 的 Grid / Radial / Along Curve 候选分析
 xiaomang_pattern_lab/parametric_families.py # Radial / Along Curve / Free Parametric Model 与共享 Size / Rotation Field
 xiaomang_pattern_lab/evaluation.py # 唯一 Evaluate Pipeline：任一 ParametricModel → Modifier → Local Override → Element
-xiaomang_pattern_lab/placement_assignment.py # PlacementSlot → Prototype Registry → Assignment / Replacement（Gate 1）
+xiaomang_pattern_lab/placement_assignment.py # PlacementSlot → Prototype Registry → Assignment / Replacement / Shape Pool（Gate 1/M）
 xiaomang_pattern_lab/shared_modifiers.py # Geometry Source 之上的公共 Size/Rotation/Mask/Override 效果层
 xiaomang_pattern_lab/shared_fields.py # Gate 1 纯 Scalar Field / Registry / Mapping / Size Consumer
 xiaomang_pattern_lab/element_debug.py # Element、可渲染性与实心填充统计
 xiaomang_pattern_lab/verification.py # 六图无界面验收和量化指标
 ```
 
-### Unified Placement / Prototype / Assignment（Gate 1）
+### Unified Placement / Prototype / Assignment（Gate 1 / M）
 
 当前新增的是可选、无 UI 的基础层，不会替换已稳定的 Raster→SVG、Canvas 或 GridAnalyzer：
 
 `ImportedElementSlotProvider / GridSlotProvider → PlacementSlot → ElementPrototype → AssignmentEngine → Elements`
 
-导入图元和现有 Grid cell 都使用稳定 `slot_id`；`ShapePrototypeRegistry` 复用既有 Circle、Ellipse、Rect、Polygon、CustomPath 原型；`ReplacementMap` 只改变 Evaluate 结果，源图元仍保留，因此可以恢复。默认 `enabled=false`、无替换、随机关闭时，Circle Grid 输出与旧路径逐项一致。状态写入 `PatternDocument.metadata`，可 Save/Load。下一阶段再在此层上增加多形状池、规则分配与 UI 控件。
+导入图元和现有 Grid cell 都使用稳定 `slot_id`；`ShapePrototypeRegistry` 复用既有 Circle、Ellipse、Rect、Polygon、CustomPath 原型；`ReplacementMap` 只改变 Evaluate 结果，源图元仍保留，因此可以恢复。默认 `enabled=false`、无替换、形状池关闭时，Circle Grid 输出与旧路径逐项一致。状态写入 `PatternDocument.metadata`，可 Save/Load。
+
+### Gate M — Shape Pool + Seed Random
+
+形状池在同一套 `PlacementSlot → ShapePrototypeRegistry` 上工作：每个条目只保存
+`prototype_id`、`weight` 与 `enabled`。在形状池启用时，分配使用
+`SHA-256(seed|slot_id|shape_assignment)`，不依赖全局随机数、Canvas 缩放或 Element
+遍历顺序；因此 Save/Load、Undo/Redo 后可精确复现。手动 `ReplacementMap` 始终优先于随机
+形状；清除映射后才重新显示该 Slot 的随机结果。形状池是派生结果，绝不改写
+`source_elements`；全零有效权重安全回退原始形状。当前只做 Shape Random，Density、Occupancy、
+位置/尺寸/旋转随机均明确留在后续 Gate。
 
 ### Shared Parametric Modifier Stack
 
