@@ -1,5 +1,16 @@
 # Gate 状态（2026-09-11）
 
+## Gate N — Random Transform + Density / Occupancy（2026-09-14）
+
+- Status: PASS
+- 数据模型：扩展既有 `RandomSettings`，保存 `seed`、`size_random`、`rotation_random`、`position_jitter_x/y`、`occupancy` 与复用的 `ModifierScope`；旧 `position_jitter` 仍可回读为统一 X/Y 扰动。
+- 确定性：SHA-256(`seed|slot_id|channel`) 分离 `size`、`rotation`、`offset_x`、`offset_y`、`occupancy`；形状池保留独立 `shape_random_seed`，变化互不重洗。
+- Evaluate：`Source/Structure → Manual + Shape Pool → Random Transform + Occupancy → Shared Modifier Stack → Local Override → Final Geometry`。
+- UI：单一左侧滚动页新增中文随机与密度面板，支持 Seed、换一个、Slider + Entry 及 All/Selected/Circle/Rectangle/Invert Scope。
+- SVG：`visible=False` 元素不再写入导出 SVG；项目 JSON 仍保存完整状态。
+- 验证：Gate N + J/K/L/M 定向 29/29 PASS；完整 unittest 196/196 PASS；固定图 self-test 6/6 PASS。
+- Gate O（Preset）未开始。
+
 ## Gate M.1 — Shape Pool Scope（2026-09-14）
 
 - Status: PASS

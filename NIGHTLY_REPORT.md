@@ -1,5 +1,14 @@
 # Nightly Shared Field Report
 
+## Gate N — 稳定随机变换与密度（2026-09-14）
+
+- 目标：在既有 Placement/Shape Pool 上增加可重复的尺寸、旋转、X/Y 位置扰动和密度，而不建立第二套随机生成器。
+- 实现：`RandomSettings` 通过稳定 Slot ID 与独立哈希通道派生结果；Scope 复用 Gate J 的 `ModifierScope`，未命中元素保持当前结果。
+- 顺序：Shape Assignment 后、Shared Modifier Stack 前执行 Random Transform；Local Override 仍为最终本地编辑层。
+- 输出：低密度隐藏元素不导出 SVG，但随 PatternDocument 保存并在更改 Occupancy 后可恢复。
+- 边界：本 Gate 未引入 Noise、Image Field、Field Combine、复杂 Cluster 或 3D。
+- 验证：Gate N + J/K/L/M 定向 29/29 PASS；完整 unittest 196/196 PASS；固定图 self-test 6/6 PASS。
+
 ## Gate M.1 — 形状池作用范围（2026-09-14）
 
 - 目标：让稳定 Seed 形状分配可限制到全部、选择快照、圆形或矩形区域，而不建立第二套 Mask/随机系统。

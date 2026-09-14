@@ -1,5 +1,25 @@
 # 更新记录
 
+## 1.6.41 — Gate N：稳定随机变换与密度（2026-09-14）
+
+### Added
+
+- 扩展既有 `RandomSettings`，以一个可持久化记录提供尺寸随机、连续旋转随机、X/Y 位置扰动、密度（Occupancy）及复用的 `ModifierScope`；未新建 Random Generator 或第二份 Element 状态。
+- 所有随机数均由 SHA-256(`seed|slot_id|channel`) 产生；`size`、`rotation`、`offset_x`、`offset_y`、`occupancy` 与既有 `shape_assignment` 通道彼此独立，不依赖遍历顺序。
+- 固定 Evaluate 顺序：`Source/Structure → Manual + Shape Pool Assignment → Random Transform + Occupancy → Shared Modifier Stack → Local Override → Final Geometry`。
+- 新增“随机与密度（稳定 Seed）”中文面板，支持 Seed、“换一个”、Slider + Numeric Entry、全部/当前选择/圆形/矩形/反转范围与只读拖动预览。
+- SVG 导出不再写出 `visible=False` 的元素；隐藏状态仍完整保存在 PatternDocument JSON，确保低密度输出可直接用于下游设计与制造。
+
+### Compatibility
+
+- 旧项目缺少 Gate N 字段时 `RandomSettings.enabled=false`，输出保持不变；旧统一 `position_jitter` 自动作为 X/Y 扰动回读。
+- Shape Pool Seed 继续独立保存，因此调整 Gate N 随机幅度或 Seed 不会重洗已有形状分配。
+
+### Verification
+
+- Gate N 核心、Scope、SVG、Tk UI 与 Gate J/K/L/M 定向回归：29/29 PASS。
+- 完整 unittest：196/196 PASS；Pattern Lab 固定测试图自检：6/6 PASS。
+
 ## 1.6.40 — Gate M.1：形状池作用范围（2026-09-14）
 
 ### Added

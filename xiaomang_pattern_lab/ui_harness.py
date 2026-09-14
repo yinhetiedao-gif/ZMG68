@@ -26,7 +26,7 @@ from .faithful_mapping import ConversionMode, FaithfulMappingAdapter
 from .interaction import InteractionState
 from .parametric import GridParametricModel, MaskMode, MaskModifier, PatternMode, SizeGradientMode, SizeGradientModifier
 from .parametric_families import RotationFieldMode, RotationFieldModifier, SizeFieldMode, SizeFieldModifier
-from .placement_assignment import ShapePoolEntry
+from .placement_assignment import ImportedElementSlotProvider, PlacementAssignmentState, RandomSettings, ShapePoolEntry
 from .evaluation import evaluate_pattern_document
 from .shared_modifiers import (
     POSITION_MODES,
@@ -263,6 +263,25 @@ class PatternLabApp(tk.Tk):
             identifier: tk.StringVar(value="0") for identifier in SHAPE_PROTOTYPE_LABELS
         }
         self._shape_pool_preview_after: str | None = None
+        self.random_transform_enabled_var = tk.BooleanVar(value=False)
+        self.random_transform_seed_var = tk.StringVar(value="1")
+        self.random_size_var = tk.StringVar(value="0")
+        self.random_rotation_var = tk.StringVar(value="0")
+        self.random_jitter_x_var = tk.StringVar(value="0")
+        self.random_jitter_y_var = tk.StringVar(value="0")
+        self.random_occupancy_var = tk.StringVar(value="100")
+        self.random_scope_mode_display_var = tk.StringVar(value=SCOPE_MODE_LABELS[ModifierScopeMode.ALL.value])
+        self.random_scope_invert_var = tk.BooleanVar(value=False)
+        self.random_scope_center_x_var = tk.StringVar(value="0")
+        self.random_scope_center_y_var = tk.StringVar(value="0")
+        self.random_scope_radius_var = tk.StringVar(value="50")
+        self.random_scope_width_var = tk.StringVar(value="100")
+        self.random_scope_height_var = tk.StringVar(value="100")
+        self._random_scope_selection_text = tk.StringVar(value="随机与密度作用于全部元素。")
+        self._random_scope_selected_ids: tuple[str, ...] = ()
+        self._random_scope_dynamic_frame: ttk.Frame | None = None
+        self._random_scope_control_widgets: dict[str, tuple[tk.Scale, ttk.Entry]] = {}
+        self._random_transform_preview_after: str | None = None
         self._batch_selection_text = tk.StringVar(value="已选择：0 个元素")
         self.batch_scale_x_var = tk.StringVar(value="1")
         self.batch_scale_y_var = tk.StringVar(value="1")
@@ -474,6 +493,7 @@ class PatternLabApp(tk.Tk):
         self._family_controls_ready = True
         self._build_modifier_stack_panel(parent)
         self._build_shape_pool_panel(parent)
+        self._build_random_transform_panel(parent)
         tolerance_row = ttk.Frame(parent); tolerance_row.pack(fill="x", pady=(0, 5))
         ttk.Label(tolerance_row, text="分析容差", width=9).pack(side="left")
         tolerance_combo = ttk.Combobox(tolerance_row, state="readonly", textvariable=self.analysis_tolerance_var,
@@ -838,6 +858,259 @@ class PatternLabApp(tk.Tk):
 
     def _reset_shape_pool(self) -> None:
         self._handle(lambda: (self.session.reset_shape_pool(), self._after_document_change()))
+
+    # Gate N remains on the Placement/Assignment layer: this panel writes one
+    # RandomSettings record and previews against a throw-away document.
+    def _build_random_transform_panel(self, parent: ttk.Frame) -> None:
+        panel = ttk.LabelFrame(parent, text="随机与密度（稳定 Seed）", padding=5)
+        panel.pack(fill="x", pady=(0, 6))
+        ttk.Checkbutton(
+            panel, text="启用随机与密度", variable=self.random_transform_enabled_var,
+            command=self._commit_random_transform_controls,
+        ).pack(anchor="w")
+        ttk.Label(
+            panel, text="尺寸、旋转、位置与密度使用独立稳定通道；不会重洗形状池。",
+            foreground="#56616f", wraplength=245,
+        ).pack(anchor="w", pady=(1, 4))
+        seed_row = ttk.Frame(panel); seed_row.pack(fill="x", pady=(1, 3))
+        ttk.Label(seed_row, text="随机种子", width=9).pack(side="left")
+        seed_entry = ttk.Entry(seed_row, textvariable=self.random_transform_seed_var, width=11)
+        seed_entry.pack(side="left", fill="x", expand=True)
+        seed_entry.bind("<Return>", lambda _event: self._commit_random_transform_controls())
+        seed_entry.bind("<FocusOut>", lambda _event: self._commit_random_transform_controls())
+        ttk.Button(panel, text="🎲 换一个", command=self._randomize_transform_seed).pack(fill="x", pady=(0, 3))
+
+        ranges = self._random_world_ranges()
+        self._add_random_transform_slider(panel, "尺寸随机", self.random_size_var, ranges["size"])
+        self._add_random_transform_slider(panel, "旋转随机", self.random_rotation_var, ranges["rotation"])
+        self._add_random_transform_slider(panel, "位置扰动 X", self.random_jitter_x_var, ranges["jitter_x"])
+        self._add_random_transform_slider(panel, "位置扰动 Y", self.random_jitter_y_var, ranges["jitter_y"])
+        self._add_random_transform_slider(panel, "密度", self.random_occupancy_var, ranges["occupancy"])
+        ttk.Button(panel, text="恢复默认", command=self._reset_random_transforms).pack(fill="x", pady=(3, 4))
+
+        scope_box = ttk.LabelFrame(panel, text="作用范围", padding=4)
+        scope_box.pack(fill="x")
+        combo = ttk.Combobox(
+            scope_box, state="readonly", textvariable=self.random_scope_mode_display_var,
+            values=[SCOPE_MODE_LABELS[item.value] for item in ModifierScopeMode],
+        )
+        combo.pack(fill="x", pady=(0, 2))
+        combo.bind("<<ComboboxSelected>>", self._on_random_scope_mode_selected)
+        ttk.Checkbutton(
+            scope_box, text="反转范围", variable=self.random_scope_invert_var,
+            command=self._commit_random_transform_controls,
+        ).pack(anchor="w")
+        ttk.Label(scope_box, textvariable=self._random_scope_selection_text,
+                  foreground="#56616f", wraplength=245, justify="left").pack(anchor="w", pady=(1, 3))
+        self._random_scope_dynamic_frame = ttk.Frame(scope_box)
+        self._random_scope_dynamic_frame.pack(fill="x")
+        self._build_random_scope_parameter_panel()
+
+    def _random_world_ranges(self) -> dict[str, tuple[float, float, float, str]]:
+        scope_ranges = self._scope_world_ranges()
+        return {
+            "size": (0.0, 100.0, 1.0, "%"),
+            "rotation": (0.0, 180.0, 1.0, "°"),
+            "jitter_x": (0.0, max(abs(scope_ranges["center_x"][0]), abs(scope_ranges["center_x"][1])), 0.1, "mm"),
+            "jitter_y": (0.0, max(abs(scope_ranges["center_y"][0]), abs(scope_ranges["center_y"][1])), 0.1, "mm"),
+            "occupancy": (0.0, 100.0, 1.0, "%"),
+        }
+
+    def _add_random_transform_slider(self, parent: ttk.Frame, label: str, variable: tk.StringVar,
+                                     config: tuple[float, float, float, str]) -> None:
+        minimum, maximum, resolution, unit = config
+        row = ttk.Frame(parent); row.pack(fill="x", pady=1)
+        ttk.Label(row, text=label, width=10).pack(side="left")
+        scale = tk.Scale(
+            row, from_=minimum, to=max(minimum + resolution, maximum), resolution=resolution,
+            orient="horizontal", showvalue=False, variable=variable, highlightthickness=0,
+            length=106, command=lambda _value: self._schedule_random_transform_preview(),
+        )
+        scale.pack(side="left", fill="x", expand=True)
+        entry = ttk.Entry(row, textvariable=variable, width=7)
+        entry.pack(side="right", padx=(3, 0))
+        ttk.Label(row, text=unit, width=3).pack(side="right")
+        scale.bind("<ButtonRelease-1>", lambda _event: self._commit_random_transform_controls())
+        entry.bind("<KeyRelease>", lambda _event: self._schedule_random_transform_preview())
+        entry.bind("<Return>", lambda _event: self._commit_random_transform_controls())
+        entry.bind("<FocusOut>", lambda _event: self._commit_random_transform_controls())
+
+    def _random_scope_mode(self) -> ModifierScopeMode:
+        return ModifierScopeMode(SCOPE_LABEL_TO_MODE.get(
+            self.random_scope_mode_display_var.get(), ModifierScopeMode.ALL.value,
+        ))
+
+    def _random_scope_variables(self) -> dict[str, tk.StringVar]:
+        return {
+            "center_x": self.random_scope_center_x_var,
+            "center_y": self.random_scope_center_y_var,
+            "radius": self.random_scope_radius_var,
+            "width": self.random_scope_width_var,
+            "height": self.random_scope_height_var,
+        }
+
+    def _random_scope_from_controls(self) -> ModifierScope:
+        values = self._random_scope_variables()
+        return ModifierScope(
+            mode=self._random_scope_mode(), invert=bool(self.random_scope_invert_var.get()),
+            selected_element_ids=list(self._random_scope_selected_ids),
+            center_x=parse_float_ui_value(values["center_x"].get(), "随机范围中心 X"),
+            center_y=parse_float_ui_value(values["center_y"].get(), "随机范围中心 Y"),
+            radius=parse_float_ui_value(values["radius"].get(), "随机圆形范围半径", minimum=0.01),
+            width=parse_float_ui_value(values["width"].get(), "随机矩形范围宽度", minimum=0.01),
+            height=parse_float_ui_value(values["height"].get(), "随机矩形范围高度", minimum=0.01),
+        )
+
+    def _default_random_scope_for_mode(self, mode: ModifierScopeMode) -> ModifierScope:
+        ranges = self._scope_world_ranges()
+        min_x, max_x = ranges["center_x"][0], ranges["center_x"][1]
+        min_y, max_y = ranges["center_y"][0], ranges["center_y"][1]
+        width, height = max(0.1, max_x - min_x), max(0.1, max_y - min_y)
+        selected = list(self.session.selected_ids or ([self.session.selected_id] if self.session.selected_id else []))
+        return ModifierScope(
+            mode=mode, invert=bool(self.random_scope_invert_var.get()), selected_element_ids=selected,
+            center_x=(min_x + max_x) / 2.0, center_y=(min_y + max_y) / 2.0,
+            radius=max(0.1, min(width, height) / 2.0), width=width, height=height,
+        )
+
+    def _update_random_scope_description(self, scope: ModifierScope) -> None:
+        text = {
+            ModifierScopeMode.ALL: "随机与密度作用于全部元素。",
+            ModifierScopeMode.CIRCLE: "仅在圆形区域内应用随机与密度。",
+            ModifierScopeMode.RECTANGLE: "仅在矩形区域内应用随机与密度。",
+        }.get(scope.mode, "已记录 %d 个 Element；选择变化不会静默改写范围。" % len(scope.selected_element_ids))
+        if scope.invert:
+            text += " 当前已反转。"
+        self._random_scope_selection_text.set(text)
+
+    def _load_random_scope_controls(self, scope: ModifierScope, *, rebuild: bool = True) -> None:
+        self.random_scope_mode_display_var.set(SCOPE_MODE_LABELS[scope.mode.value])
+        self.random_scope_invert_var.set(scope.invert)
+        self.random_scope_center_x_var.set("%.6g" % scope.center_x)
+        self.random_scope_center_y_var.set("%.6g" % scope.center_y)
+        self.random_scope_radius_var.set("%.6g" % scope.radius)
+        self.random_scope_width_var.set("%.6g" % scope.width)
+        self.random_scope_height_var.set("%.6g" % scope.height)
+        self._random_scope_selected_ids = tuple(scope.selected_element_ids)
+        self._update_random_scope_description(scope)
+        if rebuild:
+            self._build_random_scope_parameter_panel()
+
+    def _add_random_scope_slider(self, parent: ttk.Frame, key: str, label: str,
+                                 config: tuple[float, float, float, str]) -> None:
+        minimum, maximum, resolution, unit = config
+        row = ttk.Frame(parent); row.pack(fill="x", pady=1)
+        ttk.Label(row, text=label, width=9).pack(side="left")
+        variable = self._random_scope_variables()[key]
+        scale = tk.Scale(row, from_=minimum, to=maximum, resolution=resolution, orient="horizontal",
+                         showvalue=False, variable=variable, highlightthickness=0, length=115,
+                         command=lambda _value: self._schedule_random_transform_preview())
+        scale.pack(side="left", fill="x", expand=True)
+        entry = ttk.Entry(row, textvariable=variable, width=7)
+        entry.pack(side="right", padx=(3, 0)); ttk.Label(row, text=unit, width=3).pack(side="right")
+        scale.bind("<ButtonRelease-1>", lambda _event: self._commit_random_transform_controls())
+        entry.bind("<KeyRelease>", lambda _event: self._schedule_random_transform_preview())
+        entry.bind("<Return>", lambda _event: self._commit_random_transform_controls())
+        entry.bind("<FocusOut>", lambda _event: self._commit_random_transform_controls())
+        self._random_scope_control_widgets[key] = (scale, entry)
+
+    def _build_random_scope_parameter_panel(self) -> None:
+        frame = self._random_scope_dynamic_frame
+        if frame is None:
+            return
+        for child in frame.winfo_children(): child.destroy()
+        self._random_scope_control_widgets.clear()
+        mode = self._random_scope_mode()
+        if mode is ModifierScopeMode.SELECTED:
+            ttk.Button(frame, text="使用当前选择", command=self._capture_current_random_selection_scope).pack(fill="x", pady=(0, 2))
+        labels = {"center_x": "中心 X", "center_y": "中心 Y", "radius": "半径", "width": "宽度", "height": "高度"}
+        ranges = self._scope_world_ranges()
+        for key in SCOPE_MODE_FIELDS[mode.value]:
+            self._add_random_scope_slider(frame, key, labels[key], ranges[key])
+
+    def _on_random_scope_mode_selected(self, _event=None) -> None:
+        scope = self._default_random_scope_for_mode(self._random_scope_mode())
+        self._load_random_scope_controls(scope)
+        self._commit_random_transform_controls()
+
+    def _capture_current_random_selection_scope(self) -> None:
+        self._random_scope_selected_ids = tuple(
+            self.session.selected_ids or ([self.session.selected_id] if self.session.selected_id else [])
+        )
+        self._commit_random_transform_controls()
+
+    def _random_settings_from_controls(self) -> RandomSettings:
+        return RandomSettings(
+            enabled=bool(self.random_transform_enabled_var.get()),
+            seed=parse_int_ui_value(self.random_transform_seed_var.get(), "随机种子", minimum=0),
+            occupancy=min(1.0, max(0.0, parse_float_ui_value(self.random_occupancy_var.get(), "密度", minimum=0.0) / 100.0)),
+            size_random=min(1.0, max(0.0, parse_float_ui_value(self.random_size_var.get(), "尺寸随机", minimum=0.0) / 100.0)),
+            rotation_random=max(0.0, parse_float_ui_value(self.random_rotation_var.get(), "旋转随机", minimum=0.0)),
+            position_jitter_x=max(0.0, parse_float_ui_value(self.random_jitter_x_var.get(), "位置扰动 X", minimum=0.0)),
+            position_jitter_y=max(0.0, parse_float_ui_value(self.random_jitter_y_var.get(), "位置扰动 Y", minimum=0.0)),
+            scope=self._random_scope_from_controls(),
+        )
+
+    def _load_random_transform_controls(self) -> None:
+        if self.session.document is None:
+            return
+        settings = self.session.random_transform_state()
+        self.random_transform_enabled_var.set(settings.enabled)
+        self.random_transform_seed_var.set(str(settings.seed))
+        self.random_size_var.set("%.6g" % (settings.size_random * 100.0))
+        self.random_rotation_var.set("%.6g" % settings.rotation_random)
+        self.random_jitter_x_var.set("%.6g" % settings.jitter_x())
+        self.random_jitter_y_var.set("%.6g" % settings.jitter_y())
+        self.random_occupancy_var.set("%.6g" % (settings.occupancy * 100.0))
+        self._load_random_scope_controls(settings.scope)
+
+    def _schedule_random_transform_preview(self) -> None:
+        if self.session.document is None or self._random_transform_preview_after is not None:
+            return
+        self._random_transform_preview_after = self.after(
+            self.PARAMETER_PREVIEW_INTERVAL_MS, self._run_random_transform_preview,
+        )
+
+    def _run_random_transform_preview(self) -> None:
+        self._random_transform_preview_after = None
+        if self.session.document is None:
+            return
+        try:
+            preview_document = deepcopy(self.session.document)
+            state = PlacementAssignmentState.from_document(preview_document)
+            if not state.source_elements:
+                state.set_source_elements(preview_document.elements)
+            if not state.slots:
+                state.slots = ImportedElementSlotProvider.from_elements(state.source_snapshot())
+            state.enabled = True
+            state.random = self._random_settings_from_controls()
+            state.attach(preview_document)
+            self._preview_grid_elements = evaluate_pattern_document(preview_document)
+            self._render_static_layer(elements=self._preview_grid_elements, update_index=False)
+            self._render_interaction_layer()
+        except Exception as error:
+            self._log_exception("随机与密度参数预览", error)
+
+    def _commit_random_transform_controls(self) -> None:
+        if self._random_transform_preview_after:
+            try: self.after_cancel(self._random_transform_preview_after)
+            except tk.TclError: pass
+            self._random_transform_preview_after = None
+        if self.session.document is None:
+            return
+        self._handle(lambda: (
+            self.session.update_random_transforms(self._random_settings_from_controls()),
+            self._after_document_change(),
+        ))
+
+    def _randomize_transform_seed(self) -> None:
+        def action() -> None:
+            self.random_transform_seed_var.set(str(self.session.randomize_transform_seed()))
+            self._after_document_change()
+        self._handle(action)
+
+    def _reset_random_transforms(self) -> None:
+        self._handle(lambda: (self.session.update_random_transforms(RandomSettings(), label="恢复随机与密度默认值"), self._after_document_change()))
 
     def _stack_from_document(self) -> SharedModifierStack | None:
         document = self.session.document
@@ -1940,6 +2213,7 @@ class PatternLabApp(tk.Tk):
     def _after_document_change(self) -> None:
         self._preview_grid_elements = None; self.pattern_mode_var.set(self.session.pattern_mode.value)
         self._load_shape_pool_controls()
+        self._load_random_transform_controls()
         grid_enabled = self.session.pattern_mode is PatternMode.GRID
         for widget in self._grid_control_widgets:
             try:
@@ -1951,6 +2225,7 @@ class PatternLabApp(tk.Tk):
         self.refresh_all()
     def refresh_all(self) -> None:
         self._load_shape_pool_controls()
+        self._load_random_transform_controls()
         self.refresh_fields(force=True); self.refresh_element_debug(); self.refresh_log(); self._refresh_modifier_stack(); self.refresh_canvas()
     def refresh_fields(self, *, force: bool = False) -> None:
         self.metrics.inspector_refreshes += 1; document, selected = self.session.document, self.session.selected_id

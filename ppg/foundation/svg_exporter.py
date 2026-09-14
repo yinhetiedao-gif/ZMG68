@@ -25,6 +25,12 @@ def pattern_document_to_svg(document: PatternDocument, output_path: str) -> Path
     for group in document.groups:
         containers[group.id] = ET.SubElement(root, "{%s}g" % SVG_NS, {"id": group.id, "data-name": group.name or group.id})
     for element in document.elements:
+        # SVG export is a manufacturing/design output, not a project-state
+        # snapshot.  Visibility is persisted in PatternDocument JSON; hidden
+        # slots (including Gate N Occupancy) must not leak into a downstream
+        # SVG, cutter, or later STL pipeline as display:none geometry.
+        if not element.visible:
+            continue
         parent = containers.get(element.group_id, root)
         _append_element(parent, element)
     tree = ET.ElementTree(root)

@@ -4,7 +4,7 @@
 
 开发前必须读取仓库根的 `AGENTS.md`、`DEVELOPMENT_SAFETY.md`、`GATE_STATUS.md`。
 源码已纳入本地 Git；新功能仅在 feature/*，保护快照不可覆盖。
-Gate 0 至 Gate M.1 已完成并由备份分支保护；当前不自动进入下一 Gate。
+Gate 0 至 Gate N 已完成并由备份分支保护；当前不自动进入下一 Gate。
 测试通过前不得继续下一 Gate。Git 备份不包含 .venv/.runtime/node_modules。
 独立回退目录需安装 requirements 和构建 external/imagetosvg-mcp（锁文件已纳入 Git）。
 
@@ -71,6 +71,15 @@ xiaomang_pattern_lab/verification.py # 六图无界面验收和量化指标
 矩形区域和反转区域。它只决定 Slot 是否参加 Shape Pool：未命中范围保持原始形状，显式
 `ReplacementMap` 始终优先。Scope 使用 PatternDocument 世界坐标/mm 保存，范围、Seed、
 权重和分配在 Save/Load、Undo/Redo 与 SVG 导出后保持一致。
+
+### Gate N — Random Transform + Occupancy
+
+Gate N 将 `RandomSettings` 固定为 Placement 层唯一的变换随机记录：尺寸随机、连续旋转、
+X/Y 位置扰动和 0–100% Occupancy 都使用 `SHA-256(seed|slot_id|channel)`。随机变换的
+Seed 与 Shape Pool 的 Seed 独立，因此调整随机幅度、密度或变换 Seed 不会重新分配形状。
+最终顺序为：`Source/Structure → Shape Assignment → Random Transform/Occupancy → Shared
+Modifier Stack → Local Override → Final Geometry`。范围继续复用 `ModifierScope`；隐藏槽位
+不写入 SVG，但完整状态保留在 PatternDocument，随 Save/Load 恢复。
 
 ### Shared Parametric Modifier Stack
 

@@ -305,13 +305,32 @@ class AssignmentSettings:
 
 @dataclass
 class RandomSettings:
+    """One deterministic, non-destructive transform/randomness record.
+
+    ``shape_random`` is retained only for historical AssignmentSettings
+    payloads.  Gate M ShapePool uses its own persisted ShapePool seed so a
+    transform slider can never silently reshuffle prototypes.  Gate N uses
+    this record for Size / Rotation / Position / Occupancy and one shared
+    ModifierScope.
+    """
+
     enabled: bool = False
     seed: int = 1
     shape_random: bool = False
     occupancy: float = 1.0
     size_random: float = 0.0
     rotation_random: float = 0.0
+    # ``position_jitter`` remains a readable legacy uniform amplitude.
     position_jitter: float = 0.0
+    position_jitter_x: float | None = None
+    position_jitter_y: float | None = None
+    scope: ModifierScope = field(default_factory=ModifierScope)
+
+    def jitter_x(self) -> float:
+        return max(0.0, self.position_jitter if self.position_jitter_x is None else self.position_jitter_x)
+
+    def jitter_y(self) -> float:
+        return max(0.0, self.position_jitter if self.position_jitter_y is None else self.position_jitter_y)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -322,11 +341,16 @@ class RandomSettings:
             "size_random": self.size_random,
             "rotation_random": self.rotation_random,
             "position_jitter": self.position_jitter,
+            "position_jitter_x": self.position_jitter_x,
+            "position_jitter_y": self.position_jitter_y,
+            "scope": self.scope.to_dict(),
         }
 
     @classmethod
     def from_dict(cls, value: Mapping[str, Any] | None) -> "RandomSettings":
         value = value or {}
+        legacy_jitter = max(0.0, float(value.get("position_jitter", 0.0)))
+        raw_jitter_x, raw_jitter_y = value.get("position_jitter_x"), value.get("position_jitter_y")
         return cls(
             enabled=bool(value.get("enabled", False)),
             seed=int(value.get("seed", 1)),
@@ -334,7 +358,10 @@ class RandomSettings:
             occupancy=min(1.0, max(0.0, float(value.get("occupancy", 1.0)))),
             size_random=min(1.0, max(0.0, float(value.get("size_random", 0.0)))),
             rotation_random=max(0.0, float(value.get("rotation_random", 0.0))),
-            position_jitter=max(0.0, float(value.get("position_jitter", 0.0))),
+            position_jitter=legacy_jitter,
+            position_jitter_x=None if raw_jitter_x is None else max(0.0, float(raw_jitter_x)),
+            position_jitter_y=None if raw_jitter_y is None else max(0.0, float(raw_jitter_y)),
+            scope=ModifierScope.from_dict(value.get("scope")),
         )
 
 
@@ -456,28 +483,52 @@ class AssignmentEngine:
             if prototype_id is None:
                 if source is None:
                     continue
-                output.append(deepcopy(source))
-                continue
-            prototype = self.registry.get(prototype_id)
-            width, height = slot.width, slot.height
-            rotation = slot.rotation
-            x, y = slot.center_x, slot.center_y
-            if random_settings.enabled:
+                # Original geometry remains the base if neither a manual nor
+                # a ShapePool assignment applies.  Gate N must still work for
+                # ordinary imported/free Elements, not only prototypes.
+                derived = deepcopy(source)
+            else:
+                prototype = self.registry.get(prototype_id)
+                derived = prototype.instantiate(
+                    element_id=slot.source_element_id or slot.slot_id,
+                    x=slot.center_x, y=slot.center_y,
+                    width=slot.width, height=slot.height,
+                    rotation=slot.rotation, visible=slot.visible,
+                )
+
+            # Random transform is a separate channel group and is evaluated
+            # after Shape Assignment but before the existing Modifier Stack.
+            # The same Scope semantics as Gate J/M.1 prevent it from touching
+            # source geometry or elements outside the intended region.
+            random_in_scope = (
+                random_settings.enabled
+                and (scope_element is None or random_settings.scope.contains(scope_element))
+            )
+            if random_in_scope:
                 if random_settings.size_random:
-                    factor = 1.0 + (deterministic_unit(random_settings.seed, slot.slot_id, "size") * 2.0 - 1.0) * random_settings.size_random
-                    width, height = max(0.01, width * factor), max(0.01, height * factor)
+                    factor = 1.0 + (
+                        deterministic_unit(random_settings.seed, slot.slot_id, "size") * 2.0 - 1.0
+                    ) * random_settings.size_random
+                    derived.width = max(0.01, derived.width * factor)
+                    derived.height = max(0.01, derived.height * factor)
                 if random_settings.rotation_random:
-                    rotation += (deterministic_unit(random_settings.seed, slot.slot_id, "rotation") * 2.0 - 1.0) * random_settings.rotation_random
-                if random_settings.position_jitter:
-                    x += (deterministic_unit(random_settings.seed, slot.slot_id, "x") * 2.0 - 1.0) * random_settings.position_jitter
-                    y += (deterministic_unit(random_settings.seed, slot.slot_id, "y") * 2.0 - 1.0) * random_settings.position_jitter
-            visible = slot.visible
-            if random_settings.enabled and random_settings.occupancy < 1.0:
-                visible = deterministic_unit(random_settings.seed, slot.slot_id, "occupancy") < random_settings.occupancy
-            output.append(prototype.instantiate(
-                element_id=slot.source_element_id or slot.slot_id,
-                x=x, y=y, width=width, height=height, rotation=rotation, visible=visible,
-            ))
+                    derived.rotation += (
+                        deterministic_unit(random_settings.seed, slot.slot_id, "rotation") * 2.0 - 1.0
+                    ) * random_settings.rotation_random
+                jitter_x, jitter_y = random_settings.jitter_x(), random_settings.jitter_y()
+                if jitter_x:
+                    derived.x += (
+                        deterministic_unit(random_settings.seed, slot.slot_id, "offset_x") * 2.0 - 1.0
+                    ) * jitter_x
+                if jitter_y:
+                    derived.y += (
+                        deterministic_unit(random_settings.seed, slot.slot_id, "offset_y") * 2.0 - 1.0
+                    ) * jitter_y
+                if random_settings.occupancy < 1.0:
+                    derived.visible = bool(derived.visible) and (
+                        deterministic_unit(random_settings.seed, slot.slot_id, "occupancy") < random_settings.occupancy
+                    )
+            output.append(derived)
         return output
 
 
@@ -507,7 +558,7 @@ class PlacementAssignmentState:
     def to_dict(self) -> dict[str, Any]:
         assignment_payload = self.assignment.to_dict()
         return {
-            "version": 3,
+            "version": 4,
             "enabled": self.enabled,
             "slots": [slot.to_dict() for slot in self.slots],
             "shape_prototypes": self.prototypes.to_dict(),

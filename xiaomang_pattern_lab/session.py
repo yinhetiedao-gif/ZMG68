@@ -26,6 +26,7 @@ from .placement_assignment import (
     PLACEMENT_METADATA_KEY,
     ImportedElementSlotProvider,
     PlacementAssignmentState,
+    RandomSettings,
     ShapePoolEntry,
     ShapePrototypeRegistry,
 )
@@ -571,6 +572,41 @@ class PatternLabSession:
             materialize_evaluated_elements(self.require_document())
 
         self._mutate("恢复形状池默认值", action)
+
+    # Gate N: transforms and occupancy share the existing Placement layer;
+    # they intentionally do not create a second RandomDocument or Generator.
+    def random_transform_state(self) -> RandomSettings:
+        return self.shape_pool_state().random
+
+    def update_random_transforms(
+        self, settings: RandomSettings, *, label: str = "更新随机与密度"
+    ) -> None:
+        """Persist one complete deterministic transform update as one Undo."""
+
+        normalized = RandomSettings.from_dict(settings.to_dict())
+
+        def action() -> None:
+            state = self._placement_state_for_edit()
+            state.random = normalized
+            state.attach(self.require_document())
+            materialize_evaluated_elements(self.require_document())
+
+        self._mutate(label, action)
+
+    def set_random_transform_scope(self, scope: ModifierScope | dict[str, object]) -> None:
+        settings = self.random_transform_state()
+        settings.scope = scope if isinstance(scope, ModifierScope) else ModifierScope.from_dict(scope)
+        self.update_random_transforms(settings, label="更新随机作用范围")
+
+    def randomize_transform_seed(self) -> int:
+        """Commit a new Gate N seed without changing Shape Pool assignment."""
+
+        import secrets
+
+        settings = self.random_transform_state()
+        settings.seed = secrets.randbelow(2_147_483_647) + 1
+        self.update_random_transforms(settings, label="随机与密度换一个")
+        return settings.seed
 
     def _set_placement_slot_geometry(
         self, element_id: str, *, x: float | None = None, y: float | None = None,
