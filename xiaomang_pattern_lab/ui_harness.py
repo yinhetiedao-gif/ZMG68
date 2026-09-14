@@ -13,7 +13,7 @@ from time import perf_counter
 import math
 import traceback
 import tkinter as tk
-from tkinter import filedialog, messagebox, ttk
+from tkinter import filedialog, messagebox, simpledialog, ttk
 
 from PIL import Image, ImageTk
 
@@ -282,6 +282,9 @@ class PatternLabApp(tk.Tk):
         self._random_scope_dynamic_frame: ttk.Frame | None = None
         self._random_scope_control_widgets: dict[str, tuple[tk.Scale, ttk.Entry]] = {}
         self._random_transform_preview_after: str | None = None
+        self._preset_listbox: tk.Listbox | None = None
+        self._preset_ids: list[str] = []
+        self._preset_status_text = tk.StringVar(value="预设仅保存效果配置，不保存当前图案或参考图。")
         self._batch_selection_text = tk.StringVar(value="已选择：0 个元素")
         self.batch_scale_x_var = tk.StringVar(value="1")
         self.batch_scale_y_var = tk.StringVar(value="1")
@@ -494,6 +497,7 @@ class PatternLabApp(tk.Tk):
         self._build_modifier_stack_panel(parent)
         self._build_shape_pool_panel(parent)
         self._build_random_transform_panel(parent)
+        self._build_preset_panel(parent)
         tolerance_row = ttk.Frame(parent); tolerance_row.pack(fill="x", pady=(0, 5))
         ttk.Label(tolerance_row, text="分析容差", width=9).pack(side="left")
         tolerance_combo = ttk.Combobox(tolerance_row, state="readonly", textvariable=self.analysis_tolerance_var,
@@ -861,6 +865,115 @@ class PatternLabApp(tk.Tk):
 
     # Gate N remains on the Placement/Assignment layer: this panel writes one
     # RandomSettings record and previews against a throw-away document.
+    def _build_preset_panel(self, parent: ttk.Frame) -> None:
+        """A deliberately small Gate-O UI over the session's local repository."""
+
+        panel = ttk.LabelFrame(parent, text="参数预设", padding=5)
+        panel.pack(fill="x", pady=(0, 6))
+        ttk.Label(
+            panel, text="保存当前效果，之后可应用到其他图案；不会保存原图、元素或视图。",
+            foreground="#56616f", wraplength=245, justify="left",
+        ).pack(anchor="w", pady=(0, 4))
+        list_shell = ttk.Frame(panel); list_shell.pack(fill="x", expand=True)
+        scrollbar = ttk.Scrollbar(list_shell, orient="vertical")
+        self._preset_listbox = tk.Listbox(list_shell, height=5, exportselection=False,
+                                          yscrollcommand=scrollbar.set)
+        scrollbar.configure(command=self._preset_listbox.yview)
+        scrollbar.pack(side="right", fill="y")
+        self._preset_listbox.pack(side="left", fill="x", expand=True)
+        self._preset_listbox.bind("<Double-Button-1>", lambda _event: self.apply_preset())
+        primary = ttk.Frame(panel); primary.pack(fill="x", pady=(4, 2))
+        ttk.Button(primary, text="保存当前效果", command=self.save_preset).pack(side="left", fill="x", expand=True)
+        ttk.Button(primary, text="应用预设", command=self.apply_preset).pack(side="left", fill="x", expand=True, padx=(4, 0))
+        manage = ttk.Frame(panel); manage.pack(fill="x")
+        ttk.Button(manage, text="复制", command=self.duplicate_preset).pack(side="left", fill="x", expand=True)
+        ttk.Button(manage, text="重命名", command=self.rename_preset).pack(side="left", fill="x", expand=True, padx=4)
+        ttk.Button(manage, text="删除", command=self.delete_preset).pack(side="left", fill="x", expand=True)
+        ttk.Label(panel, textvariable=self._preset_status_text, foreground="#56616f",
+                  wraplength=245, justify="left").pack(anchor="w", pady=(4, 0))
+        self._refresh_preset_list()
+
+    def _selected_preset_id(self) -> str | None:
+        if self._preset_listbox is None:
+            return None
+        selected = self._preset_listbox.curselection()
+        if not selected:
+            messagebox.showinfo("参数预设", "请先从列表中选择一个参数预设。", parent=self)
+            return None
+        index = int(selected[0])
+        return self._preset_ids[index] if 0 <= index < len(self._preset_ids) else None
+
+    def _refresh_preset_list(self, *, select_id: str | None = None) -> None:
+        if self._preset_listbox is None:
+            return
+        previous = select_id
+        if previous is None:
+            chosen = self._preset_listbox.curselection()
+            if chosen and int(chosen[0]) < len(self._preset_ids):
+                previous = self._preset_ids[int(chosen[0])]
+        presets = self.session.list_parametric_presets()
+        self._preset_ids = [item.preset_id for item in presets]
+        self._preset_listbox.delete(0, "end")
+        selected_index = None
+        for index, preset in enumerate(presets):
+            self._preset_listbox.insert("end", preset.name)
+            if preset.preset_id == previous:
+                selected_index = index
+        if selected_index is not None:
+            self._preset_listbox.selection_set(selected_index)
+            self._preset_listbox.see(selected_index)
+        self._preset_status_text.set("本地预设：%d 个（独立保存于工作区 presets）。" % len(presets))
+
+    def save_preset(self) -> None:
+        name = simpledialog.askstring("保存参数预设", "预设名称：", parent=self)
+        if name is None:
+            return
+        self._handle(lambda: self._save_preset_with_name(name))
+
+    def _save_preset_with_name(self, name: str) -> None:
+        preset = self.session.save_parametric_preset(name)
+        self._refresh_preset_list(select_id=preset.preset_id)
+        self.refresh_log()
+
+    def apply_preset(self) -> None:
+        preset_id = self._selected_preset_id()
+        if preset_id is None:
+            return
+        self._handle(lambda: (self.session.apply_parametric_preset(preset_id), self._after_document_change()))
+
+    def duplicate_preset(self) -> None:
+        preset_id = self._selected_preset_id()
+        if preset_id is None:
+            return
+        self._handle(lambda: self._duplicate_preset_by_id(preset_id))
+
+    def _duplicate_preset_by_id(self, preset_id: str) -> None:
+        duplicate = self.session.duplicate_parametric_preset(preset_id)
+        self._refresh_preset_list(select_id=duplicate.preset_id)
+        self.refresh_log()
+
+    def rename_preset(self) -> None:
+        preset_id = self._selected_preset_id()
+        if preset_id is None:
+            return
+        current = self.session.preset_repository.get(preset_id)
+        name = simpledialog.askstring("重命名参数预设", "新名称：", initialvalue=current.name, parent=self)
+        if name is not None:
+            self._handle(lambda: self._rename_preset_with_name(preset_id, name))
+
+    def _rename_preset_with_name(self, preset_id: str, name: str) -> None:
+        preset = self.session.rename_parametric_preset(preset_id, name)
+        self._refresh_preset_list(select_id=preset.preset_id)
+        self.refresh_log()
+
+    def delete_preset(self) -> None:
+        preset_id = self._selected_preset_id()
+        if preset_id is None:
+            return
+        if not messagebox.askyesno("删除参数预设", "删除所选预设？不会影响当前图案。", parent=self):
+            return
+        self._handle(lambda: (self.session.delete_parametric_preset(preset_id), self._refresh_preset_list(), self.refresh_log()))
+
     def _build_random_transform_panel(self, parent: ttk.Frame) -> None:
         panel = ttk.LabelFrame(parent, text="随机与密度（稳定 Seed）", padding=5)
         panel.pack(fill="x", pady=(0, 6))
@@ -2214,6 +2327,7 @@ class PatternLabApp(tk.Tk):
         self._preview_grid_elements = None; self.pattern_mode_var.set(self.session.pattern_mode.value)
         self._load_shape_pool_controls()
         self._load_random_transform_controls()
+        self._refresh_preset_list()
         grid_enabled = self.session.pattern_mode is PatternMode.GRID
         for widget in self._grid_control_widgets:
             try:
@@ -2226,6 +2340,7 @@ class PatternLabApp(tk.Tk):
     def refresh_all(self) -> None:
         self._load_shape_pool_controls()
         self._load_random_transform_controls()
+        self._refresh_preset_list()
         self.refresh_fields(force=True); self.refresh_element_debug(); self.refresh_log(); self._refresh_modifier_stack(); self.refresh_canvas()
     def refresh_fields(self, *, force: bool = False) -> None:
         self.metrics.inspector_refreshes += 1; document, selected = self.session.document, self.session.selected_id

@@ -4,7 +4,7 @@
 
 开发前必须读取仓库根的 `AGENTS.md`、`DEVELOPMENT_SAFETY.md`、`GATE_STATUS.md`。
 源码已纳入本地 Git；新功能仅在 feature/*，保护快照不可覆盖。
-Gate 0 至 Gate N 已完成并由备份分支保护；当前不自动进入下一 Gate。
+Gate 0 至 Gate O 已完成并由备份分支保护；当前不自动进入下一 Gate。
 测试通过前不得继续下一 Gate。Git 备份不包含 .venv/.runtime/node_modules。
 独立回退目录需安装 requirements 和构建 external/imagetosvg-mcp（锁文件已纳入 Git）。
 
@@ -43,6 +43,7 @@ xiaomang_pattern_lab/evaluation.py # 唯一 Evaluate Pipeline：任一 Parametri
 xiaomang_pattern_lab/placement_assignment.py # PlacementSlot → Prototype Registry → Assignment / Replacement / Shape Pool（Gate 1/M）
 xiaomang_pattern_lab/shared_modifiers.py # Geometry Source 之上的公共 Size/Rotation/Mask/Override 效果层
 xiaomang_pattern_lab/shared_fields.py # Gate 1 纯 Scalar Field / Registry / Mapping / Size Consumer
+xiaomang_pattern_lab/presets.py # Gate O 本地、版本化的效果预设；不保存项目或源几何
 xiaomang_pattern_lab/element_debug.py # Element、可渲染性与实心填充统计
 xiaomang_pattern_lab/verification.py # 六图无界面验收和量化指标
 ```

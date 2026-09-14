@@ -33,6 +33,12 @@ from .placement_assignment import (
 from .shared_modifiers import ModifierScope, SHARED_MODIFIER_METADATA_KEY, SharedModifierStack
 from .pattern_analyzer import AnalysisTolerance, GridAnalysisDebug, GridFitResult, MultiFamilyAnalysis, PatternAnalyzer
 from .recognition import MultiScaleDotRecognizer
+from .presets import (
+    ParametricPreset,
+    PresetRepository,
+    adapt_effect_config,
+    bounds_from_elements,
+)
 
 
 class ViewMode(str, Enum):
@@ -607,6 +613,168 @@ class PatternLabSession:
         settings.seed = secrets.randbelow(2_147_483_647) + 1
         self.update_random_transforms(settings, label="随机与密度换一个")
         return settings.seed
+
+    # Gate O: a preset is an effect recipe.  It deliberately lives alongside
+    # the workspace rather than in a PatternDocument, so source geometry and a
+    # project file remain separate from a reusable configuration.
+    @property
+    def preset_repository(self) -> PresetRepository:
+        return PresetRepository(self.workspace / "presets")
+
+    def list_parametric_presets(self) -> list[ParametricPreset]:
+        return self.preset_repository.list()
+
+    def _preset_source_elements(self) -> list:
+        """Return target geometry before effects, never the Canvas output."""
+
+        return self._replacement_source()
+
+    def save_parametric_preset(self, name: str) -> ParametricPreset:
+        """Persist a versioned effect-only preset without creating an Undo item."""
+
+        document = self.require_document()
+        shared = SharedModifierStack.from_document(document)
+        placement = PlacementAssignmentState.from_document(document)
+        source = self._preset_source_elements()
+        placement_raw = placement.to_dict()
+        preset = ParametricPreset(
+            name=str(name).strip() or "未命名预设",
+            fields=deepcopy(document.fields),
+            modifiers=deepcopy(document.modifiers),
+            shared_modifier_stack=shared.to_dict() if shared else {},
+            shape_pool={
+                "shape_prototypes": deepcopy(placement_raw.get("shape_prototypes") or {}),
+                "shape_pool": deepcopy(placement_raw.get("shape_pool") or []),
+                "shape_pool_enabled": bool(placement.shape_pool_enabled),
+                "shape_random_seed": int(placement.shape_random_seed),
+                "shape_pool_scope": placement.shape_pool_scope.to_dict(),
+                "enabled": bool(placement.enabled),
+            },
+            assignment_settings=deepcopy(placement.assignment.to_dict()),
+            random_settings=deepcopy(placement.random.to_dict()),
+            source_bounds=bounds_from_elements(source),
+            metadata={"created_by": "xiaomang_pattern_lab", "preset_kind": "parametric_effects"},
+        )
+        self.preset_repository.save(preset)
+        self.log("保存参数预设：%s" % preset.name)
+        return preset
+
+    def rename_parametric_preset(self, preset_id: str, name: str) -> ParametricPreset:
+        preset = self.preset_repository.get(preset_id)
+        preset.name = str(name).strip() or preset.name
+        self.preset_repository.save(preset)
+        self.log("重命名参数预设：%s" % preset.name)
+        return preset
+
+    def duplicate_parametric_preset(self, preset_id: str, name: str | None = None) -> ParametricPreset:
+        preset = self.preset_repository.get(preset_id)
+        duplicate = preset.copy_named(name or (preset.name + " 副本"))
+        self.preset_repository.save(duplicate)
+        self.log("复制参数预设：%s" % duplicate.name)
+        return duplicate
+
+    def delete_parametric_preset(self, preset_id: str) -> None:
+        preset = self.preset_repository.get(preset_id)
+        self.preset_repository.delete(preset_id)
+        self.log("删除参数预设：%s" % preset.name)
+
+    def apply_parametric_preset(self, preset_id: str) -> None:
+        """Replace effect configuration in exactly one non-destructive Undo.
+
+        Source elements, current structural model, slots, manual replacements,
+        local overrides, selection and viewport data are deliberately retained.
+        The input recipe is coordinate-adapted from its saved source bounds to
+        the target document's current source geometry before it is attached.
+        """
+
+        preset = self.preset_repository.get(preset_id)
+
+        def action() -> None:
+            document = self.require_document()
+            target_source = self._preset_source_elements()
+            target_bounds = bounds_from_elements(target_source)
+            current_stack = SharedModifierStack.from_document(document)
+            current_placement = PlacementAssignmentState.from_document(document)
+
+            stack_payload = adapt_effect_config(
+                preset.shared_modifier_stack, preset.source_bounds, target_bounds,
+            )
+            fields = adapt_effect_config(preset.fields, preset.source_bounds, target_bounds)
+            graph_modifiers = adapt_effect_config(preset.modifiers, preset.source_bounds, target_bounds)
+
+            if stack_payload:
+                # Unknown future stack layers are skipped rather than making a
+                # whole saved preset unopenable in an older Pattern Lab.
+                valid_layers = []
+                for layer in stack_payload.get("modifiers", []):
+                    if isinstance(layer, dict) and str(layer.get("type")) in {"size", "rotation", "position"}:
+                        valid_layers.append(layer)
+                    elif isinstance(layer, dict):
+                        self.log("预设跳过当前版本不支持的效果层：%s" % layer.get("type"), "WARNING")
+                stack_payload["modifiers"] = valid_layers
+                stack = SharedModifierStack.from_dict(stack_payload)
+                stack.enabled = True
+                stack.source_kind = current_stack.source_kind if current_stack else "imported_elements"
+                stack.source_elements = serialize_elements(target_source)
+                # A local user edit is geometry-specific and must not be
+                # replaced by a different document's preset.
+                stack.local_overrides = deepcopy(current_stack.local_overrides) if current_stack else {}
+                stack.attach(document, source_kind=stack.source_kind)
+                # Explicit layers intentionally own the graph.  A legacy graph
+                # is restored only if the preset did not contain an explicit
+                # Modifier Stack layer.
+                if not stack.modifiers:
+                    document.fields = deepcopy(fields)
+                    document.modifiers = deepcopy(graph_modifiers)
+            else:
+                document.metadata.pop(SHARED_MODIFIER_METADATA_KEY, None)
+                document.fields = deepcopy(fields)
+                document.modifiers = deepcopy(graph_modifiers)
+
+            pool_payload = adapt_effect_config(preset.shape_pool, preset.source_bounds, target_bounds)
+            random_payload = adapt_effect_config(preset.random_settings, preset.source_bounds, target_bounds)
+            needs_placement = bool(pool_payload.get("enabled", False) or pool_payload.get("shape_pool_enabled", False)
+                                   or random_payload.get("enabled", False) or current_placement.replacement_map.values)
+            if needs_placement:
+                state = current_placement
+                if not state.source_elements:
+                    state.set_source_elements(target_source)
+                if not state.slots:
+                    state.slots = ImportedElementSlotProvider.from_elements(target_source)
+                raw_prototypes = pool_payload.get("shape_prototypes")
+                if isinstance(raw_prototypes, dict) and raw_prototypes:
+                    try:
+                        state.prototypes = ShapePrototypeRegistry.from_dict(raw_prototypes)
+                    except (TypeError, ValueError):
+                        self.log("预设中的自定义形状无法读取，已保留当前形状库。", "WARNING")
+                if not state.prototypes.ids():
+                    state.prototypes = ShapePrototypeRegistry.with_builtins()
+                state.shape_pool = [
+                    ShapePoolEntry.from_dict(item) for item in pool_payload.get("shape_pool", [])
+                    if isinstance(item, (dict, str))
+                ] or state.shape_pool
+                state.shape_pool_enabled = bool(pool_payload.get("shape_pool_enabled", False))
+                state.shape_random_seed = max(0, int(pool_payload.get("shape_random_seed", 1)))
+                state.shape_pool_scope = ModifierScope.from_dict(pool_payload.get("shape_pool_scope"))
+                state.assignment = state.assignment.from_dict(preset.assignment_settings)
+                state.random = RandomSettings.from_dict(random_payload)
+                state.enabled = True
+                state.attach(document)
+            else:
+                # The recipe turns automatic shape/random effects off, while
+                # preserving manual replacement mappings as local edits.
+                if current_placement.replacement_map.values:
+                    current_placement.shape_pool_enabled = False
+                    current_placement.random = RandomSettings()
+                    current_placement.enabled = True
+                    current_placement.attach(document)
+                else:
+                    document.metadata.pop(PLACEMENT_METADATA_KEY, None)
+
+            materialize_evaluated_elements(document)
+
+        self._mutate("应用参数预设", action)
+        self.log("应用参数预设：%s（已按当前图案尺寸适配）" % preset.name)
 
     def _set_placement_slot_geometry(
         self, element_id: str, *, x: float | None = None, y: float | None = None,

@@ -1,5 +1,16 @@
 # Gate 状态（2026-09-11）
 
+## Gate O — Parametric Preset System（2026-09-14）
+
+- Status: PASS
+- 数据模型：新增独立、版本化的 `ParametricPreset(schema_version, name, fields, modifiers, shared_modifier_stack, shape_pool, assignment_settings, random_settings, source_bounds, metadata)`；严格不是 `PatternDocument` 的序列化副本。
+- 存储：`PatternLabSession.workspace / presets/*.preset.json`，与 Project JSON、Raster、源码和用户当前选择状态隔离；支持保存、应用、复制、重命名、删除以及重启后发现。
+- 安全边界：预设不保存 `source_elements`、Slots、ReplacementMap、Local Overrides、Raster、Selection 或 Zoom/Pan。应用只替换效果配置，保留目标 Geometry 的源快照、结构模型、局部编辑及手动替换。
+- 适配：保存时记录源 Geometry Bounds；应用时中心坐标按归一化位置、长度/半径/位移按 X/Y/平均比例映射到目标 Bounds。Seed、角度、强度、权重与 Occupancy 不变。
+- 兼容：未来未知 Modifier 自动跳过并记录 Warning；Selected Scope 不携带旧 Element ID，安全恢复为空范围。一次应用仅一条 Undo，Save/Load/SVG 继续使用既有 Evaluate Pipeline。
+- UI：单一左侧滚动页增加中文“参数预设”列表与保存/应用/复制/重命名/删除；双击可应用。
+- 验证：Gate O 核心、UI、持久化、尺度适配、未知层容错 6/6 PASS；与 Gate H/J/M/N 定向回归 21/21 PASS；完整 unittest 202/202 PASS（227.279 秒）；固定图 self-test 6/6 PASS。证据：`work/gate-o-preset/`；Gate P 未开始。
+
 ## Gate N — Random Transform + Density / Occupancy（2026-09-14）
 
 - Status: PASS

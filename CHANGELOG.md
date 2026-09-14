@@ -1,5 +1,25 @@
 # 更新记录
 
+## 1.6.42 — Gate O：本地参数预设系统（2026-09-14）
+
+### Added
+
+- 新增版本化 `ParametricPreset` 与独立 `PresetRepository`：用户可保存、应用、复制、重命名、删除本地效果配置；预设保存于 Pattern Lab 工作区的 `presets/`，不混入 Project 文件或源码目录。
+- 预设只保存 Shared Fields、Modifier Stack 与顺序、Scope/Mask、Shape Pool、Assignment、Random/Density 与 Seed；明确不保存 Raster、`source_elements`、Placement Slots、手动 ReplacementMap、局部覆盖、选择状态或 Canvas Zoom/Pan。
+- 左侧统一滚动参数页新增中文“参数预设”面板，提供“保存当前效果 / 应用预设 / 复制 / 重命名 / 删除”；双击列表也可应用。
+- 应用预设使用目标图案的源几何 Bounds 做世界坐标适配：中心坐标按归一化位置映射，半径/波长/位移/Mask 宽高按目标尺寸比例映射；Seed、角度、强度、权重、密度保持原值。
+
+### Safety & Compatibility
+
+- 一次“应用预设”仅产生一条 Undo Transaction；Undo/Redo、SVG、项目保存/重开和既有 Grid/ShapePool/Random 继续通过同一 Evaluate Pipeline。
+- 应用只替换效果配置，保留目标图案的结构模型、源快照、Placement Slots、手动形状替换与局部编辑，不会重新 Rasterize / Vectorize。
+- 新版本遇到未来未知 Modifier 会跳过该层并写入中文 Warning，不会让整个预设或软件崩溃；`selected` Scope 不保存当前元素 ID，重新应用时安全为空范围。
+
+### Verification
+
+- Gate O 核心、持久化、尺度适配、未知层容错与 Tk 中文面板：5/5 PASS。
+- 与 Gate H/J/M/N 的定向回归：21/21 PASS；完整 unittest：202/202 PASS；固定测试图 self-test：6/6 PASS。
+
 ## 1.6.41 — Gate N：稳定随机变换与密度（2026-09-14）
 
 ### Added
