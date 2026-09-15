@@ -9,6 +9,7 @@ from __future__ import annotations
 from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
+import secrets
 from time import perf_counter
 import math
 import traceback
@@ -222,6 +223,13 @@ class PatternLabApp(tk.Tk):
         self.family_image_contrast_var = tk.StringVar(value="1.0")
         self.family_image_black_var = tk.StringVar(value="0.0")
         self.family_image_white_var = tk.StringVar(value="1.0")
+        self.family_noise_scale_var = tk.StringVar(value="50")
+        self.family_noise_strength_var = tk.StringVar(value="1.0")
+        self.family_noise_seed_var = tk.StringVar(value="1")
+        self.family_noise_offset_x_var = tk.StringVar(value="0")
+        self.family_noise_offset_y_var = tk.StringVar(value="0")
+        self.family_noise_octaves_var = tk.StringVar(value="3")
+        self.family_noise_contrast_var = tk.StringVar(value="1.0")
         self.position_mode_var = tk.StringVar(value="offset")
         self.position_mode_display_var = tk.StringVar(value="整体偏移")
         self.position_offset_x_var = tk.StringVar(value="0")
@@ -2093,6 +2101,24 @@ class PatternLabApp(tk.Tk):
             self._add_family_slider(self._family_dynamic_frame, "黑场阈值", self.family_image_black_var, 0.0, 0.99, 0.01)
             self._add_family_slider(self._family_dynamic_frame, "白场阈值", self.family_image_white_var, 0.01, 1.0, 0.01)
             self._add_family_checkbox(self._family_dynamic_frame, "反转黑白", self.family_ring_invert_var)
+        elif mode == SizeFieldMode.NOISE.value:
+            ttk.Label(self._family_dynamic_frame, text="以世界坐标生成连续有机起伏；尺度越大，变化区域越大。",
+                      foreground="#56616f", wraplength=245).pack(anchor="w", pady=(0, 3))
+            self._add_family_slider(self._family_dynamic_frame, "尺度", self.family_noise_scale_var, 1.0, 1000.0, 0.1, "mm")
+            self._add_family_slider(self._family_dynamic_frame, "噪声强度", self.family_noise_strength_var, 0.0, 1.0, 0.01)
+            self._add_family_slider(self._family_dynamic_frame, "X 偏移", self.family_noise_offset_x_var, -1000.0, 1000.0, 0.1, "mm")
+            self._add_family_slider(self._family_dynamic_frame, "Y 偏移", self.family_noise_offset_y_var, -1000.0, 1000.0, 0.1, "mm")
+            self._add_family_slider(self._family_dynamic_frame, "噪声层数", self.family_noise_octaves_var, 1.0, 8.0, 1.0)
+            self._add_family_slider(self._family_dynamic_frame, "对比度", self.family_noise_contrast_var, 0.1, 3.0, 0.01)
+            seed_row = ttk.Frame(self._family_dynamic_frame); seed_row.pack(fill="x", pady=1)
+            ttk.Label(seed_row, text="随机种子", width=11).pack(side="left")
+            seed_entry = ttk.Entry(seed_row, textvariable=self.family_noise_seed_var, width=10)
+            seed_entry.pack(side="left", fill="x", expand=True)
+            seed_entry.bind("<KeyRelease>", lambda _event: self._schedule_family_preview())
+            seed_entry.bind("<Return>", lambda _event: self._commit_family_preview())
+            seed_entry.bind("<FocusOut>", lambda _event: self._commit_family_preview())
+            ttk.Button(seed_row, text="🎲 换一个", command=self._randomize_family_noise_seed).pack(side="right", padx=(4, 0))
+            self._add_family_checkbox(self._family_dynamic_frame, "反转", self.family_ring_invert_var)
 
         self._build_family_rotation_panel()
 
@@ -2112,6 +2138,12 @@ class PatternLabApp(tk.Tk):
         if not self._family_controls_ready or self._family_preview_after is not None:
             return
         self._family_preview_after = self.after(self.PARAMETER_PREVIEW_INTERVAL_MS, self._run_family_preview)
+
+    def _randomize_family_noise_seed(self) -> None:
+        """A seed change is one normal effect transaction, never per-element randomisation."""
+
+        self.family_noise_seed_var.set(str(secrets.randbelow(2_147_483_647)))
+        self._commit_family_preview()
 
     def _run_family_preview(self) -> None:
         self._family_preview_after = None
@@ -2156,6 +2188,10 @@ class PatternLabApp(tk.Tk):
         self.family_amplitude_var.set(str(size.amplitude)); self.family_offset_var.set(str(size.offset)); self.family_falloff_var.set(str(size.falloff))
         self.family_duty_cycle_var.set(str(size.duty_cycle)); self.family_smoothness_var.set(str(size.smoothness)); self.family_cell_width_var.set(str(size.cell_width)); self.family_cell_height_var.set(str(size.cell_height))
         self.family_turns_var.set(str(size.turns)); self.family_direction_var.set(str(size.direction)); self.family_rotation_var.set(str(rotation.angle))
+        self.family_image_contrast_var.set(str(size.image_contrast)); self.family_image_black_var.set(str(size.image_black_point)); self.family_image_white_var.set(str(size.image_white_point))
+        self.family_noise_scale_var.set(str(size.noise_scale)); self.family_noise_strength_var.set(str(size.noise_strength)); self.family_noise_seed_var.set(str(size.noise_seed))
+        self.family_noise_offset_x_var.set(str(size.noise_offset_x)); self.family_noise_offset_y_var.set(str(size.noise_offset_y))
+        self.family_noise_octaves_var.set(str(size.noise_octaves)); self.family_noise_contrast_var.set(str(size.noise_contrast))
         self._build_family_field_panel()
         self.apply_family_fields()
 
@@ -2177,6 +2213,9 @@ class PatternLabApp(tk.Tk):
         self.family_cell_width_var.set(str(size.cell_width)); self.family_cell_height_var.set(str(size.cell_height))
         self.family_turns_var.set(str(size.turns)); self.family_direction_var.set(str(size.direction))
         self.family_image_contrast_var.set(str(size.image_contrast)); self.family_image_black_var.set(str(size.image_black_point)); self.family_image_white_var.set(str(size.image_white_point))
+        self.family_noise_scale_var.set(str(size.noise_scale)); self.family_noise_strength_var.set(str(size.noise_strength)); self.family_noise_seed_var.set(str(size.noise_seed))
+        self.family_noise_offset_x_var.set(str(size.noise_offset_x)); self.family_noise_offset_y_var.set(str(size.noise_offset_y))
+        self.family_noise_octaves_var.set(str(size.noise_octaves)); self.family_noise_contrast_var.set(str(size.noise_contrast))
         self.family_rotation_var.set(str(rotation.angle))
         self._build_family_field_panel()
 
@@ -2207,6 +2246,13 @@ class PatternLabApp(tk.Tk):
             image_contrast=max(.01, parse_float_ui_value(self.family_image_contrast_var.get(), "图片对比度", minimum=0.01)),
             image_black_point=min(.98, max(0.0, parse_float_ui_value(self.family_image_black_var.get(), "黑场阈值", minimum=0.0))),
             image_white_point=0.0,
+            noise_scale=max(.01, parse_float_ui_value(self.family_noise_scale_var.get(), "噪声尺度", minimum=0.01)),
+            noise_strength=min(1.0, max(0.0, parse_float_ui_value(self.family_noise_strength_var.get(), "噪声强度", minimum=0.0))),
+            noise_seed=parse_int_ui_value(self.family_noise_seed_var.get(), "噪声种子", minimum=0),
+            noise_offset_x=parse_float_ui_value(self.family_noise_offset_x_var.get(), "噪声 X 偏移"),
+            noise_offset_y=parse_float_ui_value(self.family_noise_offset_y_var.get(), "噪声 Y 偏移"),
+            noise_octaves=min(8, parse_int_ui_value(self.family_noise_octaves_var.get(), "噪声层数", minimum=1)),
+            noise_contrast=max(.01, parse_float_ui_value(self.family_noise_contrast_var.get(), "噪声对比度", minimum=0.01)),
         )
         # Keep the transfer interval valid even when the user drags the black
         # and white threshold sliders across one another.
@@ -2456,8 +2502,15 @@ class PatternLabApp(tk.Tk):
         if not document or not transform: return
         started = perf_counter(); self.canvas.delete("static"); self._static_element_items.clear(); mode = ViewMode(self.mode.get())
         if self.hide_reference.get() and mode is ViewMode.REFERENCE: mode = ViewMode.VECTOR; self.mode.set(mode.value)
-        if not self.hide_reference.get() and mode in (ViewMode.REFERENCE, ViewMode.OVERLAY):
-            self._reference_photo = ImageTk.PhotoImage(self._reference_image(document.reference.source_path, int(document.canvas.width * transform.scale), int(document.canvas.height * transform.scale)))
+        reference_path = document.reference.source_path
+        # A PatternDocument may legitimately be created from editable geometry
+        # alone (for example a new grid, a reopened project whose source image
+        # is no longer available, or an automated test). Reference rendering
+        # is optional in those cases; it must never prevent the vector layer
+        # from refreshing or applying a field.
+        if (not self.hide_reference.get() and mode in (ViewMode.REFERENCE, ViewMode.OVERLAY)
+                and reference_path and Path(reference_path).is_file()):
+            self._reference_photo = ImageTk.PhotoImage(self._reference_image(reference_path, int(document.canvas.width * transform.scale), int(document.canvas.height * transform.scale)))
             self.canvas.create_image(transform.origin_x, transform.origin_y, anchor="nw", image=self._reference_photo, tags=("static", "reference"))
         if mode is not ViewMode.REFERENCE:
             for element in list(elements if elements is not None else document.elements):

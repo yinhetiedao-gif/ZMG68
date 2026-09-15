@@ -1,4 +1,14 @@
-# Gate 状态（2026-09-11）
+# Gate 状态（2026-09-15）
+
+## Gate Q — Noise Field / 有机噪声共享参数场（2026-09-15）
+
+- Status: PASS
+- 数据模型：`NoiseField(id, scale, strength, seed, offset_x/y, octaves, contrast, invert)` 为世界坐标连续标量；稳定整数混合与 fBm 插值不依赖 Python 随机哈希或元素遍历顺序。
+- 接入：FieldRegistry / SharedFieldEngine 复用既有声明式图；尺寸、旋转、通用位置和密度消费者统一按 `field_id` 引用，不改写 `source_elements`。
+- UI：参数化效果新增“有机噪声”中文 Slider + Entry 与 Seed 换一个；没有有效 Reference 的纯几何项目不再尝试读取空图片路径。
+- 验证：Gate Q + Shared Field 定向 24/24 PASS；完整 unittest 210/210 PASS（225.537 秒）；固定图 self-test 6/6 PASS。日志：`work/gate-q-noise/full-regression.log`、`work/gate-q-noise/self-test.log`。
+
+Gate R 暂未开始；只有 Gate Q 的完整回归与自检通过后，才允许进入 Field Combine。
 
 ## Gate P — Image Field / 图片驱动共享参数场（2026-09-14）
 

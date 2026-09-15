@@ -96,6 +96,10 @@ Core Engine 的任何模块都不会导入 Tk、Pillow、MCP、CLI 或第三方 
 
 `ImageField` 是一个可替换的只读灰度共享场：它把当前 Reference 在 `FieldContext` 世界坐标范围内映射到图像采样坐标，经过双线性插值、黑/白场、对比度与反转后输出 `0..1`。它只由既有 `SizeModifier` 等消费者使用，不改变 `source_elements`，也不会在参数调整时重新矢量化或分析 Grid。Pillow 像素只在内存缓存（绝对路径 + mtime + 文件大小），项目与参数预设只保存图片路径和参数；图片缺失时安全返回中性值并记录可诊断状态。
 
+### NoiseField — Gate Q
+
+`NoiseField` 是可替换的、连续的世界坐标/mm fBm 标量场，不是按 Element 顺序抽取随机数。它保存尺度、强度、Seed、X/Y 偏移、八度、对比度和反转，输出始终为 `0..1`；同一项目重开、导出或重复 Evaluate 都保持一致。它通过 `SharedFieldEngine` 被尺寸、旋转、通用位置和密度消费者引用，绝不修改 `source_elements`，也不会触发 Raster→SVG 或 Grid 分析。没有 Reference 图片的纯 Geometry 文档同样可以安全使用。
+
 ### Shared Field Engine — Gate 1
 
 Gate 1 将既有 **Linear X / Linear Y Size** 迁移到同一套可替换的共享参数场内核，

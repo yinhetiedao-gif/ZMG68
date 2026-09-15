@@ -18,6 +18,7 @@ FIELD_DISPLAY_NAMES = {
     "checker": "棋盘场",
     "spiral": "螺旋场",
     "image": "图片场",
+    "noise": "有机噪声",
 }
 
 FIELD_DESCRIPTIONS = {
@@ -32,6 +33,7 @@ FIELD_DESCRIPTIONS = {
     "checker": "产生二维交替区域。",
     "spiral": "围绕指定中心产生螺旋规律。",
     "image": "读取当前参考图灰度，驱动尺寸等参数连续变化。",
+    "noise": "以世界坐标产生连续有机起伏；尺度越大，变化区域越大。",
 }
 
 ROTATION_DISPLAY_NAMES = {

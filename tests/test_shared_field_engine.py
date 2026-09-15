@@ -100,7 +100,7 @@ class SharedFieldEngineTests(unittest.TestCase):
     def test_missing_duplicate_and_unknown_references_fail_explicitly(self):
         with self.assertRaises(ValueError): FieldRegistry([LinearField("same"), ConstantField("same")])
         with self.assertRaises(ValueError): SharedFieldEngine(FieldRegistry(), [SizeModifier("s", "missing", FieldMapping())])
-        with self.assertRaises(ValueError): FieldRegistry.from_list([{"id": "bad", "type": "noise"}])
+        with self.assertRaises(ValueError): FieldRegistry.from_list([{"id": "bad", "type": "unsupported"}])
         with self.assertRaises(ValueError): SharedFieldEngine.from_dict({"version": 99})
         with self.assertRaises(ValueError): SharedFieldEngine.from_dict({"modifiers": [{"type": "rotation"}]})
 

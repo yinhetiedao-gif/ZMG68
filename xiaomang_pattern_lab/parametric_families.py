@@ -16,7 +16,7 @@ from typing import Iterable, Optional, Protocol
 from ppg.foundation.models import ELEMENT_TYPES, Element
 
 from .parametric import ElementPrototype, LocalOverride, MaskModifier
-from .shared_fields import (FieldMapping, FieldRegistry, ImageField, LinearField, RingField, SharedFieldEngine,
+from .shared_fields import (FieldMapping, FieldRegistry, ImageField, LinearField, NoiseField, RingField, SharedFieldEngine,
                              SizeModifier, StripeField, CheckerField, SpiralField, WaveField)
 
 
@@ -48,6 +48,7 @@ class SizeFieldMode(str, Enum):
     CHECKER = "checker"
     SPIRAL = "spiral"
     IMAGE = "image"
+    NOISE = "noise"
 
 
 class RotationFieldMode(str, Enum):
@@ -85,6 +86,13 @@ class SizeFieldModifier:
     image_black_point: float = 0.0
     image_white_point: float = 1.0
     image_out_of_bounds: str = "clamp"
+    noise_scale: float = 50.0
+    noise_strength: float = 1.0
+    noise_seed: int = 1
+    noise_offset_x: float = 0.0
+    noise_offset_y: float = 0.0
+    noise_octaves: int = 3
+    noise_contrast: float = 1.0
 
     def shared_engine(self) -> SharedFieldEngine | None:
         """Gate 1 compatibility adapter; old UI/project parameters stay authoritative.
@@ -94,9 +102,17 @@ class SizeFieldModifier:
         """
         if self.mode not in (SizeFieldMode.LINEAR_X, SizeFieldMode.LINEAR_Y, SizeFieldMode.RING,
                              SizeFieldMode.WAVE, SizeFieldMode.STRIPE, SizeFieldMode.CHECKER,
-                             SizeFieldMode.SPIRAL, SizeFieldMode.IMAGE):
+                             SizeFieldMode.SPIRAL, SizeFieldMode.IMAGE, SizeFieldMode.NOISE):
             return None
-        if self.mode is SizeFieldMode.IMAGE:
+        if self.mode is SizeFieldMode.NOISE:
+            scalar = NoiseField("legacy-noise-size", scale=self.noise_scale,
+                                strength=self.noise_strength, seed=self.noise_seed,
+                                offset_x=self.noise_offset_x, offset_y=self.noise_offset_y,
+                                octaves=self.noise_octaves, contrast=self.noise_contrast,
+                                invert=self.invert)
+            field_id = scalar.id
+            modifier_id = "legacy-noise-size"
+        elif self.mode is SizeFieldMode.IMAGE:
             scalar = ImageField("legacy-image-size", image_path=self.image_path,
                                 contrast=self.image_contrast,
                                 black_point=self.image_black_point,
@@ -168,6 +184,11 @@ class SizeFieldModifier:
                            "image_white_point": self.image_white_point,
                            "image_out_of_bounds": self.image_out_of_bounds,
                            "invert": self.invert})
+        elif self.mode is SizeFieldMode.NOISE:
+            result.update({"noise_scale": self.noise_scale, "noise_strength": self.noise_strength,
+                           "noise_seed": self.noise_seed, "noise_offset_x": self.noise_offset_x,
+                           "noise_offset_y": self.noise_offset_y, "noise_octaves": self.noise_octaves,
+                           "noise_contrast": self.noise_contrast, "invert": self.invert})
         return result
 
     @classmethod
@@ -178,6 +199,8 @@ class SizeFieldModifier:
         image_black = min(0.98, max(0.0, float(value.get("image_black_point", 0.0))))
         image_white = min(1.0, max(0.01, float(value.get("image_white_point", 1.0))))
         image_white = min(1.0, max(image_black + 0.01, image_white))
+        noise_seed = int(float(value.get("noise_seed", 1)))
+        noise_octaves = min(8, max(1, int(float(value.get("noise_octaves", 3)))))
         return cls(mode=mode, min_scale=max(0.01, float(value.get("min_scale", 1.0))),
                    max_scale=max(0.01, float(value.get("max_scale", 1.0))),
                    center_x=float(value.get("center_x", 0.0)), center_y=float(value.get("center_y", 0.0)),
@@ -195,7 +218,13 @@ class SizeFieldModifier:
                    image_contrast=max(0.01, float(value.get("image_contrast", 1.0))),
                    image_black_point=image_black,
                    image_white_point=image_white,
-                   image_out_of_bounds=str(value.get("image_out_of_bounds", "clamp")))
+                   image_out_of_bounds=str(value.get("image_out_of_bounds", "clamp")),
+                   noise_scale=max(0.01, float(value.get("noise_scale", 50.0))),
+                   noise_strength=min(1.0, max(0.0, float(value.get("noise_strength", 1.0)))),
+                   noise_seed=noise_seed, noise_offset_x=float(value.get("noise_offset_x", 0.0)),
+                   noise_offset_y=float(value.get("noise_offset_y", 0.0)),
+                   noise_octaves=noise_octaves,
+                   noise_contrast=max(0.01, float(value.get("noise_contrast", 1.0))))
 
 
 @dataclass
@@ -242,7 +271,7 @@ def _field_factor(field: SizeFieldModifier, element: Element, bounds: tuple[floa
     if field.mode is SizeFieldMode.CONSTANT: return 0.5
     if field.mode in (SizeFieldMode.LINEAR_X, SizeFieldMode.LINEAR_Y, SizeFieldMode.RING,
                       SizeFieldMode.WAVE, SizeFieldMode.STRIPE, SizeFieldMode.CHECKER,
-                      SizeFieldMode.SPIRAL):
+                      SizeFieldMode.SPIRAL, SizeFieldMode.IMAGE, SizeFieldMode.NOISE):
         raise ValueError("共享标量尺寸场必须通过 SharedFieldEngine 计算。")
     return min(1.0, math.hypot(element.x - field.center_x, element.y - field.center_y) / field.radius)
 

@@ -1,5 +1,17 @@
 # 更新记录
 
+## 1.6.44 — Gate Q：有机噪声共享参数场（2026-09-15）
+
+### Added
+
+- 新增确定性 `NoiseField`：在世界坐标/mm 中生成连续 `0..1` fBm 标量，支持尺度、强度、Seed、X/Y 偏移、八度、对比度与反转；相同参数始终复现相同结果。
+- 噪声接入可替换 `SharedFieldEngine`，可由尺寸、旋转、通用位置与密度消费者使用；没有新建 Noise Generator、第二份元素状态或 Raster 分析路径。
+- 参数化效果面板新增“有机噪声”中文控件和随机 Seed；纯几何项目没有 Reference 图片时也可安全应用参数场。
+
+### Verification
+
+- Gate Q 专项与共享场回归 24/24 PASS；完整 unittest 210/210 PASS（225.537 秒），固定图 self-test 6/6 PASS；证据见 `work/gate-q-noise/`。
+
 ## 1.6.43 — Gate P：图片驱动共享参数场（2026-09-14）
 
 ### Added

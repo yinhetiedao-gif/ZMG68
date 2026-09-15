@@ -211,6 +211,110 @@ class WaveField:
             "amplitude": self.amplitude, "offset": self.offset, "invert": self.invert}}
 
 
+def _noise_hash(seed: int, x: int, y: int) -> float:
+    """Stable integer lattice hash, independent of Python's randomized hash()."""
+
+    value = (int(seed) * 0x9E3779B1 + int(x) * 0x85EBCA77 + int(y) * 0xC2B2AE3D) & 0xFFFFFFFF
+    value ^= value >> 16
+    value = (value * 0x7FEB352D) & 0xFFFFFFFF
+    value ^= value >> 15
+    value = (value * 0x846CA68B) & 0xFFFFFFFF
+    value ^= value >> 16
+    return value / 0xFFFFFFFF
+
+
+def _noise_fade(value: float) -> float:
+    """Quintic smoothing keeps neighbouring value-noise cells continuous."""
+
+    value = _unit(value)
+    return value * value * value * (value * (value * 6.0 - 15.0) + 10.0)
+
+
+def _value_noise(seed: int, x: float, y: float) -> float:
+    """Continuous deterministic 2D value noise in the normalized 0..1 range."""
+
+    x0, y0 = math.floor(x), math.floor(y)
+    tx, ty = _noise_fade(x - x0), _noise_fade(y - y0)
+    a = _noise_hash(seed, x0, y0)
+    b = _noise_hash(seed, x0 + 1, y0)
+    c = _noise_hash(seed, x0, y0 + 1)
+    d = _noise_hash(seed, x0 + 1, y0 + 1)
+    top = a + (b - a) * tx
+    bottom = c + (d - c) * tx
+    return _unit(top + (bottom - top) * ty)
+
+
+@dataclass(frozen=True)
+class NoiseField:
+    """Lightweight deterministic, continuous spatial noise in world units.
+
+    ``scale`` is the world/mm size of a broad base feature: larger values yield
+    slower, larger regions.  ``strength`` blends the fractal result around the
+    neutral scalar 0.5, so disabling its influence does not create an abrupt
+    field discontinuity.  This field never samples screen pixels, mutates
+    Elements, or depends on traversal order.
+    """
+
+    id: str
+    scale: float = 50.0
+    strength: float = 1.0
+    seed: int = 1
+    offset_x: float = 0.0
+    offset_y: float = 0.0
+    octaves: int = 3
+    contrast: float = 1.0
+    invert: bool = False
+
+    def __post_init__(self):
+        if not isinstance(self.id, str) or not self.id:
+            raise ValueError("有机噪声场 ID 不能为空。")
+        for name in ("scale", "strength", "offset_x", "offset_y", "contrast"):
+            object.__setattr__(self, name, _finite(getattr(self, name)))
+        if self.scale <= 0:
+            raise ValueError("有机噪声尺度必须大于 0。")
+        if not 0 <= self.strength <= 1:
+            raise ValueError("有机噪声强度必须在 0～1 范围内。")
+        if self.contrast <= 0:
+            raise ValueError("有机噪声对比度必须大于 0。")
+        if isinstance(self.seed, bool):
+            raise ValueError("有机噪声种子必须是整数。")
+        seed = int(self.seed)
+        if seed != self.seed:
+            raise ValueError("有机噪声种子必须是整数。")
+        object.__setattr__(self, "seed", seed)
+        octaves = int(self.octaves)
+        if octaves != self.octaves or not 1 <= octaves <= 8:
+            raise ValueError("有机噪声层数必须是 1～8 的整数。")
+        object.__setattr__(self, "octaves", octaves)
+        if not isinstance(self.invert, bool):
+            raise ValueError("有机噪声反转参数必须为布尔值。")
+
+    def evaluate(self, element: Element, context: FieldContext) -> float:
+        del context
+        x = (_finite(element.x) + self.offset_x) / self.scale
+        y = (_finite(element.y) + self.offset_y) / self.scale
+        total = 0.0
+        weight = 0.0
+        amplitude = 1.0
+        frequency = 1.0
+        for octave in range(self.octaves):
+            total += _value_noise(self.seed + octave * 1013, x * frequency, y * frequency) * amplitude
+            weight += amplitude
+            frequency *= 2.0
+            amplitude *= 0.5
+        value = total / max(weight, 1e-12)
+        value = _unit(0.5 + (value - 0.5) * self.strength)
+        value = _unit(0.5 + (value - 0.5) * self.contrast)
+        return _unit(1.0 - value if self.invert else value)
+
+    def to_dict(self) -> dict:
+        return {"id": self.id, "type": "noise", "parameters": {
+            "scale": self.scale, "strength": self.strength, "seed": self.seed,
+            "offset_x": self.offset_x, "offset_y": self.offset_y,
+            "octaves": self.octaves, "contrast": self.contrast,
+            "invert": self.invert}}
+
+
 _IMAGE_SAMPLE_CACHE: dict[tuple[str, int, int], tuple[int, int, tuple[int, ...]]] = {}
 
 
@@ -469,7 +573,7 @@ class FieldRegistry:
     def from_list(cls, payload: list[dict]) -> "FieldRegistry":
         constructors = {"constant": ConstantField, "linear": LinearField, "ring": RingField,
                         "wave": WaveField, "stripe": StripeField, "checker": CheckerField,
-                        "spiral": SpiralField, "image": ImageField}
+                        "spiral": SpiralField, "image": ImageField, "noise": NoiseField}
         fields = []
         for raw in payload:
             constructor = constructors.get(raw.get("type"))
@@ -569,8 +673,68 @@ class RotationModifier:
                 "mapping": asdict(self.mapping), "enabled": self.enabled}
 
 
+@dataclass(frozen=True)
+class FieldPositionModifier:
+    """Move derived geometry from a reusable scalar field without source edits."""
+
+    id: str
+    field_id: str
+    offset_x: FieldMapping = FieldMapping(-10.0, 10.0)
+    offset_y: FieldMapping = FieldMapping(-10.0, 10.0)
+    enabled: bool = True
+
+    def __post_init__(self):
+        if not isinstance(self.id, str) or not self.id or not isinstance(self.field_id, str) or not self.field_id:
+            raise ValueError("位置修饰器及其参数场引用 ID 不能为空。")
+        if not isinstance(self.enabled, bool):
+            raise ValueError("位置修饰器启用状态必须为布尔值。")
+
+    def displacement(self, value: float) -> tuple[float, float]:
+        if not self.enabled:
+            return (0.0, 0.0)
+        return (self.offset_x.evaluate(value, neutral=0.0),
+                self.offset_y.evaluate(value, neutral=0.0))
+
+    def to_dict(self) -> dict:
+        return {"id": self.id, "type": "field_position", "field_id": self.field_id,
+                "offset_x": asdict(self.offset_x), "offset_y": asdict(self.offset_y),
+                "enabled": self.enabled}
+
+
+@dataclass(frozen=True)
+class DensityModifier:
+    """Keep or hide derived elements using a scalar field threshold.
+
+    This is deliberately a generic field consumer: NoiseField is one possible
+    input, alongside image, wave, ring or a later combined field.
+    """
+
+    id: str
+    field_id: str
+    threshold: float = 0.5
+    invert: bool = False
+    enabled: bool = True
+
+    def __post_init__(self):
+        if not isinstance(self.id, str) or not self.id or not isinstance(self.field_id, str) or not self.field_id:
+            raise ValueError("密度修饰器及其参数场引用 ID 不能为空。")
+        object.__setattr__(self, "threshold", _unit(self.threshold))
+        if not isinstance(self.invert, bool) or not isinstance(self.enabled, bool):
+            raise ValueError("密度修饰器开关必须为布尔值。")
+
+    def is_visible(self, value: float) -> bool:
+        if not self.enabled:
+            return True
+        visible = _unit(value) >= self.threshold
+        return not visible if self.invert else visible
+
+    def to_dict(self) -> dict:
+        return {"id": self.id, "type": "density", "field_id": self.field_id,
+                "threshold": self.threshold, "invert": self.invert, "enabled": self.enabled}
+
+
 class SharedFieldEngine:
-    def __init__(self, fields: FieldRegistry, modifiers: Iterable[SizeModifier | RotationModifier]):
+    def __init__(self, fields: FieldRegistry, modifiers: Iterable[SizeModifier | RotationModifier | FieldPositionModifier | DensityModifier]):
         self.fields = fields
         self.modifiers = tuple(modifiers)
         if len({modifier.id for modifier in self.modifiers}) != len(self.modifiers):
@@ -601,6 +765,12 @@ class SharedFieldEngine:
                     element.height = max(0.01, element.height * scale)
                 elif isinstance(modifier, RotationModifier):
                     element.rotation += modifier.angle(value)
+                elif isinstance(modifier, FieldPositionModifier):
+                    dx, dy = modifier.displacement(value)
+                    element.x += dx
+                    element.y += dy
+                elif isinstance(modifier, DensityModifier):
+                    element.visible = element.visible and modifier.is_visible(value)
         return result
 
     @property
@@ -628,6 +798,13 @@ class SharedFieldEngine:
                 modifiers.append(SizeModifier(raw["id"], raw["field_id"], mapping, raw.get("enabled", True)))
             elif raw.get("type") == "rotation":
                 modifiers.append(RotationModifier(raw["id"], raw["field_id"], mapping, raw.get("enabled", True)))
+            elif raw.get("type") == "field_position":
+                modifiers.append(FieldPositionModifier(
+                    raw["id"], raw["field_id"], FieldMapping(**raw.get("offset_x", {})),
+                    FieldMapping(**raw.get("offset_y", {})), raw.get("enabled", True)))
+            elif raw.get("type") == "density":
+                modifiers.append(DensityModifier(raw["id"], raw["field_id"], raw.get("threshold", .5),
+                                                 raw.get("invert", False), raw.get("enabled", True)))
             else:
                 raise ValueError("不支持的 SharedFieldEngine 修饰器类型：%s" % raw.get("type"))
         return cls(FieldRegistry.from_list(payload.get("fields", [])), modifiers)
