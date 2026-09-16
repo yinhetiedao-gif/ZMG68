@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+from ppg.runtime_paths import is_frozen, user_data_root
 from .verification import run_fixed_suite
 from .ui_harness import run_pattern_lab
 
@@ -11,7 +12,8 @@ from .ui_harness import run_pattern_lab
 def main() -> int:
     parser = argparse.ArgumentParser(description="小芒图案实验室")
     parser.add_argument("--self-test", action="store_true", help="运行六图无界面技术验证")
-    parser.add_argument("--workspace", default=str(Path(__file__).resolve().parents[1] / "work" / "pattern_lab"))
+    default_workspace = (user_data_root() / "workspace") if is_frozen() else (Path(__file__).resolve().parents[1] / "work" / "pattern_lab")
+    parser.add_argument("--workspace", default=str(default_workspace))
     args = parser.parse_args()
     if args.self_test:
         report = run_fixed_suite(str(Path(args.workspace) / "acceptance"))

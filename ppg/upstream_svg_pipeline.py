@@ -18,26 +18,36 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 import xml.etree.ElementTree as ET
 
+from .runtime_paths import is_frozen, resource_path
+
 
 class UpstreamSVGError(RuntimeError):
     """Raised when the upstream MCP server cannot complete a requested step."""
 
 
 def _default_root() -> Path:
-    return Path(__file__).resolve().parents[1] / "external" / "imagetosvg-mcp"
+    # PACK-1 deliberately uses a short bundle path. Node dependency filenames
+    # can otherwise exceed the classic Windows 260-character limit.
+    return resource_path("mcp") if is_frozen() else resource_path("external", "imagetosvg-mcp")
 
 
 def _default_bridge() -> Path:
-    return Path(__file__).resolve().parents[1] / "external" / "imagetosvg_bridge.cjs"
+    return resource_path("imagetosvg_bridge.cjs") if is_frozen() else resource_path("external", "imagetosvg_bridge.cjs")
+
+
+def _default_node() -> str:
+    """Prefer the packaged Node runtime; source mode keeps using PATH."""
+    bundled = resource_path("tools", "node.exe")
+    return str(bundled) if bundled.is_file() else "node"
 
 
 class ImageToSVGClient:
     """Call the original MCP tools through its stdio bridge."""
 
-    def __init__(self, server_root: Optional[str] = None, node: str = "node",
+    def __init__(self, server_root: Optional[str] = None, node: str | None = None,
                  bridge: Optional[str] = None, timeout: float = 180.0):
         self.server_root = Path(server_root or _default_root()).resolve()
-        self.node = node
+        self.node = node or _default_node()
         self.bridge = Path(bridge or _default_bridge()).resolve()
         self.timeout = timeout
 

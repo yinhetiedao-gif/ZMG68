@@ -1,5 +1,11 @@
 # 更新记录
 
+## 0.1.0-dev — PACK-1：Windows EXE 测试包（2026-09-16）
+
+- 新增 PyInstaller `onedir` 规范、Debug/Release 构建脚本与双击构建入口；Release 为无控制台窗口的 `XiaomangPatternLab.exe`。
+- 资源路径同时兼容源码与 `_internal`，固定测试图、Tk/Tcl、Pillow、NumPy、Node 与上游 Raster→SVG MCP 都随包提供；用户工作区默认写入 `%LOCALAPPDATA%\XiaomangPatternLab\workspace`，不写入 EXE 目录。
+- 为避开深层 npm 路径的 Windows 长路径限制，分发包默认输出到桌面短路径 `XiaomangPatternLabBuild`，并把 MCP 在包内映射为短 `mcp/` 目录。
+
 ## 1.6.44 — Gate Q：有机噪声共享参数场（2026-09-15）
 
 ### Added

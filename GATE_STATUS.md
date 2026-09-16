@@ -1,5 +1,12 @@
 # Gate 状态（2026-09-15）
 
+## PACK-1 — Windows EXE Packaging（2026-09-16）
+
+- Status: PASS
+- 入口：`xiaomang_pattern_lab.main`；PyInstaller 6.22.2 `onedir`，规格文件 `xiaomang_pattern_lab.spec`，构建脚本 `xiaomang_pattern_lab/build_pattern_lab.ps1`。
+- 验证：Debug/Release EXE 均在源码目录之外执行固定图 self-test 6/6；Release GUI 在中文且含空格工作区路径下稳定启动。日志：`work/pack-1-*.log`。
+- 输出：`%USERPROFILE%\Desktop\XiaomangPatternLabBuild\release\XiaomangPatternLab\XiaomangPatternLab.exe`。本 Gate 不包含安装器、更新器、登录或授权。
+
 ## Gate Q — Noise Field / 有机噪声共享参数场（2026-09-15）
 
 - Status: PASS

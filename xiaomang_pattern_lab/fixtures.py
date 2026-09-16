@@ -7,9 +7,10 @@ from pathlib import Path
 from typing import Dict, Iterable, List, Tuple
 
 from PIL import Image, ImageDraw
+from ppg.runtime_paths import resource_path
 
 
-ROOT = Path(__file__).resolve().parent / "fixtures"
+ROOT = resource_path("xiaomang_pattern_lab", "fixtures")
 CANVAS = 320
 
 
@@ -52,6 +53,15 @@ def _write(name: str, dots: Iterable[Tuple[float, float, float]]) -> Path:
 
 def build_fixed_suite() -> Dict[str, Path]:
     """Create the six stable test inputs and their known source geometry."""
+    names = (
+        "regular_dot_matrix", "size_gradient_dot_matrix", "star_halftone",
+        "high_density_dot_matrix", "twisted_dot_matrix", "mixed_size_dot_matrix",
+    )
+    # In a PyInstaller build fixture data is immutable bundled resource data.
+    # Reuse it rather than attempting to write into ``_internal``.
+    if all((ROOT / (name + ".png")).is_file() and (ROOT / (name + ".truth.json")).is_file()
+           for name in names):
+        return {name: ROOT / (name + ".png") for name in names}
     regular = [(28 + col * 24, 28 + row * 24, 5.0) for row in range(12) for col in range(12)]
     gradient = []
     for row in range(12):

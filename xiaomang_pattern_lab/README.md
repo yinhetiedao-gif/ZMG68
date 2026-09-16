@@ -12,6 +12,10 @@ Gate 0 至 Gate O 已完成并由备份分支保护；当前不自动进入下�
 全量检查：`.\xiaomang_pattern_lab\.venv\Scripts\python.exe -m unittest discover -s tests -v`
 （在仓库根运行）。日志和已知失败见 `GATE_STATUS.md`。
 
+## Windows EXE 测试包（PACK-1）
+
+双击构建入口为 `build_windows.bat`；也可运行 `build_pattern_lab.ps1 -Configuration Debug` 或 `Release`。使用 PyInstaller `onedir`，默认输出到桌面 `XiaomangPatternLabBuild` 的短路径，以避免上游 Node 依赖在超长源码目录中触发 Windows 长路径限制。最终用户只需双击 `XiaomangPatternLab.exe`，不需要安装 Python；用户项目、Preset 与工作区不写入 EXE 所在目录。
+
 这是一个可删除的技术验证项目，不是正式版小芒造物。它验证的唯一闭环是：
 
 `PNG/JPG → 预处理 Adapter → Vectorization Adapter → SVGNormalizer → PatternDocument → 编辑 → SVG / JSON`
