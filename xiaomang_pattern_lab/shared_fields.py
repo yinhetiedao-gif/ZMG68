@@ -548,6 +548,33 @@ class SpiralField:
             "invert": self.invert}}
 
 
+@dataclass(frozen=True)
+class CompositeField:
+    """A non-owning scalar-field node that combines two stable field IDs."""
+
+    id: str
+    input_a_field_id: str
+    input_b_field_id: str
+    operator: str = "multiply"
+    mix: float = .5
+
+    def __post_init__(self):
+        if not all(isinstance(value, str) and value for value in
+                   (self.id, self.input_a_field_id, self.input_b_field_id)):
+            raise ValueError("组合场及其输入 ID 不能为空。")
+        if self.operator not in {"add", "multiply", "min", "max", "blend"}:
+            raise ValueError("不支持的组合场运算：%s" % self.operator)
+        object.__setattr__(self, "mix", _finite(self.mix))
+        if not 0.0 <= self.mix <= 1.0:
+            raise ValueError("组合场混合比例必须在 0～1 之间。")
+
+    def to_dict(self) -> dict:
+        return {"id": self.id, "type": "composite", "parameters": {
+            "input_a_field_id": self.input_a_field_id,
+            "input_b_field_id": self.input_b_field_id, "operator": self.operator,
+            "mix": self.mix}}
+
+
 class FieldRegistry:
     """One definition per ID; consumers reference it without duplicating it."""
 
@@ -561,6 +588,25 @@ class FieldRegistry:
             raise ValueError("参数场 ID 为空或重复：%s" % field.id)
         self._fields[field.id] = field
 
+    def dependents_of(self, field_id: str) -> tuple[str, ...]:
+        """Return direct composite dependents; used by deletion UIs for safety."""
+        return tuple(field.id for field in self._fields.values()
+                     if isinstance(field, CompositeField)
+                     and field_id in (field.input_a_field_id, field.input_b_field_id))
+
+    def remove(self, field_id: str) -> None:
+        """Remove an unreferenced field, never leaving a broken composite.
+
+        The registry is deliberately the one place that enforces this rule so
+        a future Field UI cannot accidentally duplicate dependency checks.
+        """
+        self.get(field_id)
+        dependents = self.dependents_of(field_id)
+        if dependents:
+            raise ValueError("无法删除参数场 %s：仍被组合场引用（%s）。" %
+                             (field_id, "、".join(dependents)))
+        del self._fields[field_id]
+
     def get(self, field_id: str) -> SharedField:
         if field_id not in self._fields:
             raise ValueError("修饰器引用了不存在的参数场：%s" % field_id)
@@ -569,18 +615,66 @@ class FieldRegistry:
     def to_list(self) -> list[dict]:
         return [field.to_dict() for field in self._fields.values()]
 
+    def evaluate(self, field_id: str, element: Element, context: FieldContext,
+                 trail: tuple[str, ...] = ()) -> float:
+        if field_id in trail:
+            raise ValueError("检测到组合场循环引用：%s" % " → ".join((*trail, field_id)))
+        field = self.get(field_id)
+        if not isinstance(field, CompositeField):
+            return _unit(field.evaluate(element, context))
+        # A project/preset from a newer or manually edited version can lose an
+        # input field.  Keep the document usable and make the absent input a
+        # neutral scalar instead of crashing Canvas, export or project load.
+        # Cycles remain a hard error because silently evaluating them would
+        # create an unbounded recursive graph.
+        a = (self.evaluate(field.input_a_field_id, element, context, (*trail, field_id))
+             if field.input_a_field_id in self._fields else 0.5)
+        b = (self.evaluate(field.input_b_field_id, element, context, (*trail, field_id))
+             if field.input_b_field_id in self._fields else 0.5)
+        if field.operator == "add": value = a + b
+        elif field.operator == "multiply": value = a * b
+        elif field.operator == "min": value = min(a, b)
+        elif field.operator == "max": value = max(a, b)
+        else: value = a * (1.0 - field.mix) + b * field.mix
+        return _unit(value)
+
+    def validate_dependencies(self) -> None:
+        """Fail early for self references and indirect cycles.
+
+        Missing *composite inputs* intentionally remain loadable and evaluate
+        neutral (see :meth:`evaluate`).  That is the safe forward-compatible
+        behaviour required for presets whose optional source field is absent.
+        """
+        def visit(identifier: str, trail: tuple[str, ...]) -> None:
+            if identifier in trail:
+                raise ValueError("检测到组合场循环引用：%s" % " → ".join((*trail, identifier)))
+            field = self._fields.get(identifier)
+            if not isinstance(field, CompositeField):
+                # Missing input IDs are a supported degraded-load case; a
+                # normal scalar node has no graph dependencies to inspect.
+                return
+            visit(field.input_a_field_id, (*trail, identifier))
+            visit(field.input_b_field_id, (*trail, identifier))
+
+        for identifier, field in self._fields.items():
+            if isinstance(field, CompositeField):
+                visit(identifier, ())
+
     @classmethod
     def from_list(cls, payload: list[dict]) -> "FieldRegistry":
         constructors = {"constant": ConstantField, "linear": LinearField, "ring": RingField,
                         "wave": WaveField, "stripe": StripeField, "checker": CheckerField,
-                        "spiral": SpiralField, "image": ImageField, "noise": NoiseField}
+                        "spiral": SpiralField, "image": ImageField, "noise": NoiseField,
+                        "composite": CompositeField}
         fields = []
         for raw in payload:
             constructor = constructors.get(raw.get("type"))
             if constructor is None:
                 raise ValueError("本 Gate 不支持参数场类型：%s" % raw.get("type"))
             fields.append(constructor(id=raw["id"], **raw.get("parameters", {})))
-        return cls(fields)
+        registry = cls(fields)
+        registry.validate_dependencies()
+        return registry
 
 
 @dataclass(frozen=True)
@@ -741,6 +835,7 @@ class SharedFieldEngine:
             raise ValueError("修饰器 ID 不能重复。")
         for modifier in self.modifiers:
             self.fields.get(modifier.field_id)
+        self.fields.validate_dependencies()
 
     def evaluate_fields(self, elements: Iterable[Element]) -> dict[str, tuple[float, ...]]:
         source = list(elements)
@@ -748,8 +843,7 @@ class SharedFieldEngine:
         values = {}
         for modifier in self.modifiers:
             if modifier.enabled and modifier.field_id not in values:
-                field = self.fields.get(modifier.field_id)
-                values[modifier.field_id] = tuple(_unit(field.evaluate(e, context)) for e in source)
+                values[modifier.field_id] = tuple(self.fields.evaluate(modifier.field_id, e, context) for e in source)
         return values
 
     def apply(self, elements: Iterable[Element]) -> list[Element]:

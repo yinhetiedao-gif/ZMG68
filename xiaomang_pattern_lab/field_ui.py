@@ -19,6 +19,7 @@ FIELD_DISPLAY_NAMES = {
     "spiral": "螺旋场",
     "image": "图片场",
     "noise": "有机噪声",
+    "composite": "组合场",
 }
 
 FIELD_DESCRIPTIONS = {
@@ -34,6 +35,7 @@ FIELD_DESCRIPTIONS = {
     "spiral": "围绕指定中心产生螺旋规律。",
     "image": "读取当前参考图灰度，驱动尺寸等参数连续变化。",
     "noise": "以世界坐标产生连续有机起伏；尺度越大，变化区域越大。",
+    "composite": "将两个已有参数场以加法、相乘、最小、最大或混合方式组合。",
 }
 
 ROTATION_DISPLAY_NAMES = {

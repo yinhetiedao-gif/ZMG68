@@ -104,6 +104,16 @@ Core Engine 的任何模块都不会导入 Tk、Pillow、MCP、CLI 或第三方 
 
 `NoiseField` 是可替换的、连续的世界坐标/mm fBm 标量场，不是按 Element 顺序抽取随机数。它保存尺度、强度、Seed、X/Y 偏移、八度、对比度和反转，输出始终为 `0..1`；同一项目重开、导出或重复 Evaluate 都保持一致。它通过 `SharedFieldEngine` 被尺寸、旋转、通用位置和密度消费者引用，绝不修改 `source_elements`，也不会触发 Raster→SVG 或 Grid 分析。没有 Reference 图片的纯 Geometry 文档同样可以安全使用。
 
+### CompositeField — Gate R
+
+`CompositeField` 是 `SharedFieldEngine` 内的一种非拥有式图节点：它只保存两个稳定
+`field_id`、运算符和可选混合比例，不复制输入场的数据。支持 `add`、`multiply`、`min`、
+`max` 和 `blend`，每次输出仍被限制在 `0..1`，因此可以被既有尺寸、旋转、位置和密度
+消费者直接引用。循环引用会在载入/连接时拒绝；缺失的可选输入以中性值 `0.5` 安全降级，
+不会令打开工程、Canvas 或 SVG 导出崩溃。左侧“组合场”面板直接读写
+`PatternDocument.fields/modifiers`，创建/更新会作为一条 Undo 事务保存；删除仍被其他组合场
+引用的输入场会被 Registry 阻止。
+
 ### Shared Field Engine — Gate 1
 
 Gate 1 将既有 **Linear X / Linear Y Size** 迁移到同一套可替换的共享参数场内核，

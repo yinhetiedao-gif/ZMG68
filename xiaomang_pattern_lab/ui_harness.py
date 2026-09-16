@@ -28,7 +28,7 @@ from .interaction import InteractionState
 from .parametric import GridParametricModel, MaskMode, MaskModifier, PatternMode, SizeGradientMode, SizeGradientModifier
 from .parametric_families import RotationFieldMode, RotationFieldModifier, SizeFieldMode, SizeFieldModifier
 from .placement_assignment import ImportedElementSlotProvider, PlacementAssignmentState, RandomSettings, ShapePoolEntry
-from .evaluation import evaluate_pattern_document
+from .evaluation import evaluate_pattern_document, materialize_evaluated_elements
 from .shared_modifiers import (
     POSITION_MODES,
     ModifierScope,
@@ -42,6 +42,7 @@ from .field_ui import (
     FIELD_ORDER, field_description, field_label, rotation_description,
     rotation_label,
 )
+from .shared_fields import CompositeField, SharedFieldEngine
 from ppg.foundation.region_geometry import filled_region_polygons
 from .session import PatternLabSession, ViewMode
 from .spatial_index import BoundingBoxSpatialIndex
@@ -228,6 +229,10 @@ class PatternLabApp(tk.Tk):
         self.family_noise_seed_var = tk.StringVar(value="1")
         self.family_noise_offset_x_var = tk.StringVar(value="0")
         self.family_noise_offset_y_var = tk.StringVar(value="0")
+        self.composite_input_a_var = tk.StringVar()
+        self.composite_input_b_var = tk.StringVar()
+        self.composite_operator_var = tk.StringVar(value="相乘")
+        self.composite_mix_var = tk.StringVar(value="0.5")
         self.family_noise_octaves_var = tk.StringVar(value="3")
         self.family_noise_contrast_var = tk.StringVar(value="1.0")
         self.position_mode_var = tk.StringVar(value="offset")
@@ -505,6 +510,7 @@ class PatternLabApp(tk.Tk):
         ttk.Button(fields, text="应用共享参数场", command=self.apply_family_fields).grid(row=8, column=0, columnspan=2, sticky="ew", pady=(3, 0))
         self._build_family_field_panel()
         self._family_controls_ready = True
+        self._build_composite_field_panel(parent)
         self._build_modifier_stack_panel(parent)
         self._build_shape_pool_panel(parent)
         self._build_random_transform_panel(parent)
@@ -2134,6 +2140,104 @@ class PatternLabApp(tk.Tk):
             self._add_family_slider(self._family_rotation_frame, "中心 X", self.family_center_x_var, -500.0, 500.0, 0.1, "mm")
             self._add_family_slider(self._family_rotation_frame, "中心 Y", self.family_center_y_var, -500.0, 500.0, 0.1, "mm")
 
+    def _build_composite_field_panel(self, parent: ttk.Frame) -> None:
+        """Small Gate-R editor for the durable shared-field graph.
+
+        Existing family controls remain intentionally unchanged.  This panel
+        only works on their already persisted ``PatternDocument.fields`` graph,
+        so it cannot introduce a second field state or a parallel evaluator.
+        """
+        box = ttk.LabelFrame(parent, text="组合场（两个已有参数场）", padding=5)
+        box.pack(fill="x", pady=(0, 6))
+        self._composite_field_box = box
+        ttk.Label(box, text="先应用至少一个共享参数场；组合场会替换引用输入 A 的已有消费者。",
+                  foreground="#56616f", wraplength=245, justify="left").pack(anchor="w", pady=(0, 4))
+        self._composite_input_a_combo = self._composite_field_combo(box, "输入 A", self.composite_input_a_var)
+        operator_row = ttk.Frame(box); operator_row.pack(fill="x", pady=1)
+        ttk.Label(operator_row, text="运算", width=10).pack(side="left")
+        operator = ttk.Combobox(operator_row, state="readonly", width=14,
+                                textvariable=self.composite_operator_var,
+                                values=("相加", "相乘", "最小值", "最大值", "混合"))
+        operator.pack(side="left", fill="x", expand=True)
+        operator.bind("<<ComboboxSelected>>", self._refresh_composite_mix_visibility)
+        self._composite_input_b_combo = self._composite_field_combo(box, "输入 B", self.composite_input_b_var)
+        self._composite_mix_row = ttk.Frame(box)
+        ttk.Label(self._composite_mix_row, text="混合比例", width=10).pack(side="left")
+        scale = tk.Scale(self._composite_mix_row, from_=0.0, to=1.0, resolution=.01,
+                         orient="horizontal", showvalue=False, variable=self.composite_mix_var,
+                         highlightthickness=0, length=115)
+        scale.pack(side="left", fill="x", expand=True)
+        ttk.Entry(self._composite_mix_row, textvariable=self.composite_mix_var, width=7).pack(side="right", padx=(4, 0))
+        scale.bind("<ButtonRelease-1>", lambda _event: self.apply_composite_field())
+        ttk.Button(box, text="创建 / 更新组合场", command=self.apply_composite_field).pack(fill="x", pady=(4, 0))
+        self._refresh_composite_field_choices()
+        self._refresh_composite_mix_visibility()
+
+    @staticmethod
+    def _composite_field_combo(parent: ttk.Frame, label: str, variable: tk.StringVar) -> ttk.Combobox:
+        row = ttk.Frame(parent); row.pack(fill="x", pady=1)
+        ttk.Label(row, text=label, width=10).pack(side="left")
+        combo = ttk.Combobox(row, state="readonly", width=14, textvariable=variable)
+        combo.pack(side="left", fill="x", expand=True)
+        return combo
+
+    def _refresh_composite_field_choices(self) -> None:
+        document = self.session.document
+        choices = [str(item.get("id")) for item in (document.fields if document else [])
+                   if isinstance(item, dict) and item.get("id")]
+        # The output node can be inspected but must never be selected as one
+        # of its own inputs; the core registry independently enforces it too.
+        choices = [item for item in choices if item != "composite-field"]
+        for combo in (getattr(self, "_composite_input_a_combo", None),
+                      getattr(self, "_composite_input_b_combo", None)):
+            if combo is not None:
+                combo.configure(values=tuple(choices))
+        if choices and self.composite_input_a_var.get() not in choices:
+            self.composite_input_a_var.set(choices[0])
+        if choices and self.composite_input_b_var.get() not in choices:
+            self.composite_input_b_var.set(choices[-1])
+
+    def _refresh_composite_mix_visibility(self, _event=None) -> None:
+        if self.composite_operator_var.get() == "混合":
+            self._composite_mix_row.pack(fill="x", pady=1)
+        else:
+            self._composite_mix_row.pack_forget()
+
+    def apply_composite_field(self) -> None:
+        """Commit one durable CompositeField and one ordinary Undo record."""
+        operator_names = {"相加": "add", "相乘": "multiply", "最小值": "min", "最大值": "max", "混合": "blend"}
+
+        def action() -> None:
+            document = self.session.require_document()
+            input_a, input_b = self.composite_input_a_var.get(), self.composite_input_b_var.get()
+            if not input_a or not input_b:
+                raise ValueError("请先选择两个已有参数场。")
+            composite = CompositeField("composite-field", input_a, input_b,
+                                       operator_names.get(self.composite_operator_var.get(), "multiply"),
+                                       parse_float_ui_value(self.composite_mix_var.get(), "混合比例", minimum=0.0))
+            if composite.mix > 1.0:
+                raise ValueError("混合比例必须在 0～1 之间。")
+            fields = [deepcopy(item) for item in document.fields
+                      if isinstance(item, dict) and item.get("id") != composite.id]
+            fields.append(composite.to_dict())
+            modifiers = deepcopy(document.modifiers)
+            if not modifiers:
+                raise ValueError("当前没有可连接的共享参数场消费者。请先点击“应用共享参数场”。")
+            # The current selected A becomes a composite output.  Rewire all
+            # of its existing size/rotation/position/density consumers at
+            # once, preserving their stable modifier IDs and mappings.
+            for modifier in modifiers:
+                if modifier.get("field_id") == input_a:
+                    modifier["field_id"] = composite.id
+            SharedFieldEngine.from_dict({"version": 1, "fields": fields, "modifiers": modifiers})
+            document.fields, document.modifiers = fields, modifiers
+            materialize_evaluated_elements(document)
+            self.session.log("创建组合场：%s %s %s" % (input_a, composite.operator, input_b))
+            self._refresh_composite_field_choices()
+            self._after_document_change()
+
+        self._handle(lambda: self.session._mutate("创建组合场", action))
+
     def _schedule_family_preview(self) -> None:
         if not self._family_controls_ready or self._family_preview_after is not None:
             return
@@ -2393,6 +2497,7 @@ class PatternLabApp(tk.Tk):
 
     def _after_document_change(self) -> None:
         self._preview_grid_elements = None; self.pattern_mode_var.set(self.session.pattern_mode.value)
+        self._refresh_composite_field_choices()
         self._load_shape_pool_controls()
         self._load_random_transform_controls()
         self._refresh_preset_list()
