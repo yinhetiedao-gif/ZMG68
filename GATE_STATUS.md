@@ -5,9 +5,9 @@
 - Status: PASS
 - 数据模型：`CompositeField(id, input_a_field_id, input_b_field_id, operator, mix)` 通过既有 `FieldRegistry` 与 `SharedFieldEngine` 递归求值；支持 Add、Multiply、Min、Max、Blend，输出统一钳制为 `0..1`。
 - 安全性：结构 DFS 拒绝自身与间接循环；被组合场依赖的输入不允许删除；丢失输入以中性 `0.5` 安全降级，避免坏预设/工程阻断载入。
-- UI：左侧单一滚动参数页新增中文“组合场”，可选输入 A/B、相加/相乘/最小/最大/混合与 Blend Slider + Entry；写入唯一 `PatternDocument.fields/modifiers` 图，不创建第二套 Engine 或 Geometry。
+- UI：左侧单一滚动参数页新增中文“组合场”，可将当前尺寸场加入输入列表、选择输入 A/B、相加/相乘/最小/最大/混合与 Blend Slider + Entry；写入唯一 `PatternDocument.fields/modifiers` 图，不创建第二套 Engine 或 Geometry。
 - 持久化：Project、Preset 和 SVG 都继续通过唯一 Evaluate 管线；Preset 保留完整 Field ID 图，应用后不会将组合场输入错误重映射。
-- 验证：Gate R 定向 5/5 PASS；完整 unittest 215/215 PASS；固定图 self-test 6/6 PASS。日志：`work/gate-r-field-combine/full-regression.log`、`work/gate-r-field-combine/self-test.log`。
+- 验证：Gate R 定向 6/6 PASS；完整 unittest 216/216 PASS；固定图 self-test 6/6 PASS。日志：`work/gate-r-field-combine/full-regression-final2.log`、`work/gate-r-field-combine/self-test-final2.log`。
 
 Gate S/T/U/V 尚未开始。Gate U 在制造路线中指真正的二维几何 Connectivity PatternGraph（nodes/edges/components），不等同于现有 SharedField 图。
 

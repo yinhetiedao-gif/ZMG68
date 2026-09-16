@@ -146,6 +146,27 @@ class FieldCombineGateRTests(unittest.TestCase):
             finally:
                 app.destroy()
 
+    def test_tk_panel_can_add_a_second_existing_family_input(self):
+        from xiaomang_pattern_lab.parametric_families import SizeFieldMode
+        from xiaomang_pattern_lab.ui_harness import PatternLabApp
+
+        with TemporaryDirectory() as directory:
+            app = PatternLabApp(directory)
+            try:
+                graph = SharedFieldEngine(FieldRegistry([LinearField("x")]), [
+                    SizeModifier("size", "x", FieldMapping(.5, 1.5))]).to_dict()
+                app.session.document = PatternDocument(Canvas(40, 30), Reference(""), dots(),
+                                                       fields=graph["fields"], modifiers=graph["modifiers"])
+                app.family_size_mode_var.set(SizeFieldMode.NOISE.value)
+                app.family_noise_seed_var.set("7")
+                app.add_current_family_field_input(); app.update()
+                identifiers = [item["id"] for item in app.session.document.fields]
+                self.assertIn("x", identifiers)
+                self.assertEqual(app.composite_input_b_var.get(), "composite-input-1")
+                self.assertIn("composite-input-1", identifiers)
+            finally:
+                app.destroy()
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -42,7 +42,7 @@ from .field_ui import (
     FIELD_ORDER, field_description, field_label, rotation_description,
     rotation_label,
 )
-from .shared_fields import CompositeField, SharedFieldEngine
+from .shared_fields import CompositeField, ConstantField, SharedFieldEngine
 from ppg.foundation.region_geometry import filled_region_polygons
 from .session import PatternLabSession, ViewMode
 from .spatial_index import BoundingBoxSpatialIndex
@@ -2150,8 +2150,9 @@ class PatternLabApp(tk.Tk):
         box = ttk.LabelFrame(parent, text="组合场（两个已有参数场）", padding=5)
         box.pack(fill="x", pady=(0, 6))
         self._composite_field_box = box
-        ttk.Label(box, text="先应用至少一个共享参数场；组合场会替换引用输入 A 的已有消费者。",
+        ttk.Label(box, text="先应用至少一个共享参数场；可将当前尺寸场另存为第二个输入。组合场会替换引用输入 A 的已有消费者。",
                   foreground="#56616f", wraplength=245, justify="left").pack(anchor="w", pady=(0, 4))
+        ttk.Button(box, text="将当前尺寸场加入输入列表", command=self.add_current_family_field_input).pack(fill="x", pady=(0, 4))
         self._composite_input_a_combo = self._composite_field_combo(box, "输入 A", self.composite_input_a_var)
         operator_row = ttk.Frame(box); operator_row.pack(fill="x", pady=1)
         ttk.Label(operator_row, text="运算", width=10).pack(side="left")
@@ -2237,6 +2238,38 @@ class PatternLabApp(tk.Tk):
             self._after_document_change()
 
         self._handle(lambda: self.session._mutate("创建组合场", action))
+
+    def add_current_family_field_input(self) -> None:
+        """Persist the current family control as a second reusable graph input.
+
+        This is intentionally not a new field implementation: it serializes
+        the same existing family adapter a normal "应用共享参数场" operation
+        uses, but leaves consumers untouched until a CompositeField is made.
+        """
+        def action() -> None:
+            document = self.session.require_document()
+            size, _rotation = self._family_modifiers_from_controls()
+            engine = size.shared_engine()
+            raw = engine.fields.to_list()[0] if engine is not None else ConstantField(
+                "unused", 0.5).to_dict()
+            # Stable enough for the document/project lifetime and independent
+            # of element traversal; it will be persisted with the graph.
+            existing = {str(item.get("id")) for item in document.fields if isinstance(item, dict)}
+            base, suffix = "composite-input", 1
+            identifier = "%s-%d" % (base, suffix)
+            while identifier in existing:
+                suffix += 1; identifier = "%s-%d" % (base, suffix)
+            raw["id"] = identifier
+            fields = [deepcopy(item) for item in document.fields if isinstance(item, dict)] + [raw]
+            SharedFieldEngine.from_dict({"version": 1, "fields": fields,
+                                         "modifiers": deepcopy(document.modifiers)})
+            document.fields = fields
+            self.composite_input_b_var.set(identifier)
+            self.session.log("添加组合场输入：%s" % identifier)
+            self._refresh_composite_field_choices()
+            self._after_document_change()
+
+        self._handle(lambda: self.session._mutate("添加组合场输入", action))
 
     def _schedule_family_preview(self) -> None:
         if not self._family_controls_ready or self._family_preview_after is not None:
