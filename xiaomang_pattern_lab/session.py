@@ -1,15 +1,17 @@
 """UI-independent Pattern Lab orchestration over the reusable Core Engine."""
 from __future__ import annotations
 
-from copy import deepcopy
+from copy import copy, deepcopy
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
+import json
 from time import perf_counter
-from typing import List, Optional
+from typing import Callable, List, Optional
 
-from ppg.foundation import FoundationPipeline, PatternDocument, SVGNormalizer, load_pattern_document, pattern_document_to_svg, save_pattern_document
+from ppg.foundation import Canvas, Reference, FoundationPipeline, PatternDocument, SVGNormalizer, load_pattern_document, pattern_document_to_svg, save_pattern_document
+from .project_workflow import ProjectFiles
 
 from .interaction import InteractionState
 from .faithful_mapping import ConversionMode, FaithfulMappingAdapter
@@ -85,16 +87,101 @@ class PatternLabSession:
     svg_serialize_count: int = field(default=0, init=False)
     document_commit_count: int = field(default=0, init=False)
     undo_record_count: int = field(default=0, init=False)
+    app_data_dir: Optional[Path] = field(default=None, repr=False)
+    current_project_path: Optional[Path] = field(default=None, init=False)
+    revision: int = field(default=0, init=False)
+    saved_revision: Optional[int] = field(default=None, init=False)
+    _revision_serial: int = field(default=0, init=False, repr=False)
+    _undo_revisions: list[int] = field(default_factory=list, init=False, repr=False)
+    _redo_revisions: list[int] = field(default_factory=list, init=False, repr=False)
+    _recovered_revision: Optional[int] = field(default=None, init=False, repr=False)
+    on_project_change: Optional[Callable[[], None]] = field(default=None, repr=False)
 
     def __post_init__(self) -> None:
         self.workspace = Path(self.workspace).resolve()
         self.workspace.mkdir(parents=True, exist_ok=True)
+        self.project_files = ProjectFiles(self.workspace, self.app_data_dir)
         if self.document is not None:
             self._hydrate_parametric_state()
 
     def log(self, message: str, level: str = "INFO") -> None:
         stamp = datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
         self.logs.append(ConversionLogEntry(stamp, level, message))
+
+    @property
+    def current_project_name(self) -> str:
+        if self.current_project_path is None:
+            return "未命名"
+        return self.current_project_path.name.removesuffix(".pattern.json").removesuffix(".json")
+
+    @property
+    def is_dirty(self) -> bool:
+        return self.document is not None and self.revision != self.saved_revision
+
+    @property
+    def missing_reference(self) -> bool:
+        path = self.document.reference.source_path if self.document else ""
+        return bool(path) and not Path(path).is_file()
+
+    def _project_changed(self) -> None:
+        if self.on_project_change:
+            try:
+                self.on_project_change()
+            except Exception as error:
+                # A title/timer problem must never invalidate a successful save.
+                self.log("项目状态已更新，但界面通知失败：%s" % error, "WARNING")
+
+    def _reset_project_history(self, path: Path | None, *, saved: bool) -> None:
+        self.current_project_path = path
+        self._revision_serial += 1
+        self.revision = self._revision_serial
+        self.saved_revision = self.revision if saved else None
+        self._recovered_revision = None
+        self._undo_stack.clear(); self._redo_stack.clear()
+        self._undo_revisions.clear(); self._redo_revisions.clear()
+        self._transaction_before = None; self._transaction_label = None
+        self.selected_id = None; self.selected_ids.clear()
+        self._discard_own_recovery()
+        self._project_changed()
+
+    def _discard_own_recovery(self) -> None:
+        try:
+            self.project_files.discard_recovery()
+        except OSError as error:
+            self.log("无法清理恢复副本：%s" % error, "WARNING")
+
+    def new_document(self) -> PatternDocument:
+        self.document = PatternDocument(Canvas(300, 300, unit="mm", mm_per_unit=1), Reference(""), [])
+        self._hydrate_parametric_state()
+        self.editable_svg_path = self.workspace / "editable.svg"
+        self._reset_project_history(None, saved=False)
+        self.log("新建未命名项目")
+        return self.document
+
+    def _remember_project(self, path: Path) -> None:
+        try:
+            self.project_files.remember(path)
+        except OSError as error:
+            self.log("项目操作成功，但最近项目列表未写入：%s" % error, "WARNING")
+
+    def autosave_recovery(self) -> Path | None:
+        if not self.is_dirty or self.transaction_active or self._recovered_revision == self.revision:
+            return None
+        target = self.project_files.write_recovery(self.require_document(), self.current_project_path, self.revision)
+        self._recovered_revision = self.revision
+        return target
+
+    def restore_recovery(self, path: Path) -> PatternDocument:
+        payload = json.loads(Path(path).read_text(encoding="utf-8"))
+        document = self.project_files.validate_recovery(payload)
+        candidate = self._prepare_loaded_document(document)
+        original = payload.get("project_path")
+        self._adopt_loaded_document(candidate, Path(original).resolve() if original else None, saved=False)
+        # Preserve the recovered data before retiring its prior crash copy.
+        self.autosave_recovery()
+        self.project_files.discard_recovery(Path(path))
+        self.log("已恢复项目；请保存以写入正式工程。")
+        return self.require_document()
 
     def import_image(self, image_path: str, conversion_mode: ConversionMode | str = ConversionMode.FAITHFUL) -> PatternDocument:
         source = Path(image_path).resolve()
@@ -141,6 +228,7 @@ class PatternLabSession:
             )
         )
         self.export_svg(str(svg_path), record=False)
+        self._reset_project_history(None, saved=False)
         return self.document
 
     def require_document(self) -> PatternDocument:
@@ -257,12 +345,19 @@ class PatternLabSession:
         if before == after:
             return False
         self._undo_stack.append(before)
+        self._undo_revisions.append(self.revision)
+        self._redo_revisions.clear()
+        self._revision_serial += 1
+        self.revision = self._revision_serial
         self.undo_record_count += 1
         self._redo_stack.clear()
         self.log("%s已提交（1 条 Undo Transaction）" % label)
-        self._after_edit()
-        self.document_commit_count += 1
-        self._last_commit_seconds = perf_counter() - started
+        try:
+            self._after_edit()
+        finally:
+            self.document_commit_count += 1
+            self._last_commit_seconds = perf_counter() - started
+            self._project_changed()
         return True
 
     def cancel_transaction(self) -> None:
@@ -1352,12 +1447,15 @@ class PatternLabSession:
             self.log("没有可撤销的操作", "INFO")
             return False
         self._redo_stack.append(document.to_dict())
+        self._redo_revisions.append(self.revision)
+        self.revision = self._undo_revisions.pop()
         self.document = PatternDocument.from_dict(self._undo_stack.pop())
         self._hydrate_parametric_state()
         self.selected_ids = [identifier for identifier in self.selected_ids if any(item.id == identifier for item in self.document.elements)]
         if self.selected_id and self.selected_id not in self.selected_ids:
             self.selected_id = self.selected_ids[-1] if self.selected_ids else None
         self._after_edit(); self.log("Undo：已恢复上一步编辑")
+        self._project_changed()
         return True
 
     def redo(self) -> bool:
@@ -1368,12 +1466,15 @@ class PatternLabSession:
             self.log("没有可重做的操作", "INFO")
             return False
         self._undo_stack.append(document.to_dict())
+        self._undo_revisions.append(self.revision)
+        self.revision = self._redo_revisions.pop()
         self.document = PatternDocument.from_dict(self._redo_stack.pop())
         self._hydrate_parametric_state()
         self.selected_ids = [identifier for identifier in self.selected_ids if any(item.id == identifier for item in self.document.elements)]
         if self.selected_id and self.selected_id not in self.selected_ids:
             self.selected_id = self.selected_ids[-1] if self.selected_ids else None
         self._after_edit(); self.log("Redo：已恢复下一步编辑")
+        self._project_changed()
         return True
 
     def export_svg(self, output_path: Optional[str] = None, record: bool = True) -> Path:
@@ -1388,27 +1489,85 @@ class PatternLabSession:
 
     def save_document(self, output_path: Optional[str] = None) -> Path:
         document = self.require_document()
-        target = Path(output_path or (self.workspace / "pattern.pattern.json")).resolve()
+        if self.transaction_active:
+            self.commit_transaction()
+        self._persist_parametric_state()
+        target = Path(output_path or self.current_project_path or (self.workspace / "pattern.pattern.json")).resolve()
         target = save_pattern_document(document, str(target))
+        self.current_project_path = target
+        self.saved_revision = self.revision
+        self._recovered_revision = None
+        self._discard_own_recovery()
+        self._remember_project(target)
+        self._project_changed()
         self.log("保存 PatternDocument：%s" % target.name)
         return target
 
     def load_document(self, path: str) -> PatternDocument:
-        self.document = load_pattern_document(path)
-        self._hydrate_parametric_state()
-        if self.has_parametric_model:
-            # Do not trust a stale materialized Element list from disk.  The
-            # model, modifiers and overrides are the authoritative state.
-            self._rebuild_parametric_document()
-        elif (SharedModifierStack.from_document(self.document) is not None
-              or self.active_placement_state() is not None):
-            materialize_evaluated_elements(self.document)
-        self.selected_id = None; self.selected_ids.clear()
-        self.editable_svg_path = self.workspace / (Path(path).stem + ".svg")
-        self.export_svg(str(self.editable_svg_path), record=False)
-        self._undo_stack.clear(); self._redo_stack.clear(); self._transaction_before = None; self._transaction_label = None
+        target = Path(path).resolve()
+        candidate = self._prepare_loaded_document(load_pattern_document(str(target)))
+        self._adopt_loaded_document(candidate, target, saved=True)
+        self._remember_project(target)
         self.log("重新加载 PatternDocument：%s" % Path(path).name)
-        return self.document
+        return self.require_document()
+
+    def _prepare_loaded_document(self, document: PatternDocument) -> "PatternLabSession":
+        # A temporary view of the same Session API validates/rebuilds a detached
+        # document. No disk writes, history clearing or live replacement occur.
+        candidate = copy(self)
+        candidate.document = document
+        candidate.logs = []
+        candidate.on_project_change = None
+        candidate._hydrate_parametric_state()
+        if candidate.has_parametric_model:
+            candidate._rebuild_parametric_document()
+        elif (SharedModifierStack.from_document(document) is not None
+              or candidate.active_placement_state() is not None):
+            materialize_evaluated_elements(document)
+        else:
+            # Also validate bare Gate-R graphs without a compatibility stack.
+            evaluate_pattern_document(document)
+        document.validate()
+        return candidate
+
+    def _adopt_loaded_document(self, candidate: "PatternLabSession", path: Path | None, *, saved: bool) -> None:
+        self.document = candidate.document
+        self.pattern_mode, self.grid_model = candidate.pattern_mode, candidate.grid_model
+        self.parametric_model = candidate.parametric_model
+        self.editable_svg_path = self.workspace / "editable.svg"
+        self._reset_project_history(path, saved=saved)
+        if self.missing_reference:
+            self.log("参考图片未找到；矢量元素保留，可通过文件菜单重新定位。", "WARNING")
+
+    def relink_reference(self, path: str) -> None:
+        target = Path(path).resolve()
+        from PIL import Image
+        with Image.open(target) as image:
+            image.verify()
+
+        def action():
+            document = self.require_document()
+            old = document.reference.source_path
+            document.reference.source_path = str(target)
+
+            def bind(value):
+                if isinstance(value, dict):
+                    for key, item in value.items():
+                        if key == "source_elements":
+                            continue
+                        if key == "image_path" and item in (old, ""):
+                            value[key] = str(target)
+                        else:
+                            bind(item)
+                elif isinstance(value, list):
+                    for item in value:
+                        bind(item)
+            bind(document.fields)
+            bind(document.metadata)
+            self._hydrate_parametric_state()
+            if self.has_parametric_model or SharedModifierStack.from_document(document) is not None:
+                self._rebuild_parametric_document()
+        self._mutate("重新定位参考图片", action)
 
     def _after_edit(self) -> None:
         self._persist_parametric_state()

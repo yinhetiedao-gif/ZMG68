@@ -1,4 +1,15 @@
-# Gate 状态（2026-09-15）
+# Gate 状态（2026-09-19）
+
+## Gate S — Project Workflow Completion（2026-09-19）
+
+- Status: PASS — 完成后停止；Gate T/U/U.5/V/W/X 均未开始。
+- 项目会话：既有 `PatternLabSession` 扩展 `current_project_path`、派生名称、单调 `revision` 与 `saved_revision`；`PatternDocument` 仍是唯一设计数据模型。选择、缩放、平移不写 dirty；Undo/Redo 回到保存 revision 会准确清除 dirty。
+- 文件流程：文件菜单/快捷键支持新建、打开、最近项目（最多 10 条）、保存、另存为、重新定位参考图片和退出。新建、打开、导入替换、关闭使用同一保存/不保存/取消判断；打开先读取、迁移、验证和重建候选，失败不替换当前设计。
+- 持久化：`storage.atomic_write_json` 在目标同目录写唯一临时文件，flush/fsync、回读及 PatternDocument 验证后才 `os.replace`。集中 `migrate_pattern_payload` 为 schema 1 的旧文件补可选默认值，拒绝未知未来版本，不无故升级格式。
+- 恢复：最近项目和恢复副本使用 `ppg.runtime_paths.user_data_root()` 下的 `projects/`，不写源码或 EXE `_internal`。真实修改停止 2 秒后写独立恢复副本，永不覆盖正式文件；异常退出后可恢复/放弃，正常退出清理本实例副本。多实例/工作区隔离，运行中的实例不会被误提示恢复。
+- 参考图片：路径丢失时仍载入并显示矢量 Geometry，提示重新定位；ImageField 保持中性值安全降级。项目与 Preset 存储严格隔离。
+- 验证：Gate S 专项 27/27 PASS（含真实 Tk 回调、保存错误注入、异常子进程恢复）；完整 unittest 243/243 PASS；固定图自检 6/6 PASS。日志：`work/gate-s-project-workflow/targeted-final.log`、`full-regression-final.log`、`self-test-final.log`。
+- 基线：`2df02e3` / `backup/gate-r-final`；Gate S 的最新提交与稳定备份均位于 `backup/gate-s-final`。
 
 ## Gate R — Field Combine / 组合共享参数场（2026-09-16）
 

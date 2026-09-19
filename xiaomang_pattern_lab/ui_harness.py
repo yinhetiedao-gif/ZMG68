@@ -47,6 +47,7 @@ from ppg.foundation.region_geometry import filled_region_polygons
 from .session import PatternLabSession, ViewMode
 from .spatial_index import BoundingBoxSpatialIndex
 from .view_transform import CanvasViewTransform
+from .project_ui import ProjectWorkflowUI
 
 
 POSITION_MODE_LABELS = {
@@ -148,13 +149,13 @@ def parse_float_ui_value(value: object, name: str, *, minimum: float | None = No
     return result
 
 
-class PatternLabApp(tk.Tk):
+class PatternLabApp(ProjectWorkflowUI, tk.Tk):
     """Deliberately small UI: durable state remains in PatternDocument."""
 
     INSPECTOR_INTERVAL_MS = 66
     PARAMETER_PREVIEW_INTERVAL_MS = 50
 
-    def __init__(self, workspace: str, preview_adapter: SVGPreviewAdapter | None = None):
+    def __init__(self, workspace: str, preview_adapter: SVGPreviewAdapter | None = None, *, app_data_dir: Path | None = None):
         super().__init__()
         self.title("小芒图案实验室 / Xiaomang Pattern Lab")
         self.geometry("1280x840")
@@ -165,6 +166,7 @@ class PatternLabApp(tk.Tk):
             FoundationPipeline(processor, vectorizer, SVGNormalizer()),
             Path(workspace),
             faithful_mapping=FaithfulMappingAdapter(processor, vectorizer, SVGNormalizer()),
+            app_data_dir=app_data_dir,
         )
         self._ui_log_path = Path(workspace) / "diagnostics" / "pattern_lab-ui.log"
         self._ui_log_path.parent.mkdir(parents=True, exist_ok=True)
@@ -338,6 +340,7 @@ class PatternLabApp(tk.Tk):
         self._refresh_batch_action_state()
         self._load_fixtures()
         self._performance_after = self.after(200, self._refresh_performance_panel)
+        self._build_project_workflow()
 
     def _build(self) -> None:
         toolbar = ttk.Frame(self, padding=8); toolbar.pack(fill="x")
@@ -820,6 +823,7 @@ class PatternLabApp(tk.Tk):
             self.shape_pool_weight_vars[identifier].set("%.6g" % entry.weight)
 
     def _schedule_shape_pool_preview(self) -> None:
+        self._pending_project_preview = "pool"
         if self.session.document is None or self._shape_pool_preview_after is not None:
             return
         self._shape_pool_preview_after = self.after(
@@ -1195,6 +1199,7 @@ class PatternLabApp(tk.Tk):
         self._load_random_scope_controls(settings.scope)
 
     def _schedule_random_transform_preview(self) -> None:
+        self._pending_project_preview = "random"
         if self.session.document is None or self._random_transform_preview_after is not None:
             return
         self._random_transform_preview_after = self.after(
@@ -1419,6 +1424,7 @@ class PatternLabApp(tk.Tk):
             self._commit_position_controls(label="切换位置/变形模式")
 
     def _schedule_position_preview(self) -> None:
+        self._pending_project_preview = "position"
         index = self._selected_stack_index(); stack = self._stack_from_document()
         if index is None or stack is None or stack.modifiers[index].get("type") != "position": return
         if self._position_preview_after is None:
@@ -1585,6 +1591,7 @@ class PatternLabApp(tk.Tk):
         self._commit_scope_controls(label="更新当前选择范围")
 
     def _schedule_scope_preview(self) -> None:
+        self._pending_project_preview = "scope"
         if self._selected_stack_index() is None:
             return
         if self._scope_preview_after is None:
@@ -1718,6 +1725,8 @@ class PatternLabApp(tk.Tk):
     def _handle(self, callback) -> None:
         try: callback()
         except Exception as error:
+            if getattr(self, "_flushing_project_edits", False):
+                raise
             self._log_exception("UI callback", error)
             self.refresh_log()
             messagebox.showerror("小芒图案实验室", str(error), parent=self)
@@ -1739,10 +1748,10 @@ class PatternLabApp(tk.Tk):
 
     def import_image(self) -> None:
         path = filedialog.askopenfilename(parent=self, title="导入参考图", filetypes=[("图片", "*.png;*.jpg;*.jpeg"), ("所有文件", "*.*")])
-        if path: self._handle(lambda: self._import(path))
+        if path and self._confirm_project_transition(): self._handle(lambda: self._import(path))
 
     def load_fixture(self) -> None:
-        if self.fixture.get(): self._handle(lambda: self._import(str(self._fixtures[self.fixture.get()])))
+        if self.fixture.get() and self._confirm_project_transition(): self._handle(lambda: self._import(str(self._fixtures[self.fixture.get()])))
 
     def _import(self, path: str) -> None:
         self.session.import_image(path, self.conversion_mode.get()); self.session.document.canvas.unit = "mm"; self.session.document.canvas.mm_per_unit = 1.0
@@ -2272,6 +2281,7 @@ class PatternLabApp(tk.Tk):
         self._handle(lambda: self.session._mutate("添加组合场输入", action))
 
     def _schedule_family_preview(self) -> None:
+        self._pending_project_preview = "family"
         if not self._family_controls_ready or self._family_preview_after is not None:
             return
         self._family_preview_after = self.after(self.PARAMETER_PREVIEW_INTERVAL_MS, self._run_family_preview)
@@ -2420,8 +2430,11 @@ class PatternLabApp(tk.Tk):
                 stack.size_field = size; stack.rotation_field = rotation
                 self.session.update_shared_modifiers(stack)
             elif model is not None and hasattr(model, "size_field"):
-                model.size_field = size; model.rotation_field = rotation
-                self.session._mutate("更新共享参数场", self.session._rebuild_parametric_document)
+                def update_model():
+                    # Capture the saved checkpoint before changing the live model.
+                    model.size_field = size; model.rotation_field = rotation
+                    self.session._rebuild_parametric_document()
+                self.session._mutate("更新共享参数场", update_model)
             else:
                 stack = SharedModifierStack.from_document(self.session.require_document()) or SharedModifierStack()
                 stack.size_field = size; stack.rotation_field = rotation
@@ -2457,6 +2470,7 @@ class PatternLabApp(tk.Tk):
             model.set_rotation(value("rotation"))
         return model
     def _schedule_grid_preview(self) -> None:
+        self._pending_project_preview = "grid"
         if self.session.pattern_mode is PatternMode.GRID and self._parameter_after is None: self._parameter_after = self.after(self.PARAMETER_PREVIEW_INTERVAL_MS, self._run_grid_preview)
     def _run_grid_preview(self) -> None:
         self._parameter_after = None
@@ -2521,14 +2535,9 @@ class PatternLabApp(tk.Tk):
     def export_svg(self) -> None:
         path = filedialog.asksaveasfilename(parent=self, title="导出 SVG", defaultextension=".svg", filetypes=[("SVG", "*.svg")])
         if path: self._handle(lambda: (self.session.export_svg(path), self.refresh_log()))
-    def save_document(self) -> None:
-        path = filedialog.asksaveasfilename(parent=self, title="保存 PatternDocument", defaultextension=".pattern.json", filetypes=[("PatternDocument", "*.json")])
-        if path: self._handle(lambda: (self.session.save_document(path), self.refresh_log()))
-    def open_document(self) -> None:
-        path = filedialog.askopenfilename(parent=self, title="打开 PatternDocument", filetypes=[("PatternDocument", "*.json")])
-        if path: self._handle(lambda: (self.session.load_document(path), self._after_document_change()))
 
     def _after_document_change(self) -> None:
+        self._pending_project_preview = None
         self._preview_grid_elements = None; self.pattern_mode_var.set(self.session.pattern_mode.value)
         self._refresh_composite_field_choices()
         self._load_shape_pool_controls()
@@ -2811,7 +2820,9 @@ class PatternLabApp(tk.Tk):
         self._closing = True
         for callback_id in (self._interaction_after, self._inspector_after, self._parameter_after,
                             self._family_preview_after, self._position_preview_after,
-                            self._scope_preview_after, self._resize_after, self._performance_after):
+                            self._scope_preview_after, self._resize_after, self._performance_after,
+                            self._shape_pool_preview_after, self._random_transform_preview_after,
+                            getattr(self, "_autosave_after", None)):
             if callback_id:
                 try:
                     self.after_cancel(callback_id)
@@ -2834,4 +2845,6 @@ class PatternLabApp(tk.Tk):
 
 
 def run_pattern_lab(workspace: str) -> None:
-    app = PatternLabApp(workspace); app.mainloop()
+    app = PatternLabApp(workspace)
+    app.after_idle(app.check_project_recovery)
+    app.mainloop()

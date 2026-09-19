@@ -1,4 +1,13 @@
-# 小芒造物 · AI 参数化创意设计与 3D 制造
+# Xiaomang Pattern Lab / 小芒图案实验室（当前活跃项目）
+
+唯一当前入口为 `xiaomang_pattern_lab.main`；使用说明见
+[Pattern Lab README](xiaomang_pattern_lab/README.md)。Gate S 补齐文件菜单、保存点、
+未保存确认、最近项目、独立恢复副本及参考图重定位。没有修改 PACK-1 打包系统或新增 3D。
+阶段验证与回退点见 [GATE_STATUS.md](GATE_STATUS.md)。
+
+以下为旧版小芒造物历史文档，不代表当前实验室新增了对应功能。
+
+# 小芒造物 · AI 参数化创意设计与 3D 制造（历史）
 
 面向非程序员设计师的 Windows 参数化设计软件。打开程序、导入参考图或选择轮廓、调节参数、实时查看并导出；不需要 Rhino 或编程环境。
 

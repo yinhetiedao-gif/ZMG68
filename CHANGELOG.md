@@ -1,5 +1,15 @@
 # 更新记录
 
+## Pattern Lab — Gate S：项目工作流（2026-09-17）
+
+- 复用 PatternLabSession 与 PatternDocument schema 1，增加项目路径、名称、单调 revision / saved checkpoint；Undo/Redo 可准确恢复 dirty。
+- 文件菜单及快捷键：新建、打开、保存、另存为、最近项目、退出；切换前统一保存/不保存/取消。
+- 载入先验证和重建候选，成功后替换；保存同目录临时文件回读验证后原子替换。
+- 用户数据目录下独立恢复副本、2 秒防抖、异常退出恢复；正常关闭清理，活跃多实例隔离。
+- 参考图片缺失时保留矢量、提示并支持重新定位；Preset 库与项目持久化保持分离。
+- 修复自由参数化共享场在 Undo 事务之前修改模型的保存点问题；不改变算法。
+- 新增 27 项 Gate S 测试（持久化、错误注入、真实 Tk 回调、异常退出子进程）。未重打 EXE。
+
 ## 0.1.0-dev — PACK-1：Windows EXE 测试包（2026-09-16）
 
 - 新增 PyInstaller `onedir` 规范、Debug/Release 构建脚本与双击构建入口；Release 为无控制台窗口的 `XiaomangPatternLab.exe`。

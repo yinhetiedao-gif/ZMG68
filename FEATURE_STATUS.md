@@ -1,5 +1,10 @@
 # 小芒造物｜功能状态（1.6.44）
 
+> 当前唯一活跃项目为 `xiaomang_pattern_lab`（小芒图案实验室）。下表大部分为旧版/历史状态；
+> 新实验室当前的实际阶段状态以 `GATE_STATUS.md` 为准。
+
+| Pattern Lab Gate S：项目工作流 | ✅ PASS | 文件菜单、新建/打开/保存/另存为、标题 dirty 标记、Undo 保存点、最近项目、独立恢复副本、原子保存、集中迁移和参考图重定位已通过 27 项专项测试；Gate T 及之后尚未开始。 |
+
 | 功能 | 状态 | 说明 |
 | --- | --- | --- |
 | 旧 Reference Reconstruction：Raster → EditablePatternDocument | ⚠ Legacy | 保留用于兼容既有项目和回滚；新上游 POC 不再以自研 CV/Generator 猜测作为唯一入口。 |
