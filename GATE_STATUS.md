@@ -1,5 +1,14 @@
 # Gate 状态（2026-09-19）
 
+## Gate T-Core — Minimum 2D Manufacturing Geometry Validation（2026-09-19）
+
+- Status: PASS — 完成后停止；Gate U / U.5 / V / W / X 均未开始。
+- 数据流：`PatternDocument → existing evaluate pipeline → Final Geometry → GeometryValidator → GeometryValidationReport`。校验始终读取 Evaluate 产生的瞬态最终元素；不烘焙、不修复、不写回 `PatternDocument`、`source_elements`、Modifier 或 Undo 历史。
+- 检查范围：跳过隐藏元素；检查 NaN/Infinity 与非法几何、epsilon 退化尺寸/面积/开放线长度、实心区域的显式闭合轮廓，以及闭合 FilledRegion / Filled Path 的自相交。合法开放线只检查退化，不会因未闭合被误报。
+- 报告：`GeometryValidationIssue(issue_type, severity, element_id, message, bounds, metadata)` 与 `GeometryValidationReport(checked_count, valid_count, warning_count, error_count, issues)`；当前 Gate 只产生安全的 `error`，为后续制造 UI 预留 `warning`。
+- 验证：Gate T 定向 9/9 PASS（普通/退化圆、非法坐标、普通/未闭合/近零面积 FilledRegion、Bow-tie 自交、开放线及参数化网格的只读验证）；完整 unittest 252/252 PASS；固定图自检 6/6 PASS；真实 Tk 冒烟 2/2 PASS。日志：`work/gate-t-core/full-regression.stderr.log`、`self-test-final.log`、`tk-smoke-final.log`。
+- 明确延后：元素重叠、重复件、最小壁厚、最小孔、连接性 PatternGraph、自动修复、2D→3D、STL 和任何新 UI。
+
 ## Gate S — Project Workflow Completion（2026-09-19）
 
 - Status: PASS — 完成后停止；Gate T/U/U.5/V/W/X 均未开始。

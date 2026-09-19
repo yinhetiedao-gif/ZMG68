@@ -1,5 +1,12 @@
 # 更新记录
 
+## Pattern Lab — Gate T-Core：二维制造几何最小校验（2026-09-19）
+
+- 新增只读 `GeometryValidator`，在现有唯一 Evaluate Pipeline 之后分析最终二维 Geometry；不会烘焙元素、改变项目、写入 Undo 或自动修复图案。
+- 新增结构化校验报告：非法数值、epsilon 退化、实心区域未闭合、闭合轮廓自相交；合法开放线条保持可用，仅在长度退化时报告。
+- 新增 `PatternLabSession.validate_final_geometry()` 供后续“生成最终模型”前显式调用；本阶段没有新增常驻 UI 或实时校验。
+- 验证：Gate T 定向 9/9 PASS；完整 unittest 252/252 PASS；固定图 self-test 6/6 PASS；真实 Tk 冒烟 2/2 PASS。
+
 ## Pattern Lab — Gate S：项目工作流（2026-09-17）
 
 - 复用 PatternLabSession 与 PatternDocument schema 1，增加项目路径、名称、单调 revision / saved checkpoint；Undo/Redo 可准确恢复 dirty。

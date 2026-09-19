@@ -24,6 +24,7 @@ from .parametric import (
 from .parametric_families import AlongCurveParametricModel, FreeParametricModel, ParametricModel, RadialParametricModel
 from .element_debug import ElementDebugRecord, ElementDebugSummary, element_debug_record, element_debug_summary
 from .evaluation import evaluate_pattern_document, materialize_evaluated_elements, serialize_elements
+from .geometry_validation import GeometryValidationReport, GeometryValidator
 from .placement_assignment import (
     PLACEMENT_METADATA_KEY,
     ImportedElementSlotProvider,
@@ -1595,6 +1596,15 @@ class PatternLabSession:
         """Expose the single Evaluate pipeline for non-UI callers and tests."""
 
         return evaluate_pattern_document(self.require_document())
+
+    def validate_final_geometry(self, *, epsilon: float = 1e-6) -> GeometryValidationReport:
+        """Read-only Gate T validation of transient final manufacturing geometry.
+
+        This intentionally neither bakes evaluated elements nor starts an Undo
+        transaction, so analysis cannot dirty a project or change its canvas.
+        """
+
+        return GeometryValidator(epsilon=epsilon).validate_document(self.require_document())
 
     def _set_grid_element_geometry(
         self,

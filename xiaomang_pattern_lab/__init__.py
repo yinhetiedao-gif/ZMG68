@@ -15,6 +15,7 @@ from .placement_assignment import (
     ShapePrototypeRegistry,
 )
 from .shared_modifiers import SharedModifierStack
+from .geometry_validation import GeometryValidationIssue, GeometryValidationReport, GeometryValidator
 
 __all__ = [
     "PatternLabSession", "ViewMode",
@@ -22,4 +23,5 @@ __all__ = [
     "ShapePrototypeRegistry", "ReplacementMap", "AssignmentSettings",
     "RandomSettings", "AssignmentEngine", "PlacementAssignmentState",
     "SharedModifierStack",
+    "GeometryValidationIssue", "GeometryValidationReport", "GeometryValidator",
 ]

@@ -25,6 +25,14 @@
 本 Gate 不重新构建 EXE；已有 PACK-1 EXE 不包含此次源码升级。
 当前状态和自动测试证据见根目录 `GATE_STATUS.md`。
 
+## Gate T-Core：二维制造几何最小校验（2026-09-19）
+
+`PatternLabSession.validate_final_geometry()` 只读取现有 Evaluate Pipeline 的最终二维元素，
+返回结构化 `GeometryValidationReport`。它不会自动修复、烘焙、保存、创建 Undo，
+也不会修改 `PatternDocument` 或源元素。当前检查非法数值、epsilon 退化、实心区域
+未闭合及闭合轮廓自相交；开放线条不因“不是实心区域”被误判。连接性、最小壁厚、
+自动修复、2D→3D 与 STL 仍未开始。
+
 ## 开发安全与当前 Gate
 
 开发前必须读取仓库根的 `AGENTS.md`、`DEVELOPMENT_SAFETY.md`、`GATE_STATUS.md`。
