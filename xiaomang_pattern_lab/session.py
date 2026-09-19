@@ -25,6 +25,7 @@ from .parametric_families import AlongCurveParametricModel, FreeParametricModel,
 from .element_debug import ElementDebugRecord, ElementDebugSummary, element_debug_record, element_debug_summary
 from .evaluation import evaluate_pattern_document, materialize_evaluated_elements, serialize_elements
 from .geometry_validation import GeometryValidationReport, GeometryValidator
+from .connectivity import ConnectivityAnalyzer, ConnectivityReport
 from .placement_assignment import (
     PLACEMENT_METADATA_KEY,
     ImportedElementSlotProvider,
@@ -1605,6 +1606,11 @@ class PatternLabSession:
         """
 
         return GeometryValidator(epsilon=epsilon).validate_document(self.require_document())
+
+    def analyze_connectivity(self, *, epsilon: float = 1e-6) -> ConnectivityReport:
+        """Read final 2D components without dirtying or changing the project."""
+
+        return ConnectivityAnalyzer(epsilon=epsilon).analyze_document(self.require_document())
 
     def _set_grid_element_geometry(
         self,

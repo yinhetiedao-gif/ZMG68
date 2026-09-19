@@ -1,5 +1,12 @@
 # 更新记录
 
+## Pattern Lab — Gate U-Core：二维连通组件分析（2026-09-19）
+
+- 新增只读 `ConnectivityAnalyzer`：在唯一 Evaluate Pipeline 后分析最终二维 Geometry，报告真实 Connected Components、孤立元素、最大组件、候选/实际连接数量与无效跳过数量。
+- 连接仅由实际重叠或边界接触定义；采用空间哈希 Bounds Broad Phase 加精确多边形相交/接触判断，避免无条件两两精确求交。
+- 新增 `PatternLabSession.analyze_connectivity()`；分析不会保存项目、修改元素、产生 Undo 或使工程变脏。
+- 验证：Gate U 专项 8/8 PASS；完整 unittest 260/260 PASS；固定图 self-test 6/6 PASS；真实 Tk 冒烟 2/2 PASS。
+
 ## Pattern Lab — Gate T-Core：二维制造几何最小校验（2026-09-19）
 
 - 新增只读 `GeometryValidator`，在现有唯一 Evaluate Pipeline 之后分析最终二维 Geometry；不会烘焙元素、改变项目、写入 Undo 或自动修复图案。

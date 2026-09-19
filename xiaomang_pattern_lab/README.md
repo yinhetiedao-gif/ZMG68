@@ -33,6 +33,14 @@
 未闭合及闭合轮廓自相交；开放线条不因“不是实心区域”被误判。连接性、最小壁厚、
 自动修复、2D→3D 与 STL 仍未开始。
 
+## Gate U-Core：二维连通组件分析（2026-09-19）
+
+`PatternLabSession.analyze_connectivity()` 同样只读取最终 Evaluate 输出，回答图案当前是
+一件还是多件：报告实际连通组件、孤立元素、最大组件与跳过的无效元素。仅有重叠或
+边界接触才视为连接；存在正间距时不会被“看起来接近”误判为连接。分析结果属于临时
+派生数据，不写入项目、不产生 Undo。Near Connection、距离统计、自动桥接、制造 2D
+适配、3D 与 STL 仍未开始。
+
 ## 开发安全与当前 Gate
 
 开发前必须读取仓库根的 `AGENTS.md`、`DEVELOPMENT_SAFETY.md`、`GATE_STATUS.md`。

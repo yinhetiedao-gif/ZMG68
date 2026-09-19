@@ -16,6 +16,7 @@ from .placement_assignment import (
 )
 from .shared_modifiers import SharedModifierStack
 from .geometry_validation import GeometryValidationIssue, GeometryValidationReport, GeometryValidator
+from .connectivity import ConnectivityAnalyzer, ConnectivityComponent, ConnectivityReport
 
 __all__ = [
     "PatternLabSession", "ViewMode",
@@ -24,4 +25,5 @@ __all__ = [
     "RandomSettings", "AssignmentEngine", "PlacementAssignmentState",
     "SharedModifierStack",
     "GeometryValidationIssue", "GeometryValidationReport", "GeometryValidator",
+    "ConnectivityAnalyzer", "ConnectivityComponent", "ConnectivityReport",
 ]

@@ -1,5 +1,15 @@
 # Gate 状态（2026-09-19）
 
+## Gate U-Core — Connected Components + Isolated Elements（2026-09-19）
+
+- Status: PASS — 完成后停止；Gate U.5、V、W、X 均未开始。
+- 数据流：`PatternDocument → existing evaluate pipeline → Final Geometry → ConnectivityAnalyzer → ConnectivityReport`。结果为派生分析数据，不保存到项目，不会改变 `PatternDocument`、`source_elements`、Final Geometry、Modifier、Grid、形状分配、dirty 或 Undo。
+- 连接定义：仅最终实心几何实际重叠或边界接触（`distance <= epsilon`）时建立 Edge；有正间距的临近图元仍是断开状态。隐藏/Occupancy 排除的元素不参与分析。
+- 算法：局部最终几何查询适配为多边形；空间哈希先筛选可能相交的 Bounds，随后以边界相交/接触及包含进行精确判断，最后以并查集生成 Connected Components。报告包含组件、孤立 Element、最大组件尺寸、候选/实际连接对数量与跳过无效数量。
+- Gate T 兼容：任何严重无效最终几何会跳过并计入 `skipped_invalid_count`，不会伪造连接关系或阻断其余有效元素分析。
+- 验证：Gate U 专项 8/8 PASS（分离、重叠、相切、三连一孤立、100 元素连通链、无效跳过、最终 Grid 只读、形状替换后 FilledRegion）；与 Gate T 专项合计 17/17 PASS；完整 unittest 260/260 PASS；固定图自检 6/6 PASS；真实 Tk 冒烟 2/2 PASS。日志：`work/gate-u-core/full-regression.stderr.log`、`self-test-final.log`、`tk-smoke-final.stderr.log`。
+- 明确延后：Near Connection、Gap Distance、邻居统计、连接强度、PatternGraph 可视化、自动 Connector/桥接、ManufacturingGeometryAdapter、3D、STL。
+
 ## Gate T-Core — Minimum 2D Manufacturing Geometry Validation（2026-09-19）
 
 - Status: PASS — 完成后停止；Gate U / U.5 / V / W / X 均未开始。
