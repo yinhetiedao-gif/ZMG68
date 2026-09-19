@@ -26,6 +26,7 @@ from .element_debug import ElementDebugRecord, ElementDebugSummary, element_debu
 from .evaluation import evaluate_pattern_document, materialize_evaluated_elements, serialize_elements
 from .geometry_validation import GeometryValidationReport, GeometryValidator
 from .connectivity import ConnectivityAnalyzer, ConnectivityReport
+from .manufacturing_geometry import ManufacturingConversionResult, ManufacturingGeometryAdapter
 from .placement_assignment import (
     PLACEMENT_METADATA_KEY,
     ImportedElementSlotProvider,
@@ -1611,6 +1612,11 @@ class PatternLabSession:
         """Read final 2D components without dirtying or changing the project."""
 
         return ConnectivityAnalyzer(epsilon=epsilon).analyze_document(self.require_document())
+
+    def adapt_manufacturing_geometry(self, *, curve_tolerance_mm: float = 0.05) -> ManufacturingConversionResult:
+        """Create transient, mm-native manufacturing 2D geometry without editing."""
+
+        return ManufacturingGeometryAdapter(curve_tolerance_mm=curve_tolerance_mm).adapt_document(self.require_document())
 
     def _set_grid_element_geometry(
         self,

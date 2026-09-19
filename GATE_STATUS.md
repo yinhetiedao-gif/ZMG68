@@ -1,5 +1,16 @@
 # Gate 状态（2026-09-19）
 
+## Gate U.5 — Manufacturing Geometry Adapter（2026-09-19）
+
+- Status: PASS — 完成后停止；Gate V / W / X 均未开始。
+- 数据流：`PatternDocument → existing evaluate pipeline → Final Geometry → ManufacturingGeometryAdapter → Manufacturing2DGeometry`。制造几何是临时 Derived Data；不保存、不烘焙、不修改 `PatternDocument`、`source_elements`、Final Geometry、dirty、Undo 或 SVG。
+- 模型：`Manufacturing2DGeometry(units="mm", polygons, bounds)` 由 `ManufacturingPolygon(source_element_id, outer, holes)` 构成，并配套 `ManufacturingConversionReport` / `ManufacturingSkip`；后续 3D 后端只应消费此模型，不应回读 Grid、Field、Canvas 或 UI 状态。
+- 单位与近似：只输出毫米；Canvas 为 `mm` 或有 `mm_per_unit` 时按世界坐标转换，缺失映射时明确跳过且不猜测尺寸。Circle/Ellipse 用统一 `curve_tolerance_mm=0.05` 的自适应折线近似（包含基准方向点以保持轴向切线接触）；闭合 Path 复用同一曲线采样尺度。
+- 面积与孔洞：支持 Circle、Ellipse、Rect、FilledRegion、明确闭合的填充 Path、replacement shape 与多子路径；`fill-rule=evenodd` 保留 Outer Contour + Holes。没有明确面积语义的开放 Line/Path 以 `unsupported_open_geometry` 跳过，绝不猜线宽。Gate T 无效几何以 `skipped_invalid` 跳过。
+- Gate U 拓扑保护：转换后以空间哈希候选筛选比较最终设计几何和制造几何的连接关系；切线圆、接触矩形/替换形状若因近似导致连通变化，会在 `topology_changed_element_ids` 与 warning 中明确报告，不会静默继续。500 个彼此分离圆的转换实测约 0.0405 秒。
+- 验证：Gate U.5 专项 11/11 PASS（圆/椭圆、20×10mm 矩形、最终 Star、Modifier、Hole、多 Polygon、开放线、无效几何、切线保留、单位映射、真实 Grid 只读确定性）；与 Gate T/U 专项合计 28/28 PASS；完整 unittest 271/271 PASS；固定图自检 6/6 PASS；真实 Tk 冒烟 2/2 PASS。日志：`work/gate-u5-manufacturing-adapter/full-regression.stderr.log`、`self-test-final.log`、`tk-smoke-final.log`。
+- 明确延后：make_valid、global union、自动闭合/桥接、孤岛删除、Hole repair、Extrude、Mesh、STL/3MF、3D Viewer。
+
 ## Gate U-Core — Connected Components + Isolated Elements（2026-09-19）
 
 - Status: PASS — 完成后停止；Gate U.5、V、W、X 均未开始。

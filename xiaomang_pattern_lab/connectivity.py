@@ -74,7 +74,7 @@ class ConnectivityAnalyzer:
                 skipped += 1
                 continue
             try:
-                polygons = _material_polygons(element)
+                polygons = final_material_polygons(element)
             except Exception:
                 skipped += 1
                 continue
@@ -147,7 +147,7 @@ class ConnectivityAnalyzer:
         return sorted(pairs)
 
 
-def _material_polygons(element: Element) -> tuple[tuple[Point, ...], ...]:
+def final_material_polygons(element: Element) -> tuple[tuple[Point, ...], ...]:
     """Small final-geometry adapter; no type logic escapes this boundary."""
 
     if isinstance(element, (FilledRegionElement,)):
@@ -200,6 +200,14 @@ def _polygons_connect(left: tuple[Point, ...], right: tuple[Point, ...], epsilon
             if _segments_intersect_or_touch(point_a, next_a, point_b, next_b, epsilon):
                 return True
     return _point_in_or_on_polygon(left[0], right, epsilon) or _point_in_or_on_polygon(right[0], left, epsilon)
+
+
+def polygons_touch_or_overlap(
+    left: Iterable[tuple[Point, ...]], right: Iterable[tuple[Point, ...]], epsilon: float = 1e-6,
+) -> bool:
+    """Public, read-only final-geometry query shared by manufacturing adapters."""
+
+    return any(_polygons_connect(first, second, epsilon) for first in left for second in right)
 
 
 def _segments_intersect_or_touch(a: Point, b: Point, c: Point, d: Point, epsilon: float) -> bool:

@@ -137,10 +137,13 @@ def filled_region_polygons(
     width: float | None = None,
     height: float | None = None,
     rotation: float | None = None,
+    samples_per_curve: int = 8,
 ) -> List[List[Point]]:
     """Return a region's actual material boundary in document coordinates."""
 
-    result = _apply_svg_transform(path_subpaths(element.path_data), element.source_transform)
+    result = _apply_svg_transform(
+        path_subpaths(element.path_data, samples_per_curve=max(2, int(samples_per_curve))), element.source_transform,
+    )
     target_x = element.x if x is None else float(x)
     target_y = element.y if y is None else float(y)
     target_width = element.width if width is None else float(width)

@@ -1,5 +1,12 @@
 # 更新记录
 
+## Pattern Lab — Gate U.5：制造二维几何适配（2026-09-19）
+
+- 新增只读 `ManufacturingGeometryAdapter`：把唯一 Evaluate Pipeline 的最终二维设计几何转换为毫米单位的 `Manufacturing2DGeometry`（Polygon / MultiPolygon / Outer / Holes / Bounds）。
+- 支持 Circle、Ellipse、Rect、FilledRegion、明确闭合的填充 Path、replacement shape 与多子路径；`evenodd` Hole 被保留。开放 Path 不猜测线宽，非法 Geometry 不修复，均会清晰写入转换报告。
+- Circle/Ellipse 采用统一、与屏幕无关的 `0.05mm` 曲线近似容差；适配后以空间哈希筛选自动比较 Gate U 连接关系，若近似改变拓扑会显式警告。
+- 验证：Gate U.5 专项 11/11 PASS；完整 unittest 271/271 PASS；固定图 self-test 6/6 PASS；真实 Tk 冒烟 2/2 PASS。没有引入第三方依赖、Union、3D 或 STL。
+
 ## Pattern Lab — Gate U-Core：二维连通组件分析（2026-09-19）
 
 - 新增只读 `ConnectivityAnalyzer`：在唯一 Evaluate Pipeline 后分析最终二维 Geometry，报告真实 Connected Components、孤立元素、最大组件、候选/实际连接数量与无效跳过数量。

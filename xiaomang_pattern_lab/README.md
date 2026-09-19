@@ -41,6 +41,14 @@
 派生数据，不写入项目、不产生 Undo。Near Connection、距离统计、自动桥接、制造 2D
 适配、3D 与 STL 仍未开始。
 
+## Gate U.5：制造二维几何适配（2026-09-19）
+
+`PatternLabSession.adapt_manufacturing_geometry()` 将最终 Evaluate 输出转换为临时、毫米单位的
+`Manufacturing2DGeometry`：每个面积实体均有 `outer` 与 `holes[]`，并附带可审计的转换报告。
+这不是第二份项目文档，也不执行 Union、修复、桥接或挤出。Canvas 必须声明 `mm` 或 `mm_per_unit`；
+缺失映射会明确报告而非猜测尺寸。开放线条会跳过且不自动加厚，Gate T 无效几何也会跳过。
+曲线近似为固定制造容差而非屏幕精度，并会报告任何检测到的设计连接关系变化。
+
 ## 开发安全与当前 Gate
 
 开发前必须读取仓库根的 `AGENTS.md`、`DEVELOPMENT_SAFETY.md`、`GATE_STATUS.md`。

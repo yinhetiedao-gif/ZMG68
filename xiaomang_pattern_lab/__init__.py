@@ -17,6 +17,10 @@ from .placement_assignment import (
 from .shared_modifiers import SharedModifierStack
 from .geometry_validation import GeometryValidationIssue, GeometryValidationReport, GeometryValidator
 from .connectivity import ConnectivityAnalyzer, ConnectivityComponent, ConnectivityReport
+from .manufacturing_geometry import (
+    Manufacturing2DGeometry, ManufacturingConversionReport, ManufacturingConversionResult,
+    ManufacturingGeometryAdapter, ManufacturingPolygon, ManufacturingSkip,
+)
 
 __all__ = [
     "PatternLabSession", "ViewMode",
@@ -26,4 +30,6 @@ __all__ = [
     "SharedModifierStack",
     "GeometryValidationIssue", "GeometryValidationReport", "GeometryValidator",
     "ConnectivityAnalyzer", "ConnectivityComponent", "ConnectivityReport",
+    "Manufacturing2DGeometry", "ManufacturingPolygon", "ManufacturingSkip",
+    "ManufacturingConversionReport", "ManufacturingConversionResult", "ManufacturingGeometryAdapter",
 ]
