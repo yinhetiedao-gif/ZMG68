@@ -4,3 +4,9 @@ Pillow>=10.0,<12
 # Foundation reference reconstruction and manufacturing helpers use NumPy
 # for deterministic raster measurements and STL checks.
 numpy>=1.26,<3
+# Gate V: manufacturing-only Mesh backend.  Shapely supplies reliable
+# Polygon-with-Holes construction; mapbox-earcut performs deterministic 2D
+# triangulation for trimesh extrusion on Windows.
+trimesh>=4.8,<5
+shapely>=2.0,<3
+mapbox_earcut>=1.0,<2

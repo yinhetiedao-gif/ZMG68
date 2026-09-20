@@ -1,5 +1,18 @@
 # Xiaomang Pattern Lab / 小芒图案实验室
 
+## Gate V-MVP：最小二维到三维制造 Mesh（2026-09-20）
+
+`PatternLabSession.build_manufacturing_mesh(height_mm=2.0)` 只消费 Gate U.5 输出的
+`Manufacturing2DGeometry`，通过可替换的 `ManufacturingBackend` 生成临时 3D Mesh。当前本地
+`TrimeshBackend` 使用 Shapely + mapbox-earcut 三角化并挤出：XY 保持世界坐标毫米，Z 为
+`0..height_mm`；Circle、普通 Polygon 与带孔 Polygon 均支持，孔洞贯穿高度。多个独立 Polygon
+会保持独立组件，相接几何也不会在本阶段被自动 Union 或桥接。
+
+这是只读派生流程：不修改 `PatternDocument`、`source_elements`、Undo、保存状态或 SVG。高度默认
+2mm，零、负数、NaN、Infinity 被拒绝。Gate V 不包含 STL/3MF 导出、3D Viewer、Mesh 修复、制造检查
+或打印连接结构；这些必须留待后续独立 Gate。嵌套但未明确 `evenodd` 的非零填充环会被制造适配明确
+跳过，避免猜测错误的孔洞语义。
+
 ## Gate S：项目工作流（2026-09-17）
 
 文件菜单提供新建、打开、最近项目（最多 10 个）、保存、另存为、重新定位参考图片、退出。

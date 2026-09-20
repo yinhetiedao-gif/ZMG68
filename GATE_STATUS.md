@@ -1,19 +1,29 @@
 # Gate 状态（2026-09-19）
 
+## Gate V-MVP — Minimum Manufacturing Extrusion Backend（2026-09-20）
+
+- Status: PASS — 完成后停止。仅建立 `Manufacturing2DGeometry → ManufacturingBackend → derived Mesh`；尚未引入 STL/3MF、3D Viewer、全局 Union/修复/桥接或制造检查 Gate W。
+- 后端边界：新增 `ManufacturingBackend` 抽象与本地 `TrimeshBackend`。后端只接受毫米单位的 `Manufacturing2DGeometry`，不会读取 Element、Canvas、UI、Field、Grid、项目状态或 SVG；`PatternLabSession.build_manufacturing_mesh()` 先复用 U.5 的只读转换，再交给后端。
+- Mesh 结果：`ManufacturingMeshResult` 返回 Mesh、XYZ Bounds、顶点数、面数、组件数、高度、后端名、封闭状态与 warning；XY 原样保持 mm，Z 固定为 `0..height_mm`。默认高度为 2mm；零、负数、NaN 与 Infinity 会被拒绝。
+- 三角化：使用 Shapely Polygon（含 holes）和 `trimesh.creation.extrude_polygon(..., engine="earcut")`；`trimesh`、`shapely`、`mapbox-earcut` 为 Gate V 可替换后端的实现依赖。孔洞贯穿整个高度；多个 Polygon 分别挤出、不会桥接或 Boolean Union；相接边界也不被本 Gate 静默合并。
+- 安全限制：U.5 对嵌套且不是 `evenodd` 的非零填充环明确以 `ambiguous_nonzero_fill` 跳过，绝不猜测孔洞语义。没有可挤出面积几何、非 mm 输入或无效 Polygon 会给出明确错误。
+- Packaging：规格文件已声明 Gate V 的运行时依赖，但本 Gate 不重新构建或验证 EXE；须在 Gate V 所有回归完成后再决定是否进行新的 PACK 验证。
+- 验证：Gate V 专项 9/9 PASS；与 Gate T/U/U.5 专项合计 38/38 PASS；完整 unittest 281/281 PASS（176.084 秒）；固定图自检 6/6 PASS；真实 Tk 冒烟 2/2 PASS。日志：`work/gate-v-mvp/full-regression-final.stderr.log`、`self-test-final.log`、`tk-smoke-final.log`。
+
 ## Gate U.5 — Manufacturing Geometry Adapter（2026-09-19）
 
-- Status: PASS — 完成后停止；Gate V / W / X 均未开始。
+- Status: PASS — 历史 Gate 完成后停止；其后 Gate V 已通过，W / X 仍未开始。
 - 数据流：`PatternDocument → existing evaluate pipeline → Final Geometry → ManufacturingGeometryAdapter → Manufacturing2DGeometry`。制造几何是临时 Derived Data；不保存、不烘焙、不修改 `PatternDocument`、`source_elements`、Final Geometry、dirty、Undo 或 SVG。
 - 模型：`Manufacturing2DGeometry(units="mm", polygons, bounds)` 由 `ManufacturingPolygon(source_element_id, outer, holes)` 构成，并配套 `ManufacturingConversionReport` / `ManufacturingSkip`；后续 3D 后端只应消费此模型，不应回读 Grid、Field、Canvas 或 UI 状态。
 - 单位与近似：只输出毫米；Canvas 为 `mm` 或有 `mm_per_unit` 时按世界坐标转换，缺失映射时明确跳过且不猜测尺寸。Circle/Ellipse 用统一 `curve_tolerance_mm=0.05` 的自适应折线近似（包含基准方向点以保持轴向切线接触）；闭合 Path 复用同一曲线采样尺度。
 - 面积与孔洞：支持 Circle、Ellipse、Rect、FilledRegion、明确闭合的填充 Path、replacement shape 与多子路径；`fill-rule=evenodd` 保留 Outer Contour + Holes。没有明确面积语义的开放 Line/Path 以 `unsupported_open_geometry` 跳过，绝不猜线宽。Gate T 无效几何以 `skipped_invalid` 跳过。
 - Gate U 拓扑保护：转换后以空间哈希候选筛选比较最终设计几何和制造几何的连接关系；切线圆、接触矩形/替换形状若因近似导致连通变化，会在 `topology_changed_element_ids` 与 warning 中明确报告，不会静默继续。500 个彼此分离圆的转换实测约 0.0405 秒。
-- 验证：Gate U.5 专项 11/11 PASS（圆/椭圆、20×10mm 矩形、最终 Star、Modifier、Hole、多 Polygon、开放线、无效几何、切线保留、单位映射、真实 Grid 只读确定性）；与 Gate T/U 专项合计 28/28 PASS；完整 unittest 271/271 PASS；固定图自检 6/6 PASS；真实 Tk 冒烟 2/2 PASS。日志：`work/gate-u5-manufacturing-adapter/full-regression.stderr.log`、`self-test-final.log`、`tk-smoke-final.log`。
+- 验证：Gate U.5 专项现为 12/12 PASS（新增歧义 nonzero 嵌套环明确跳过）；Gate V 联合 T/U/U.5 专项 38/38 PASS，完整 unittest 281/281 PASS；固定图自检 6/6 PASS；真实 Tk 冒烟 2/2 PASS。日志：`work/gate-v-mvp/full-regression-final.stderr.log`、`self-test-final.log`、`tk-smoke-final.log`。
 - 明确延后：make_valid、global union、自动闭合/桥接、孤岛删除、Hole repair、Extrude、Mesh、STL/3MF、3D Viewer。
 
 ## Gate U-Core — Connected Components + Isolated Elements（2026-09-19）
 
-- Status: PASS — 完成后停止；Gate U.5、V、W、X 均未开始。
+- Status: PASS — 历史 Gate 完成后停止；其后 U.5 与 V 已通过，W / X 仍未开始。
 - 数据流：`PatternDocument → existing evaluate pipeline → Final Geometry → ConnectivityAnalyzer → ConnectivityReport`。结果为派生分析数据，不保存到项目，不会改变 `PatternDocument`、`source_elements`、Final Geometry、Modifier、Grid、形状分配、dirty 或 Undo。
 - 连接定义：仅最终实心几何实际重叠或边界接触（`distance <= epsilon`）时建立 Edge；有正间距的临近图元仍是断开状态。隐藏/Occupancy 排除的元素不参与分析。
 - 算法：局部最终几何查询适配为多边形；空间哈希先筛选可能相交的 Bounds，随后以边界相交/接触及包含进行精确判断，最后以并查集生成 Connected Components。报告包含组件、孤立 Element、最大组件尺寸、候选/实际连接对数量与跳过无效数量。
@@ -23,7 +33,7 @@
 
 ## Gate T-Core — Minimum 2D Manufacturing Geometry Validation（2026-09-19）
 
-- Status: PASS — 完成后停止；Gate U / U.5 / V / W / X 均未开始。
+- Status: PASS — 历史 Gate 完成后停止；其后 U、U.5 与 V 已通过，W / X 仍未开始。
 - 数据流：`PatternDocument → existing evaluate pipeline → Final Geometry → GeometryValidator → GeometryValidationReport`。校验始终读取 Evaluate 产生的瞬态最终元素；不烘焙、不修复、不写回 `PatternDocument`、`source_elements`、Modifier 或 Undo 历史。
 - 检查范围：跳过隐藏元素；检查 NaN/Infinity 与非法几何、epsilon 退化尺寸/面积/开放线长度、实心区域的显式闭合轮廓，以及闭合 FilledRegion / Filled Path 的自相交。合法开放线只检查退化，不会因未闭合被误报。
 - 报告：`GeometryValidationIssue(issue_type, severity, element_id, message, bounds, metadata)` 与 `GeometryValidationReport(checked_count, valid_count, warning_count, error_count, issues)`；当前 Gate 只产生安全的 `error`，为后续制造 UI 预留 `warning`。
@@ -32,7 +42,7 @@
 
 ## Gate S — Project Workflow Completion（2026-09-19）
 
-- Status: PASS — 完成后停止；Gate T/U/U.5/V/W/X 均未开始。
+- Status: PASS — 历史 Gate 完成后停止；其后 T、U、U.5 与 V 已通过，W / X 仍未开始。
 - 项目会话：既有 `PatternLabSession` 扩展 `current_project_path`、派生名称、单调 `revision` 与 `saved_revision`；`PatternDocument` 仍是唯一设计数据模型。选择、缩放、平移不写 dirty；Undo/Redo 回到保存 revision 会准确清除 dirty。
 - 文件流程：文件菜单/快捷键支持新建、打开、最近项目（最多 10 条）、保存、另存为、重新定位参考图片和退出。新建、打开、导入替换、关闭使用同一保存/不保存/取消判断；打开先读取、迁移、验证和重建候选，失败不替换当前设计。
 - 持久化：`storage.atomic_write_json` 在目标同目录写唯一临时文件，flush/fsync、回读及 PatternDocument 验证后才 `os.replace`。集中 `migrate_pattern_payload` 为 schema 1 的旧文件补可选默认值，拒绝未知未来版本，不无故升级格式。

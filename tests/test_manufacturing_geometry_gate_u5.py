@@ -97,6 +97,12 @@ class ManufacturingGeometryGateU5Tests(unittest.TestCase):
         result = self.adapter.adapt_document(document([item]))
         self.assertEqual((result.report.converted_count, result.geometry.polygon_count), (1, 2))
 
+    def test_ambiguous_nested_nonzero_fill_is_explicitly_skipped(self):
+        item = region("ambiguous", "M 0 0 L 20 0 L 20 20 L 0 20 Z M 5 5 L 15 5 L 15 15 L 5 15 Z")
+        result = self.adapter.adapt_document(document([item]))
+        self.assertEqual(result.report.converted_count, 0)
+        self.assertEqual(result.report.skipped[0].reason, "ambiguous_nonzero_fill")
+
     def test_valid_open_line_is_skipped_without_inventing_width(self):
         line = PathElement("line", 20, 20, 20, 1, style={"fill": "none", "stroke": "#000"},
                            path_data="M 0 0 L 20 0", base_width=20, base_height=1)

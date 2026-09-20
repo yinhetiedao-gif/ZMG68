@@ -136,6 +136,15 @@ class ManufacturingGeometryAdapter:
             if not rings:
                 skips.append(ManufacturingSkip(element.id, "unsupported_geometry", "该 Element 不包含可制造的面积边界。"))
                 continue
+            if not _uses_evenodd(element) and _rings_have_nesting(rings):
+                # Gate U.5 deliberately does not infer complex SVG nonzero
+                # winding semantics.  Refuse this one ambiguous region rather
+                # than turn an intended hole into an apparently valid solid.
+                skips.append(ManufacturingSkip(
+                    element.id, "ambiguous_nonzero_fill",
+                    "嵌套的 nonzero 填充语义尚未支持，未生成制造几何。",
+                ))
+                continue
             converted = _rings_to_manufacturing_polygons(
                 element.id, _scale_rings(rings, scale), _uses_evenodd(element), self.epsilon_mm,
             )
@@ -264,6 +273,16 @@ def _rings_to_manufacturing_polygons(
                     current.holes + (_oriented(item["ring"], clockwise=True),),
                 )
     return tuple(result)
+
+
+def _rings_have_nesting(rings: tuple[tuple[Point, ...], ...]) -> bool:
+    for index, ring in enumerate(rings):
+        if not ring:
+            continue
+        for other_index, other in enumerate(rings):
+            if index != other_index and len(other) >= 3 and _point_in_polygon(ring[0], other):
+                return True
+    return False
 
 
 def _normalise_ring(ring: Iterable[Point], epsilon: float) -> tuple[Point, ...]:

@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from PyInstaller.utils.hooks import collect_data_files, collect_submodules
+from PyInstaller.utils.hooks import collect_data_files, collect_dynamic_libs, collect_submodules
 
 
 ROOT = Path(SPECPATH).resolve()
@@ -14,6 +14,7 @@ NODE_EXE = Path(os.environ["XIAOMANG_NODE_EXE"]).resolve()
 DEBUG = os.environ.get("XIAOMANG_BUILD_CONFIGURATION", "release").lower() == "debug"
 
 datas = []
+binaries = []
 datas += collect_data_files("xiaomang_pattern_lab", includes=["fixtures/*"])
 datas += collect_data_files("ppg", includes=["locales/*.json"])
 # The upstream MCP source includes Vite's development cache. It is never used
@@ -38,13 +39,21 @@ datas += [(str(NODE_EXE), "tools")]
 hiddenimports = sorted(set(
     collect_submodules("xiaomang_pattern_lab")
     + collect_submodules("ppg")
+    # Gate V imports these lazily so ordinary 2D startup remains light.  Make
+    # their wheels explicit here for the next PACK build; this Gate does not
+    # rebuild or ship an EXE.
+    + collect_submodules("trimesh")
+    + collect_submodules("shapely")
     + ["PIL.ImageTk", "tkinter", "tkinter.ttk", "tkinter.filedialog", "tkinter.messagebox", "vtracer"]
+    + ["mapbox_earcut"]
 ))
+binaries += collect_dynamic_libs("shapely")
+binaries += collect_dynamic_libs("mapbox_earcut")
 
 a = Analysis(
     [str(ROOT / "xiaomang_pattern_lab" / "desktop_entry.py")],
     pathex=[str(ROOT), str(ROOT / "build-tools" / "vtracer-runtime")],
-    binaries=[], datas=datas, hiddenimports=hiddenimports, hookspath=[], hooksconfig={},
+    binaries=binaries, datas=datas, hiddenimports=hiddenimports, hookspath=[], hooksconfig={},
     runtime_hooks=[], excludes=["pytest"], noarchive=False,
 )
 pyz = PYZ(a.pure)

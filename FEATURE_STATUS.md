@@ -3,7 +3,8 @@
 > 当前唯一活跃项目为 `xiaomang_pattern_lab`（小芒图案实验室）。下表大部分为旧版/历史状态；
 > 新实验室当前的实际阶段状态以 `GATE_STATUS.md` 为准。
 
-| Pattern Lab Gate S：项目工作流 | ✅ PASS | 文件菜单、新建/打开/保存/另存为、标题 dirty 标记、Undo 保存点、最近项目、独立恢复副本、原子保存、集中迁移和参考图重定位已通过 27 项专项测试；Gate T 及之后尚未开始。 |
+| Pattern Lab Gate S：项目工作流 | ✅ PASS | 文件菜单、新建/打开/保存/另存为、标题 dirty 标记、Undo 保存点、最近项目、独立恢复副本、原子保存、集中迁移和参考图重定位已通过 27 项专项测试。 |
+| Pattern Lab Gate V-MVP：最小制造挤出 | ✅ PASS | U.5 的只读 `Manufacturing2DGeometry` 可经可替换 `TrimeshBackend` 挤出为毫米 Mesh；保留孔洞、独立组件、Z=0..height，且不修改 2D 文档。专项 9/9、全量 281/281、自检 6/6、Tk 2/2 通过；不含 STL/3MF、3D Viewer、Mesh 修复或 Gate W 检查。 |
 
 | 功能 | 状态 | 说明 |
 | --- | --- | --- |

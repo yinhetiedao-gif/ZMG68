@@ -21,6 +21,7 @@ from .manufacturing_geometry import (
     Manufacturing2DGeometry, ManufacturingConversionReport, ManufacturingConversionResult,
     ManufacturingGeometryAdapter, ManufacturingPolygon, ManufacturingSkip,
 )
+from .manufacturing_backend import ManufacturingBackend, ManufacturingBuildResult, ManufacturingMeshResult, TrimeshBackend
 
 __all__ = [
     "PatternLabSession", "ViewMode",
@@ -32,4 +33,5 @@ __all__ = [
     "ConnectivityAnalyzer", "ConnectivityComponent", "ConnectivityReport",
     "Manufacturing2DGeometry", "ManufacturingPolygon", "ManufacturingSkip",
     "ManufacturingConversionReport", "ManufacturingConversionResult", "ManufacturingGeometryAdapter",
+    "ManufacturingBackend", "ManufacturingMeshResult", "ManufacturingBuildResult", "TrimeshBackend",
 ]

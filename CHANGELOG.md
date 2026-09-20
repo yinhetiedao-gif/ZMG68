@@ -1,11 +1,18 @@
 # 更新记录
 
+## Pattern Lab — Gate V-MVP：最小制造挤出后端（2026-09-20）
+
+- 新增可替换的 `ManufacturingBackend` 与本地 `TrimeshBackend`：仅将 U.5 的只读、毫米 `Manufacturing2DGeometry` 挤出为 Z=`0..height_mm` 的派生封闭 Mesh；默认高度 2mm，拒绝零、负数、NaN 和 Infinity。
+- 新增 `ManufacturingMeshResult`，包含 Mesh、Bounds、顶点/面/组件数、高度、后端、封闭状态和警告。Circle、Polygon、带孔 Polygon 通过 Shapely 与 mapbox-earcut 可靠三角化；孔洞贯穿高度，多个 Polygon 保持独立组件，不做桥接或 Boolean Union。
+- 增加非 `evenodd` 嵌套环的歧义保护：无法可靠判定孔洞语义时，制造二维适配器会以 `ambiguous_nonzero_fill` 明确跳过，绝不静默生成错误实体。
+- 本 Gate 没有增加 STL/3MF、3D Viewer、Mesh 自动修复、全局 Union 或任何 UI；打包规格仅补齐后端运行时收集配置，未重新构建 EXE。
+
 ## Pattern Lab — Gate U.5：制造二维几何适配（2026-09-19）
 
 - 新增只读 `ManufacturingGeometryAdapter`：把唯一 Evaluate Pipeline 的最终二维设计几何转换为毫米单位的 `Manufacturing2DGeometry`（Polygon / MultiPolygon / Outer / Holes / Bounds）。
 - 支持 Circle、Ellipse、Rect、FilledRegion、明确闭合的填充 Path、replacement shape 与多子路径；`evenodd` Hole 被保留。开放 Path 不猜测线宽，非法 Geometry 不修复，均会清晰写入转换报告。
 - Circle/Ellipse 采用统一、与屏幕无关的 `0.05mm` 曲线近似容差；适配后以空间哈希筛选自动比较 Gate U 连接关系，若近似改变拓扑会显式警告。
-- 验证：Gate U.5 专项 11/11 PASS；完整 unittest 271/271 PASS；固定图 self-test 6/6 PASS；真实 Tk 冒烟 2/2 PASS。没有引入第三方依赖、Union、3D 或 STL。
+- 验证：初始 Gate U.5 专项 11/11 PASS；随后 Gate V 增加歧义 nonzero 环保护，现 U.5 专项 12/12 PASS，Gate V 联合回归完整 unittest 281/281 PASS。Gate U.5 本身没有引入 Union、3D 或 STL。
 
 ## Pattern Lab — Gate U-Core：二维连通组件分析（2026-09-19）
 

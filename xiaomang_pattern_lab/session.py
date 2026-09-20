@@ -27,6 +27,7 @@ from .evaluation import evaluate_pattern_document, materialize_evaluated_element
 from .geometry_validation import GeometryValidationReport, GeometryValidator
 from .connectivity import ConnectivityAnalyzer, ConnectivityReport
 from .manufacturing_geometry import ManufacturingConversionResult, ManufacturingGeometryAdapter
+from .manufacturing_backend import ManufacturingBuildResult, ManufacturingBackend, TrimeshBackend
 from .placement_assignment import (
     PLACEMENT_METADATA_KEY,
     ImportedElementSlotProvider,
@@ -1617,6 +1618,15 @@ class PatternLabSession:
         """Create transient, mm-native manufacturing 2D geometry without editing."""
 
         return ManufacturingGeometryAdapter(curve_tolerance_mm=curve_tolerance_mm).adapt_document(self.require_document())
+
+    def build_manufacturing_mesh(
+        self, *, height_mm: float = 2.0, backend: ManufacturingBackend | None = None,
+    ) -> ManufacturingBuildResult:
+        """Explicit Gate V build: U.5 result first, then a derived mesh only."""
+
+        conversion = self.adapt_manufacturing_geometry()
+        mesh_result = (backend or TrimeshBackend()).extrude(conversion.geometry, height_mm)
+        return ManufacturingBuildResult(conversion=conversion, mesh_result=mesh_result)
 
     def _set_grid_element_geometry(
         self,
