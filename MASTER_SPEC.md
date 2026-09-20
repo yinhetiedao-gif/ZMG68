@@ -1,7 +1,7 @@
 # 小芒造物主规格（当前收缩阶段）
 
-版本：1.6.14（上游 Raster→SVG POC 已验收；安装包待在可访问构建依赖的桌面环境重新生成）  
-状态：以 `Reference Image → Editable 2D Geometry` 为最高优先级。
+版本：1.6.14（Gate V-MVP 已验收；安装包待在可访问构建依赖的桌面环境重新生成）  
+状态：`Reference Image → Editable 2D Geometry` 已具备制造二维边界与最小只读 Mesh 挤出；STL、3MF 与完整制造检查仍未开始。
 
 ## 产品边界
 
@@ -35,7 +35,7 @@ Reference Image
 - `GeometryLayer`：只读取 `EditableElement`（DOT/ELLIPSE/LINE/SHAPE 等）的物化 `elements`。
 - `EditablePatternDocument`：持久化 `canvas, reference, generator, modifiers, elements, overrides, masks, fields, metadata, base_elements, added_elements`。
 - Rebuild 固定为 `base_elements + added_elements → Generator + Modifier Stack → Local Overrides → elements`，不得重新读取 Raster。
-- Final Manufacturing Mesh 只由当前 `EditablePatternDocument.elements`（若存在）或兼容的二维规则工作单产生；不得从 Canvas 位图或预览网格导出。
+- Final Manufacturing Mesh 只由当前 `EditablePatternDocument.elements`（若存在）或兼容的二维规则工作单产生；不得从 Canvas 位图或预览网格导出。当前 Gate V-MVP 通过 `ManufacturingGeometryAdapter` 先生成毫米 `Manufacturing2DGeometry`，再由可替换 `ManufacturingBackend` 只读挤出 Mesh；开放线、无效几何与嵌套 nonzero 填充歧义不得被猜测为实体。
 
 ## 3D 与显示边界
 
@@ -64,7 +64,7 @@ get_bounds() / capture_preview() / close()
 P0 Reference → Editable 2D  
 P1 EditablePatternDocument  
 P2 Geometry Cleanup  
-P3 Final 3D Build  
-P4 Manufacturing Validation  
-P5 Validated STL  
+P3 Final 3D Build（Gate V-MVP 已通过：二维 Polygon/Hole → 最小 watertight Mesh）  
+P4 Manufacturing Validation（Gate W，未启动）  
+P5 Validated STL（Gate X，未启动）  
 P6 Optional Third-Party Viewer（未启动）

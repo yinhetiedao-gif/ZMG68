@@ -25,6 +25,8 @@
 - `xiaomang_pattern_lab/placement_assignment.py`：Gate 1 的统一 Placement / Prototype / Assignment 基础层。`PlacementSlot` 同时适配导入图元和既有 Grid；`ShapePrototypeRegistry` 复用 `ElementPrototype`；Replacement/Assignment/Random 通过可选 metadata 接入，默认必须是 Circle Grid 的兼容 no-op。
 - `xiaomang_pattern_lab/shared_modifiers.py`：公共参数化效果层。`SharedModifierStack` 可作用于 Imported Elements、Grid、Radial 和 Curve source；结构参数与 Size/Rotation/Mask/Local Override 效果分离，源快照必须可保存恢复。
 - `xiaomang_pattern_lab/presets.py`：Gate O 本地预设边界。`ParametricPreset` 只保存可复用的 Field/Modifier/Scope/ShapePool/Random 配置，绝不承载 PatternDocument、Raster、`source_elements`、Selection 或 View State；跨几何应用必须按 source Bounds 适配世界坐标。
+- `xiaomang_pattern_lab/manufacturing_geometry.py`：Gate U.5 的只读制造二维边界。它把唯一 Evaluate Pipeline 的最终面积几何转换为毫米 `Manufacturing2DGeometry`，保留明确 `evenodd` 孔洞；开放线、无效几何和嵌套 nonzero 填充歧义必须明确跳过，不得猜线宽、孔洞语义、修复或写回文档。
+- `xiaomang_pattern_lab/manufacturing_backend.py`：Gate V 的唯一最小 3D 边界。`ManufacturingBackend` 只接受 `Manufacturing2DGeometry` 并生成临时 `ManufacturingMeshResult`；本地 `TrimeshBackend` 使用 Shapely + Earcut 挤出到 Z=`0..height_mm`。不得读取 UI/Canvas/Element/Grid，不得导出 STL/3MF、布尔并集、桥接、修复或启动 Viewer。
 - `ImageField`（Gate P）：只读 Reference 灰度共享场；按世界坐标双线性采样并缓存派生像素，缺失图片回退中性值，不保存像素、不重新矢量化。
 - `NoiseField`（Gate Q）：连续世界坐标 fBm 共享场；以稳定 Seed、尺度、偏移、八度和对比度输出 `0..1`，可复用给尺寸、旋转、位置或密度消费者，不改写源几何。
 - `xiaomang_pattern_lab/family_analyzers.py`：多结构路由的 Along Curve 门禁。先以二维协方差特征值和局部邻域方向一致性确认内在一维性，再进行链路评分；规则二维晶格不得因贪心最近邻链进入 Along Curve。
@@ -72,6 +74,7 @@
 18. `EditablePatternDocument` 的 `base_elements`、`added_elements`、Generator、Modifier Stack 与按稳定 ID 的 Local Override 是 Reference → Editable 2D 的唯一重建输入；`elements` 为物化输出。Canvas、SVG/PNG/DXF、项目恢复与 Rebuild 禁止读取 Raster 或调用旧 Field Generator 来替代 GeometryLayer。
 19. Pattern Lab 的固定 Fixture 只能是测试输入；`GridAnalyzer`、SizeGradient 拟合、参数化模式切换和 UI 不得根据文件名、fixture id 或预写参数决定结果。用户导入与 Fixture 必须共享 `PatternDocument.elements → PatternAnalyzer` 路径。
 20. Pattern Lab 的参数化入口必须由 `PatternAnalyzer` 调度，而不是被 Grid 写死：只允许从当前 `PatternDocument.elements` 并行分析 Grid、Radial、Along Curve，并始终提供 `FreeParametricModel` 回退；不得读取文件名、fixture id 或预写参数。所有 ParametricModel 必须通过同一 `Evaluate → shared Modifier → Local Override → Element` 路径物化，Canvas/SVG/保存恢复不得自行生成第二套 Geometry。低分结构保持自由元素或进入自由场，绝不提示“非矩阵无法参数化”。Matrix V3 中 Grid 只负责 anchor centroid、行列、Origin 与任意两条 Basis U/V，定义为 `P(i,j)=Origin+i·BasisU+j·BasisV`；禁止绑定 Circle、屏幕 X/Y 或 Canvas 边界。拟合必须支持水平、旋转、斜向、非正交、裁切和部分缺格；方向、间距、位置、内点和占用率分项记录，尺寸相似度不得否决位置格子。ElementPrototype 独立保留 Circle、Ellipse、Rect、Polygon 与 Custom SVG Path 单元；位置完成后才能单独拟合 Linear/Radial/Elliptical Size Field，低质量尺寸拟合保留 Per-Cell Local Override。Grid、Radial、Along Curve 和 Free Parametric 都必须支持 Size/Rotation Field、Mask、稳定 Local Override、Bake、Save/Load 和单次参数操作的一条 Undo。新增 Wave、Flow、Noise、3D 或 UI 重构前，先完成多结构真实导入回归。
+21. Gate V 的制造 Mesh 只可从 Gate U.5 已验证的毫米面积 Polygon 生成：XY 不得重标定，Z 必须是 `0..height_mm`，默认高度 2mm 且拒绝非有限/非正高度。孔洞必须贯穿高度；多个 Polygon 保持各自组件，相接边界在未进入专用 Union Gate 前不得自动合并。Mesh 构建必须只读、确定性并有 20×10×2、孔洞、分离/相接与真实 Pattern Lab 回归；STL/3MF、自动修复、最小壁厚和连接策略属于后续 Gate。
 
 ## 扩展 API
 
