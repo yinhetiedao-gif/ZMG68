@@ -28,6 +28,7 @@
 - `xiaomang_pattern_lab/manufacturing_geometry.py`：Gate U.5 的只读制造二维边界。它把唯一 Evaluate Pipeline 的最终面积几何转换为毫米 `Manufacturing2DGeometry`，保留明确 `evenodd` 孔洞；开放线、无效几何和嵌套 nonzero 填充歧义必须明确跳过，不得猜线宽、孔洞语义、修复或写回文档。
 - `xiaomang_pattern_lab/manufacturing_backend.py`：Gate V 的唯一最小 3D 边界。`ManufacturingBackend` 只接受 `Manufacturing2DGeometry` 并生成临时 `ManufacturingMeshResult`；本地 `TrimeshBackend` 使用 Shapely + Earcut 挤出到 Z=`0..height_mm`。不得读取 UI/Canvas/Element/Grid，不得导出 STL/3MF、布尔并集、桥接、修复或启动 Viewer。
 - `xiaomang_pattern_lab/mesh_validation.py`：Gate W 的只读 Mesh 检查边界。`MeshValidator` 只接受 Gate V `ManufacturingMeshResult`，以 Mesh 顶点/三角面直接计算有限坐标、boundary/non-manifold edge、退化面积与共享边组件；不得重读二维设计、调用 Mesh repair/process、合并组件或导出文件。
+- `xiaomang_pattern_lab/stl_export.py`：Gate X 的受检导出边界。`STLExporter` 必须先使用 Gate W 报告阻止 error Mesh，再原样以 mm 数值写出 Binary STL；默认不覆盖。读回时只在副本上恢复 STL 缺失的精确共享索引以验证拓扑，不得修改源 Mesh、STL 字节或执行修复。
 - `ImageField`（Gate P）：只读 Reference 灰度共享场；按世界坐标双线性采样并缓存派生像素，缺失图片回退中性值，不保存像素、不重新矢量化。
 - `NoiseField`（Gate Q）：连续世界坐标 fBm 共享场；以稳定 Seed、尺度、偏移、八度和对比度输出 `0..1`，可复用给尺寸、旋转、位置或密度消费者，不改写源几何。
 - `xiaomang_pattern_lab/family_analyzers.py`：多结构路由的 Along Curve 门禁。先以二维协方差特征值和局部邻域方向一致性确认内在一维性，再进行链路评分；规则二维晶格不得因贪心最近邻链进入 Along Curve。
@@ -77,6 +78,7 @@
 20. Pattern Lab 的参数化入口必须由 `PatternAnalyzer` 调度，而不是被 Grid 写死：只允许从当前 `PatternDocument.elements` 并行分析 Grid、Radial、Along Curve，并始终提供 `FreeParametricModel` 回退；不得读取文件名、fixture id 或预写参数。所有 ParametricModel 必须通过同一 `Evaluate → shared Modifier → Local Override → Element` 路径物化，Canvas/SVG/保存恢复不得自行生成第二套 Geometry。低分结构保持自由元素或进入自由场，绝不提示“非矩阵无法参数化”。Matrix V3 中 Grid 只负责 anchor centroid、行列、Origin 与任意两条 Basis U/V，定义为 `P(i,j)=Origin+i·BasisU+j·BasisV`；禁止绑定 Circle、屏幕 X/Y 或 Canvas 边界。拟合必须支持水平、旋转、斜向、非正交、裁切和部分缺格；方向、间距、位置、内点和占用率分项记录，尺寸相似度不得否决位置格子。ElementPrototype 独立保留 Circle、Ellipse、Rect、Polygon 与 Custom SVG Path 单元；位置完成后才能单独拟合 Linear/Radial/Elliptical Size Field，低质量尺寸拟合保留 Per-Cell Local Override。Grid、Radial、Along Curve 和 Free Parametric 都必须支持 Size/Rotation Field、Mask、稳定 Local Override、Bake、Save/Load 和单次参数操作的一条 Undo。新增 Wave、Flow、Noise、3D 或 UI 重构前，先完成多结构真实导入回归。
 21. Gate V 的制造 Mesh 只可从 Gate U.5 已验证的毫米面积 Polygon 生成：XY 不得重标定，Z 必须是 `0..height_mm`，默认高度 2mm 且拒绝非有限/非正高度。孔洞必须贯穿高度；多个 Polygon 保持各自组件，相接边界在未进入专用 Union Gate 前不得自动合并。Mesh 构建必须只读、确定性并有 20×10×2、孔洞、分离/相接与真实 Pattern Lab 回归；STL/3MF、自动修复、最小壁厚和连接策略属于后续 Gate。
 22. Gate W 只分析 Gate V 的 Mesh：非有限坐标、boundary edge、non-manifold edge 与退化三角面均为 error；多个拓扑组件只作为 warning/事实。Gate U 的二维 touch/overlap 不等于 Gate W 的共享三角面组件，禁止据此自动 Union。验证不得调用修改 Mesh 的库方法；性能耗时仅为诊断数据，不参与验证事实的确定性比较。
+23. Gate X 只能导出 Gate W `error_count == 0` 的 Mesh；warning 必须在导出报告中可见。STL 顶点数值直接按 mm 写入，不能声称 STL 有单位元数据，也不能隐式缩放。输出默认拒绝覆盖；读回必须验证 20×10×2、孔洞与多组件，但真实切片和打印只能由已实际操作切片器/打印机的一方确认。
 
 ## 扩展 API
 

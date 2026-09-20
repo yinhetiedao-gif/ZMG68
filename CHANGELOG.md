@@ -1,5 +1,12 @@
 # 更新记录
 
+## Pattern Lab — Gate X：受制造检查约束的 Binary STL 导出（2026-09-20）
+
+- 新增 `STLExporter`、`STLExportResult` 与 `STLExportBlockedError`。只允许 Gate W 无 error 的 `ManufacturingMeshResult` 导出；warning（例如多组件）会明确记录但不自动阻止。
+- 默认使用 Binary STL；所有顶点数值原样按 mm 写入并在报告中声明 `units_assumption="mm"`。STL 无单位元数据，因此不进行任何隐式缩放。已有文件默认拒绝覆盖，需显式 `overwrite=True`。
+- 新增 STL 读回验证：仅在加载副本中重建 STL 丢失的完全相同坐标顶点索引，使封闭性/组件检查可靠；不修改源 Mesh 或 STL 文件，也不执行修复。
+- 验证 Rectangle 20×10×2、贯穿孔、多组件 warning、四类坏 Mesh 阻止、导出不改源 Mesh、真实 Pattern Lab 链路。生成手工切片文件 `work/gate-x-stl/gate_x_20x10x2_test.stl`；尚未声称已在切片器 GUI 验证。
+
 ## Pattern Lab — Gate W-Core：最小制造 Mesh 质量检查（2026-09-20）
 
 - 新增只读 `MeshValidator`、`MeshValidationIssue` 与 `MeshValidationReport`。它只消费 Gate V 的 `ManufacturingMeshResult`，报告有限坐标、Watertight、边界边、非流形边、面积退化面与 Mesh 拓扑组件；绝不读取二维设计、修复/处理 Mesh 或产生 STL。

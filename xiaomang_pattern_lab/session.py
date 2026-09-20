@@ -29,6 +29,7 @@ from .connectivity import ConnectivityAnalyzer, ConnectivityReport
 from .manufacturing_geometry import ManufacturingConversionResult, ManufacturingGeometryAdapter
 from .manufacturing_backend import ManufacturingBuildResult, ManufacturingBackend, ManufacturingMeshResult, TrimeshBackend
 from .mesh_validation import MeshValidationReport, MeshValidator
+from .stl_export import STLExportResult, STLExporter
 from .placement_assignment import (
     PLACEMENT_METADATA_KEY,
     ImportedElementSlotProvider,
@@ -1635,6 +1636,14 @@ class PatternLabSession:
         """Gate W reads an already-derived Mesh only; it never re-evaluates this session."""
 
         return (validator or MeshValidator()).validate(mesh_result)
+
+    def export_validated_stl(
+        self, mesh_result: ManufacturingMeshResult, output_path: str | Path, *, overwrite: bool = False,
+        exporter: STLExporter | None = None,
+    ) -> STLExportResult:
+        """Gate X uses the supplied Gate V Mesh only; it never rebuilds the document."""
+
+        return (exporter or STLExporter()).export(mesh_result, output_path, overwrite=overwrite)
 
     def _set_grid_element_geometry(
         self,

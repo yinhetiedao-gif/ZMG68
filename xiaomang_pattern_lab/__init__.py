@@ -23,6 +23,7 @@ from .manufacturing_geometry import (
 )
 from .manufacturing_backend import ManufacturingBackend, ManufacturingBuildResult, ManufacturingMeshResult, TrimeshBackend
 from .mesh_validation import MeshValidationIssue, MeshValidationReport, MeshValidator
+from .stl_export import STLExportBlockedError, STLExporter, STLExportResult
 
 __all__ = [
     "PatternLabSession", "ViewMode",
@@ -36,4 +37,5 @@ __all__ = [
     "ManufacturingConversionReport", "ManufacturingConversionResult", "ManufacturingGeometryAdapter",
     "ManufacturingBackend", "ManufacturingMeshResult", "ManufacturingBuildResult", "TrimeshBackend",
     "MeshValidationIssue", "MeshValidationReport", "MeshValidator",
+    "STLExportBlockedError", "STLExporter", "STLExportResult",
 ]

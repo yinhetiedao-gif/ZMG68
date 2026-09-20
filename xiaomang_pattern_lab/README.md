@@ -1,5 +1,16 @@
 # Xiaomang Pattern Lab / 小芒图案实验室
 
+## Gate X：受制造检查约束的 Binary STL 导出（2026-09-20）
+
+`STLExporter.export(mesh_result, path)` 会先运行 Gate W：出现任何 error 时不会创建 STL；只有
+warning（如多个独立组件）才允许导出并写进 `STLExportResult`。默认 Binary STL，已有文件默认拒绝
+覆盖。STL 格式没有单位字段，因此 Pattern Lab 明确约定其数值坐标按 **mm** 解释，绝不自动缩放。
+
+`STLExporter.reload_as_mesh_result(path)` 供读回验证使用。STL 不保存共享顶点索引，读回副本会仅按
+完全相同坐标恢复索引，便于 Gate W 验证封闭性和组件；该操作不会修改导出的字节或原 Mesh，也不是
+自动修复。手工切片验证样本位于 `work/gate-x-stl/gate_x_20x10x2_test.stl`，应在 Bambu Studio 或
+OrcaSlicer 中确认约 20 × 10 × 2 mm、Hole 和 Slice 结果。
+
 ## Gate W-Core：最小制造 Mesh 质量检查（2026-09-20）
 
 `MeshValidator.validate(mesh_result)` 只读取 Gate V 的派生 Mesh，返回有限坐标、封闭性、边界边、

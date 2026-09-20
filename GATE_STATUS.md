@@ -1,5 +1,14 @@
 # Gate 状态（2026-09-19）
 
+## Gate X — Validated Binary STL Export（2026-09-20）
+
+- Status: PASS — 完成后停止。仅完成 Gate W 通过 Mesh 的 Binary STL 序列化与读回验证；未进入 3MF、自动修复、3D Viewer、连接器、壁厚、打印机配置或新的制造算法。
+- 数据流：`ManufacturingMeshResult → MeshValidator → error 阻止 / warning 允许 → STLExporter → Binary STL`。任何 Gate W error 会在创建目标文件前抛出 `STLExportBlockedError`；多个独立组件仅写入 `multiple_disconnected_components` warning，不会自动桥接或合并。
+- 单位与写入：STL 无单位元数据；本项目将顶点数值原样以毫米解释，报告中固定 `units_assumption="mm"`，不执行 mm/m/inch/pixel 缩放。默认拒绝覆盖已有文件；只有显式 `overwrite=True` 才可替换。Binary STL 通过 Trimesh 序列化，原 Mesh 不被修改。
+- 读回：STL 原生不保存共享顶点索引；读回验证仅对新加载副本以完全相同的坐标重建索引，从而让 Gate W 正确检测文件拓扑。这不改变 STL 字节、不修改源 Mesh，也不是 tolerance merge 或自动修复。
+- 验证：Gate X 专项 6/6 PASS；与 Gate T/U/U.5/V/W 联合 53/53 PASS；完整 unittest 296/296 PASS（236.914 秒）；固定图自检 6/6 PASS；真实 Tk 冒烟 2/2 PASS。Rectangle 20×10×2mm、贯穿 Hole、多组件、无效 Mesh 阻止、只读/覆盖策略与真实 Pattern Lab 全链路均已覆盖。日志：`work/gate-x-stl/`。
+- 手工切片文件：`work/gate-x-stl/gate_x_20x10x2_test.stl`，Binary STL 684 bytes，读回 Bounds 为 `(0,0,0)..(20,10,2)`。尚未在 Bambu Studio / OrcaSlicer GUI 中实际切片；需用户手工确认尺寸、Hole 和 Slice 结果。
+
 ## Gate W-Core — Minimum Manufacturing Mesh Validation（2026-09-20）
 
 - Status: PASS — 完成后停止。只读取 Gate V 的 `ManufacturingMeshResult / Mesh` 并生成 `MeshValidationReport`；不进入 STL/3MF、自动修复、3D Viewer、连接器、壁厚或打印机配置。

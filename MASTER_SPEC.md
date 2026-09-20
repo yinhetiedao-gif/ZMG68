@@ -1,7 +1,7 @@
 # 小芒造物主规格（当前收缩阶段）
 
 版本：1.6.14（Gate V-MVP 已验收；安装包待在可访问构建依赖的桌面环境重新生成）  
-状态：`Reference Image → Editable 2D Geometry` 已具备制造二维边界、最小只读 Mesh 挤出与基础 Mesh 质量报告；STL、3MF、Mesh 修复与完整制造检查仍未开始。
+状态：`Reference Image → Editable 2D Geometry` 已具备制造二维边界、最小只读 Mesh 挤出、基础 Mesh 质量报告与受检 Binary STL 导出；3MF、Mesh 修复、完整制造检查和真实切片/打印验收仍未开始。
 
 ## 产品边界
 
@@ -66,5 +66,5 @@ P1 EditablePatternDocument
 P2 Geometry Cleanup  
 P3 Final 3D Build（Gate V-MVP 已通过：二维 Polygon/Hole → 最小 watertight Mesh）  
 P4 Manufacturing Validation（Gate W-Core 已通过基础 Watertight / topology / degeneracy 报告；壁厚和打印规则仍未启动）  
-P5 Validated STL（Gate X，未启动）  
+P5 Validated STL（Gate X 已通过自动读回；等待真实切片器/打印验收）  
 P6 Optional Third-Party Viewer（未启动）
