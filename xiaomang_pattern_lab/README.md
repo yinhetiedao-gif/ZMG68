@@ -1,5 +1,12 @@
 # Xiaomang Pattern Lab / 小芒图案实验室
 
+## Gate W-Core：最小制造 Mesh 质量检查（2026-09-20）
+
+`MeshValidator.validate(mesh_result)` 只读取 Gate V 的派生 Mesh，返回有限坐标、封闭性、边界边、
+非流形边、退化三角面和 Mesh 拓扑组件的结构化报告。它不会重新读取二维 Document，不调用修复、
+合并、法线修复或 Mesh process API，也不导出 STL。多个独立组件被报告为 warning，而不是自动判错；
+这与 Gate U 的二维几何接触是不同层级的事实。默认退化面阈值为 `1e-12 mm²`。
+
 ## Gate V-MVP：最小二维到三维制造 Mesh（2026-09-20）
 
 `PatternLabSession.build_manufacturing_mesh(height_mm=2.0)` 只消费 Gate U.5 输出的

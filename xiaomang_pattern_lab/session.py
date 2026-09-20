@@ -27,7 +27,8 @@ from .evaluation import evaluate_pattern_document, materialize_evaluated_element
 from .geometry_validation import GeometryValidationReport, GeometryValidator
 from .connectivity import ConnectivityAnalyzer, ConnectivityReport
 from .manufacturing_geometry import ManufacturingConversionResult, ManufacturingGeometryAdapter
-from .manufacturing_backend import ManufacturingBuildResult, ManufacturingBackend, TrimeshBackend
+from .manufacturing_backend import ManufacturingBuildResult, ManufacturingBackend, ManufacturingMeshResult, TrimeshBackend
+from .mesh_validation import MeshValidationReport, MeshValidator
 from .placement_assignment import (
     PLACEMENT_METADATA_KEY,
     ImportedElementSlotProvider,
@@ -1627,6 +1628,13 @@ class PatternLabSession:
         conversion = self.adapt_manufacturing_geometry()
         mesh_result = (backend or TrimeshBackend()).extrude(conversion.geometry, height_mm)
         return ManufacturingBuildResult(conversion=conversion, mesh_result=mesh_result)
+
+    def validate_manufacturing_mesh(
+        self, mesh_result: ManufacturingMeshResult, *, validator: MeshValidator | None = None,
+    ) -> MeshValidationReport:
+        """Gate W reads an already-derived Mesh only; it never re-evaluates this session."""
+
+        return (validator or MeshValidator()).validate(mesh_result)
 
     def _set_grid_element_geometry(
         self,

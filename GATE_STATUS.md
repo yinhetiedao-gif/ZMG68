@@ -1,5 +1,12 @@
 # Gate 状态（2026-09-19）
 
+## Gate W-Core — Minimum Manufacturing Mesh Validation（2026-09-20）
+
+- Status: PASS — 完成后停止。只读取 Gate V 的 `ManufacturingMeshResult / Mesh` 并生成 `MeshValidationReport`；不进入 STL/3MF、自动修复、3D Viewer、连接器、壁厚或打印机配置。
+- 数据流：`Manufacturing2DGeometry → ManufacturingBackend → ManufacturingMeshResult → MeshValidator → MeshValidationReport`。`MeshValidator` 不读取 PatternDocument、Element、Grid、Field、Modifier、Canvas 或 SVG，不会调用任何 Trimesh repair/process API。
+- 检查：有限坐标、拓扑 Watertight、boundary edge、non-manifold edge、显式 mm² 面积阈值（默认 `1e-12`）的退化三角面，以及按共享面边统计的 Mesh 拓扑组件。多组件是 warning/事实，绝不默认认定错误；它与 Gate U 的二维 touch/overlap 结论不同。
+- 验证：Gate W 专项 9/9 PASS；与 Gate T/U/U.5/V 联合 47/47 PASS；完整 unittest 290/290 PASS（181.661 秒）；固定图自检 6/6 PASS；真实 Tk 冒烟 2/2 PASS。500 个独立圆的真实挤出 Mesh 为 16,000 顶点 / 30,000 面 / 500 个拓扑组件，验证约 599.593ms；没有发生 Mesh、PatternDocument、Undo 或 dirty 修改。日志：`work/gate-w-core/full-regression-final.stderr.log`、`self-test-final.log`、`tk-smoke-final.log`、`performance-500-elements.log`。
+
 ## Gate V-MVP — Minimum Manufacturing Extrusion Backend（2026-09-20）
 
 - Status: PASS — 完成后停止。仅建立 `Manufacturing2DGeometry → ManufacturingBackend → derived Mesh`；尚未引入 STL/3MF、3D Viewer、全局 Union/修复/桥接或制造检查 Gate W。

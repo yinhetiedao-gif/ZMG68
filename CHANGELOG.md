@@ -1,5 +1,11 @@
 # 更新记录
 
+## Pattern Lab — Gate W-Core：最小制造 Mesh 质量检查（2026-09-20）
+
+- 新增只读 `MeshValidator`、`MeshValidationIssue` 与 `MeshValidationReport`。它只消费 Gate V 的 `ManufacturingMeshResult`，报告有限坐标、Watertight、边界边、非流形边、面积退化面与 Mesh 拓扑组件；绝不读取二维设计、修复/处理 Mesh 或产生 STL。
+- 多个独立 Mesh 组件仅标记 warning，不默认视为失败；二维 Gate U 的几何接触与 Gate W 的三角面拓扑组件被明确分开。
+- 增加合法 Rectangle/Circle/Star/Hole/多组件、开口 Mesh、非流形边、退化面、NaN/Inf、真实 Pattern Lab、只读确定性及依赖 import 覆盖。500 个独立圆的 30,000 面 Mesh 验证约 599.593ms。
+
 ## Pattern Lab — Gate V-MVP：最小制造挤出后端（2026-09-20）
 
 - 新增可替换的 `ManufacturingBackend` 与本地 `TrimeshBackend`：仅将 U.5 的只读、毫米 `Manufacturing2DGeometry` 挤出为 Z=`0..height_mm` 的派生封闭 Mesh；默认高度 2mm，拒绝零、负数、NaN 和 Infinity。

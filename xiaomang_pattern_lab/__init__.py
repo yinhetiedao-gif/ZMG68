@@ -22,6 +22,7 @@ from .manufacturing_geometry import (
     ManufacturingGeometryAdapter, ManufacturingPolygon, ManufacturingSkip,
 )
 from .manufacturing_backend import ManufacturingBackend, ManufacturingBuildResult, ManufacturingMeshResult, TrimeshBackend
+from .mesh_validation import MeshValidationIssue, MeshValidationReport, MeshValidator
 
 __all__ = [
     "PatternLabSession", "ViewMode",
@@ -34,4 +35,5 @@ __all__ = [
     "Manufacturing2DGeometry", "ManufacturingPolygon", "ManufacturingSkip",
     "ManufacturingConversionReport", "ManufacturingConversionResult", "ManufacturingGeometryAdapter",
     "ManufacturingBackend", "ManufacturingMeshResult", "ManufacturingBuildResult", "TrimeshBackend",
+    "MeshValidationIssue", "MeshValidationReport", "MeshValidator",
 ]
