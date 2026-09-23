@@ -1,5 +1,15 @@
 # 更新记录
 
+## Xiaomang Pattern Lab v0.1-alpha — 实物制造验证冻结（2026-09-23）
+
+- 仅文档发布冻结：产品代码仍为 d1ed14e，最终文档提交由 v0.1-alpha 标签及 backup/v0.1-alpha-physical-validated 保存。
+- 制造链 Design → Parametric → Manufacturing2D → 3D Mesh → Validation → STL → Bambu Studio → Physical Print：PHYSICALLY VALIDATED。
+- Physical Validation 01：20×10×2mm 校准块，导入/切片/实物打印/尺寸 PASS（用户反馈）。
+- Physical Validation 02：Grid + Wave Field + Size Modifier 三星试件，约57.216907×19.899187×2mm；导入/切片/实物打印/尺寸 PASS（用户反馈，未提供独立计量记录）。
+- 第二个样件为三个独立组件，不代表连通面料；没有自动融合、桥接或修复。
+- 完成能力与暂缓能力已在 README 分开，历史旧应用路线在 ROADMAP 中明确隔离。
+- 本次无产品源码、UI、依赖或打包变更；冻结测试详情见 GATE_STATUS.md 顶部。
+
 ## Pattern Lab — Gate X：受制造检查约束的 Binary STL 导出（2026-09-20）
 
 - 新增 `STLExporter`、`STLExportResult` 与 `STLExportBlockedError`。只允许 Gate W 无 error 的 `ManufacturingMeshResult` 导出；warning（例如多组件）会明确记录但不自动阻止。

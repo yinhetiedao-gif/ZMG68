@@ -1,5 +1,20 @@
 # Gate 状态（2026-09-19）
 
+## v0.1-alpha — Physical Manufacturing Validated Freeze（2026-09-23）
+
+- 制造闭环：**PHYSICALLY VALIDATED** — Design → Parametric → Manufacturing2D → 3D Mesh → Validation → STL → Bambu Studio → Physical Print。
+- 起始 HEAD / 产品代码：d1ed14ed6e92fcacffb4f660e0332a57a5936121；起始工作区干净；分支 feature/gate-x-stl。
+- 本次仅更新 GATE_STATUS.md / ROADMAP.md / CHANGELOG.md / README.md。以下历史 Gate 的“尚未开始”均指当时状态，不覆盖本节当前结论。
+- Physical Validation 01：20×10×2mm 校准块，Bambu Studio、Slice、Physical Print、Physical Dimensions 全部 PASS，证据来源为用户反馈。文件 work/gate-x-stl/gate_x_20x10x2_test.stl；SHA-256 `75c193b090b50283f3f96264c381968c44542b67fa851c811baa778390a6b77f`。
+- Physical Validation 02：真实 Grid + 内置 star + WaveField + SizeModifier，3 个名义尺寸10/16/22mm星形；实物整体目标57.216907×19.899187×2mm。用户先确认导入/显示尺寸，再确认打印成型，并在冻结请求中确认切片和实物尺寸 PASS。未提供独立测量数值、照片、喷嘴/材料/打印参数，不声称代理完成实物测试。
+- PV02 自动化：T error=0；U component=3、isolated=3（预期）；U.5 converted=3、skipped=0；V 60顶点/108面；W watertight、非流形/退化/边界边均0；X 5484字节 Binary STL、读回保持3组件及尺寸。项目保存/重开等价，source integrity PASS。
+- PV02 文件：work/physical-validation-02/physical_validation_02_real_pattern.stl；SHA-256 `1d846c4bf8f8086862ae1efce578ef60fba5582043fbbea6ec84496ef062f7e3`。工程、SVG、完整逐项数据和日志位于同目录（本机工作产物，Git不包含）。
+- 范围限制：验证限于两件样件；三星为独立试件，不是连通面料。尚无最小壁厚、自动修复/连接、3MF、集成3D预览、打印配置或生产Web UI保证。
+- 冻结测试：T/U/U.5/V/W/X 53/53 PASS；Full Regression 296/296 PASS（189.199秒，无skip）；Fixed Pattern 6/6 PASS；Tk Smoke 2/2 PASS（6.716秒）。本轮日志：work/alpha-freeze/{targeted.log,full.stderr.log,self-test.log,tk.log}。
+- 冻结引用：文档提交后创建 v0.1-alpha 标签与 backup/v0.1-alpha-physical-validated，二者必须指向同一最终冻结提交；创建前已确认同名引用不存在，禁止覆盖。使用 `git rev-parse 'v0.1-alpha^{commit}'` 获取最终提交。
+- 安全回退（仓库根，新目录必须不存在）：`git worktree add --detach ../PatternLab-v0.1-alpha-recovery v0.1-alpha`。保留当前目录；运行时需重新配置。
+- 完成冻结后 STOP，不进入 v0.2。
+
 ## Gate X — Validated Binary STL Export（2026-09-20）
 
 - Status: PASS — 完成后停止。仅完成 Gate W 通过 Mesh 的 Binary STL 序列化与读回验证；未进入 3MF、自动修复、3D Viewer、连接器、壁厚、打印机配置或新的制造算法。

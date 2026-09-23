@@ -1,5 +1,19 @@
 # Roadmap
 
+## 当前活跃项目：Xiaomang Pattern Lab（2026-09-23）
+
+- [x] v0.1-alpha 制造闭环：Design → Parametric → Manufacturing2D → 3D Mesh → Validation → STL → Bambu Studio → Physical Print。
+- [x] Gate T/U/U.5/V/W/X；两次实物验证 PASS（用户确认，范围见 GATE_STATUS.md）。
+- [ ] v0.2 计划：Manufacturing UI，将现有制造 API 接入用户操作流程。
+- [ ] Lightweight 3D Preview，仅显示最终制造实体。
+- [ ] Basic Manufacturing Warnings，孤立组件、过细结构与最小壁厚提示，不自动修复。
+- [ ] Web Prototype：Web UI → Python API → 现有 Engine；先验证上传、参数调整、生成及 STL 导出。
+- [ ] 后续独立规划：3MF / AI / 自动连接 / 高级制造。
+
+本次仅冻结 v0.1-alpha，不执行任何 v0.2 项目。产品代码基线 d1ed14e；最终冻结提交以 v0.1-alpha tag 为准。
+
+## 旧版小芒造物历史路线（不是当前 Pattern Lab 完成清单）
+
 - [x] **P0：图片 STL 表面质量** — 连续 SDF、圆角厚度场、独立最终网格、四档质量和基本 STL 拓扑审计。
 - [x] **P1：小芒造物 1.6 UI** — 浅灰、白色、稳重蓝色的清晰双栏工作台与中文控件状态。
 - [x] **P2：点线面 Generator / 图片分析** — 可解释特征分析、半调/点阵/点线面生成、完整参数、实时预览、变体和 SVG/PNG/DXF 输出。

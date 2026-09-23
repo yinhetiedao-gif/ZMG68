@@ -1,8 +1,40 @@
 # Xiaomang Pattern Lab / 小芒图案实验室（当前活跃项目）
 
+## v0.1-alpha — Physical Manufacturing Validated Freeze（2026-09-23）
+
+End-to-end manufacturing pipeline: **PHYSICALLY VALIDATED**。
+
+`Design → Parametric → Manufacturing2D → 3D Mesh → Validation → STL → Bambu Studio → Physical Print`
+
+代码基线：`d1ed14e`；最终冻结版本以 `v0.1-alpha` 标签与
+`backup/v0.1-alpha-physical-validated` 分支指向的提交为准。本次只更新发布文档，不新增功能、不重新打包。
+
+### 已完成（当前 Pattern Lab）
+
+- Image / Geometry input、可编辑二维元素及参数化设计。
+- PatternDocument 项目工作流、Field / Modifier 系统。
+- Geometry Validation、Connectivity Analysis、Manufacturing2DGeometry。
+- Extrusion、Mesh Validation、Validated Binary STL Export。
+- 两次实物制造验收：20×10×2mm 校准块；Grid + Wave Field + Size Modifier 三星试件。
+
+### 尚未实现／不属于本次发布
+
+- production-ready Web UI、integrated 3D preview、3MF。
+- automatic mesh repair、minimum wall thickness、printer/material profiles。
+- automatic connectors、AI design assistant。
+- 面向普通用户的完整一键制造 UI 尚待产品化；已验证的制造能力主要通过现有内部 API/验证流程调用。
+
+两次 Bambu Studio 导入、切片、打印和尺寸 PASS 均依据用户反馈（第二次在本次冻结请求中确认尺寸）；不是代理操作打印机或独立计量。未提供打印配置、实物照片或测量公差，因此不推广为任意图案/材料的打印保证。第二次为三个独立星形，不是连通面料。
+
+验收与测试记录见 [GATE_STATUS.md](GATE_STATUS.md)，下一阶段仅为计划，见 [ROADMAP.md](ROADMAP.md)。
+源码标签不包含被 Git 忽略的 `.venv`、`.runtime`、`work`、build/dist 或本机依赖，也不等于新的安装包。
+
+安全回退：在仓库根执行 `git worktree add --detach ../PatternLab-v0.1-alpha-recovery v0.1-alpha`。
+目标目录必须不存在；新目录需按项目说明配置运行时。不要覆盖当前工作区或使用强制 reset。
+
 唯一当前入口为 `xiaomang_pattern_lab.main`；使用说明见
 [Pattern Lab README](xiaomang_pattern_lab/README.md)。Gate S 补齐文件菜单、保存点、
-未保存确认、最近项目、独立恢复副本及参考图重定位。没有修改 PACK-1 打包系统或新增 3D。
+未保存确认、最近项目、独立恢复副本及参考图重定位。其后 T～X 已完成上述制造后端；本次没有修改 PACK-1 打包系统。
 阶段验证与回退点见 [GATE_STATUS.md](GATE_STATUS.md)。
 
 以下为旧版小芒造物历史文档，不代表当前实验室新增了对应功能。
