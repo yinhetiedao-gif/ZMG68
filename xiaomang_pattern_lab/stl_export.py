@@ -47,6 +47,17 @@ class STLExporter:
     def __init__(self, *, validator: MeshValidator | None = None) -> None:
         self.validator = validator or MeshValidator()
 
+    def export_bytes(self, mesh_result: ManufacturingMeshResult) -> bytes:
+        """Gate W-validated Binary STL bytes for a transport with no file path.
+
+        The supplied manufacturing Mesh is serialized as-is; no rebuild,
+        repair, scaling, or mutation occurs.
+        """
+        report = self.validator.validate(mesh_result)
+        if report.error_count:
+            raise STLExportBlockedError(report)
+        return _binary_stl_bytes(mesh_result.mesh)
+
     def export(
         self, mesh_result: ManufacturingMeshResult, output_path: str | Path, *, overwrite: bool = False,
     ) -> STLExportResult:

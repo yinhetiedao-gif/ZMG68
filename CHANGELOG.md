@@ -1,5 +1,13 @@
 # 更新记录
 
+## Xiaomang Pattern Lab WM3 — FastAPI Headless Server v1（2026-09-28）
+
+- 增加只绑定本机的最小 FastAPI 服务：Health、Contract、Evaluate、同步 Manufacturing Build 与按 result_id 下载 Binary STL。
+- HTTP 层复用 WM2 DTO、WM1 ManufacturingService 和 Gate X STLExporter；STL 字节来自同一次最终制造 Mesh，没有第二条制造链或重新求值。
+- 增加服务器端 AssetResolver 边界、32 项/30 分钟的 Alpha 内存结果缓存、统一 ErrorDTO HTTP 映射、2 MiB 请求限制及本机开发 CORS 白名单。
+- 可选 Web 依赖与桌面 requirements 分开；没有 React、Three.js、数据库、上传或后台队列。
+- WM3专项8/8、制造/桌面/前序 Gate 联合92/92、完整回归335/335、固定图6/6、Tk冒烟2/2通过；真实本机 Uvicorn `/health` 返回200。
+
 ## Xiaomang Pattern Lab WM2 — Versioned Web Contract / DTO v1（2026-09-28）
 
 - 增加无 UI/HTTP 依赖的 `contracts` 边界；所有顶层 DTO 使用集中定义的 `schema_version="1.0"`，未知版本与 NaN/Inf 均明确拒绝。

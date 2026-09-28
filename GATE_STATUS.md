@@ -1,5 +1,14 @@
 # Gate 状态（2026-09-19）
 
+## WM3 — FastAPI Headless Server v1（2026-09-28）
+
+- Status: PASS — WM3 专项8/8；WM3+WM2+WM1+M1/M2+T/U/U.5/V/W/X 联合92/92；最终 Full Regression 335/335（216.496秒）；Fixed Pattern 6/6；Tk Smoke 2/2。
+- 真实打印类型经 TestClient Build 保持 57.2169×19.8992×2mm、3 组件与 Watertight；下载 STL 读回等价。测试进程内观测：打印 Build 约 14～16ms；Circle Build 约 11～195ms（首次运行/环境抖动）；Evaluate 约 2ms；STL 响应约 1～2ms。数据只代表小样、本机，不是生产性能承诺。
+- 另以真实 Uvicorn 本机进程验证 `GET /health` 返回 200。当前 PowerShell 默认代理访问 localhost 返回 502；`curl.exe --noproxy '*'` 可正常连接。这是本机代理环境，不是 API 健康检查失败。
+- HTTP Adapter 已接 WM2 Contract 与 WM1 ManufacturingService；端点为 Health、Contract、Evaluate、同步 Build、按结果 ID 下载同一份 Binary STL。Gate X `export_bytes()` 在同一最终 Mesh 上重复 Gate W 校验，不重新建模。
+- Alpha Store 上限32项、TTL30分钟；服务器重启即失效。资产仅由服务器端 resolver 提供，默认不解析；无上传接口。请求体限制2 MiB，本机开发 CORS 白名单，统一中文 ErrorDTO。
+- 运行 `python -m xiaomang_pattern_lab.web` 只绑定 127.0.0.1:8765；`/docs` 和 `/openapi.json` 可用。桌面依赖未强制引入 FastAPI；没有 React、GLB、数据库、队列、鉴权或公网安全保证。
+
 ## WM2 — Versioned Web Contract / DTO v1（2026-09-28）
 
 - Status: PASS — WM2 专项10/10、WM2+WM1+M1/M2+T/U/U.5/V/W/X联合84/84、Full Regression 327/327 PASS（188.986秒）、Fixed Pattern 6/6、Tk Smoke 2/2 PASS。日志位于 `work/wm2-web-contract-v1/`。
