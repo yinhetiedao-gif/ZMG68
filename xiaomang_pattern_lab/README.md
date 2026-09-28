@@ -1,5 +1,12 @@
 # Xiaomang Pattern Lab / 小芒图案实验室
 
+## v0.2-M2：只读制造 3D 预览（2026-09-28）
+
+制造窗口的“检查并生成”成功后会启用“3D 预览”。预览直接读取同一份
+`ManufacturingMeshResult` 的不可写顶点/三角面复制，支持 Orbit、Zoom、Fit 和 Reset；
+显示 XYZ 毫米尺寸及组件数，Z 为挤出厚度方向。设计或厚度变化会使旧预览失效。
+它不会修改 PatternDocument、正式 Mesh、Undo/Dirty 或 STL 输出，也不会 Union 多组件或填补孔洞。
+
 ## Gate X：受制造检查约束的 Binary STL 导出（2026-09-20）
 
 `STLExporter.export(mesh_result, path)` 会先运行 Gate W：出现任何 error 时不会创建 STL；只有

@@ -1,5 +1,15 @@
 # Gate 状态（2026-09-19）
 
+## v0.2-M2 — Lightweight Manufacturing 3D Preview（2026-09-28）
+
+- Status: PASS — 只读轻量预览消费 M1 已生成的同一份 `ManufacturingMeshResult`；没有读取 PatternDocument、重新建模、修复、Union、移动组件或介入 STL Pipeline。
+- UI：制造检查通过后启用“3D 预览”；初始 45°/28° 斜视角，Z 向上，支持左键 Orbit、滚轮 Zoom、适合窗口与重置视角，并显示 XYZ 毫米尺寸和组件数。无有效 Mesh 时按钮禁用。
+- Renderer：使用既有 NumPy + Pillow 的只读软件投影副本，未增加依赖；正式 Mesh 顶点/三角面不变，STL 始终直接读取原 `ManufacturingMeshResult`。20×10×2mm、贯穿孔和多组件均已视觉/数据验证。
+- 状态：厚度或设计变化会将旧预览标记 stale；重新“检查并生成”会关闭旧窗口并以新制造 Mesh 打开。Orbit/Zoom/窗口尺寸变化不会重跑 Evaluate、制造适配、挤出或 Mesh 校验。
+- 真实图案：Physical Validation 02 类型保持57.2169×19.8992×2mm和3个独立组件；预览前后 Binary STL SHA-256 一致。500圆/30,000面完整预览约135ms（800×600，本机观测），未降采样。
+- 验证：M2专项10/10、M1+M2+T/U/U.5/V/W/X联合70/70、Full Regression 313/313 PASS（170.734秒）、Fixed Pattern 6/6、Tk Smoke 2/2 PASS。渲染图及日志位于 `work/v0.2-m2-3d-preview/`。
+- 范围：没有3D编辑、实时参数化3D、材质、Boolean、Repair、3MF、壁厚、自动连接或M3制造风险分析。Windows Computer Use 原生应用接口在本会话不可用，因此真实鼠标视觉交互以 Tk 回调自动化加静态渲染人工检查覆盖，不声称完成外部GUI自动点击。
+
 ## v0.2-M1 — Integrated Manufacturing Workflow UI（2026-09-28）
 
 - 基线：v0.1-alpha / bb76f299f29f09cf9a7e2b3bb3d9dbd244e5a90b；预备备份 `backup/pre-v0.2-m1`；开发分支 `feature/v0.2-m1-manufacturing-ui`。

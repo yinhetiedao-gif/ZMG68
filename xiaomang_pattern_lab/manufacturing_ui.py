@@ -12,6 +12,7 @@ import traceback
 from .manufacturing_backend import ManufacturingBuildResult
 from .manufacturing_geometry import ManufacturingConversionResult
 from .mesh_validation import MeshValidationReport
+from .mesh_preview import MeshPreviewDialog, MeshPreviewModel
 
 
 def parse_height_mm(value: str) -> float:
@@ -101,13 +102,14 @@ class ManufacturingWorkflow:
 
 
 class ManufacturingDialog(tk.Toplevel):
-    """User-facing summary and export controls; there is deliberately no 3D viewer."""
+    """User-facing checks, readonly manufacturing preview, and STL export."""
 
     def __init__(self, parent, session, *, on_close=None):
         super().__init__(parent)
         self.parent, self.session, self.on_close = parent, session, on_close
         self.workflow = ManufacturingWorkflow()
         self.result: ManufacturingWorkflowResult | None = None
+        self._preview_dialog: MeshPreviewDialog | None = None
         self.height_var = tk.StringVar(value="2.0")
         self.status_var = tk.StringVar(value="尚未检查。请设置厚度，然后点击“检查并生成”。")
         self.geometry_var = tk.StringVar(value="Geometry：—")
@@ -148,16 +150,23 @@ class ManufacturingDialog(tk.Toplevel):
         actions = ttk.Frame(root); actions.pack(fill="x")
         self.export_button = ttk.Button(actions, text="导出 STL", command=self.export_stl, state="disabled")
         self.export_button.pack(side="right")
+        self.preview_button = ttk.Button(actions, text="3D 预览", command=self.open_preview, state="disabled")
+        self.preview_button.pack(side="right", padx=(0, 8))
         ttk.Button(actions, text="关闭", command=self.close).pack(side="right", padx=(0, 8))
 
     def _height_changed(self, *_args) -> None:
         if self.result is not None:
+            self._mark_preview_stale()
             self.result = None
             self.export_button.configure(state="disabled")
+            self.preview_button.configure(state="disabled")
             self.status_var.set("厚度已变化，请重新检查并生成。")
 
     def prepare(self) -> ManufacturingWorkflowResult | None:
+        self._mark_preview_stale("已重新生成制造模型，请重新打开 3D 预览。")
+        self._close_preview()
         self.export_button.configure(state="disabled")
+        self.preview_button.configure(state="disabled")
         try:
             result = self.workflow.prepare(self.session, parse_height_mm(self.height_var.get()))
         except Exception as error:
@@ -169,7 +178,40 @@ class ManufacturingDialog(tk.Toplevel):
         self.result = result
         self._show_result(result)
         self.export_button.configure(state="normal" if result.ready else "disabled")
+        self.preview_button.configure(state="normal" if result.ready else "disabled")
         return result
+
+    def open_preview(self) -> None:
+        result = self.result
+        if result is None or result.build is None or not result.ready:
+            self.status_var.set("请先完成制造检查并生成有效 Mesh。")
+            return
+        if not self.workflow.is_current(self.session, result, self.height_var.get()):
+            self.export_button.configure(state="disabled")
+            self.preview_button.configure(state="disabled")
+            self.status_var.set("当前设计或厚度已变化，请重新检查并生成。")
+            self._mark_preview_stale()
+            return
+        dialog = self._preview_dialog
+        if dialog is not None and dialog.winfo_exists():
+            dialog.lift(); dialog.focus_force(); return
+        model = MeshPreviewModel.from_manufacturing_result(result.build.mesh_result)
+        self._preview_dialog = MeshPreviewDialog(
+            self, model,
+            is_stale=lambda: not self.workflow.is_current(self.session, result, self.height_var.get()),
+            on_close=lambda: setattr(self, "_preview_dialog", None),
+        )
+
+    def _mark_preview_stale(self, message: str = "设计或厚度已修改，请重新生成制造模型。") -> None:
+        dialog = self._preview_dialog
+        if dialog is not None and dialog.winfo_exists():
+            dialog.mark_stale(message)
+
+    def _close_preview(self) -> None:
+        dialog = self._preview_dialog
+        if dialog is not None and dialog.winfo_exists():
+            dialog.close()
+        self._preview_dialog = None
 
     def _show_result(self, result: ManufacturingWorkflowResult) -> None:
         g, c, a, m = result.geometry_report, result.connectivity_report, result.conversion.report, result.mesh_report
@@ -255,6 +297,7 @@ class ManufacturingDialog(tk.Toplevel):
         self.details.configure(state="disabled")
 
     def close(self) -> None:
+        self._close_preview()
         if self.on_close:
             self.on_close()
         self.destroy()

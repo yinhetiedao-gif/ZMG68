@@ -1,5 +1,13 @@
 # 更新记录
 
+## Xiaomang Pattern Lab v0.2-M2 — Lightweight Manufacturing 3D Preview（2026-09-28）
+
+- 制造窗口新增“3D 预览”；只消费“检查并生成”得到的同一份最终制造 Mesh，支持 Orbit、Zoom、适合窗口与重置视角。
+- 显示 XYZ 毫米尺寸、组件数和 Z-up 方向；多个实体保持原位置，贯穿孔不会被预览填死。
+- 预览使用 NumPy + Pillow 的不可写复制，不新增依赖、不修改正式 Mesh，也不参与 STL 序列化；预览前后 STL 字节一致。
+- 厚度或二维设计变化会使预览失效，必须重新生成；本阶段没有实时3D、编辑、Union、修复、3MF或制造风险分析。
+- 新增10项M2测试；完整回归313/313、固定图6/6、Tk冒烟2/2通过。
+
 ## Xiaomang Pattern Lab v0.2-M1 — Integrated Manufacturing Workflow UI（2026-09-28）
 
 - 新增顶部“制造”入口及轻量独立窗口：厚度、检查并生成、制造摘要、详情、导出 STL。
