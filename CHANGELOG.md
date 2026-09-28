@@ -1,5 +1,13 @@
 # 更新记录
 
+## Xiaomang Pattern Lab WM2 — Versioned Web Contract / DTO v1（2026-09-28）
+
+- 增加无 UI/HTTP 依赖的 `contracts` 边界；所有顶层 DTO 使用集中定义的 `schema_version="1.0"`，未知版本与 NaN/Inf 均明确拒绝。
+- 直接包装现有 PatternDocument 项目格式，增加 document ID/revision、显式资产引用、毫米最终几何与 Bounds、验证/连通/制造报告和稳定制造结果 ID。
+- 本机参考图/ImageField 路径不会进入 JSON；通过 asset_id 和服务端绑定恢复。WM2 尚无资产存储和 HTTP API。
+- 专项测试覆盖旧项目、Composite/Modifier/Replacement/Random 富状态、真实打印三星模型、Fresh Import 依赖与传输安全。
+- WM2专项10/10、完整回归327/327、固定图6/6、Tk冒烟2/2通过。
+
 ## Xiaomang Pattern Lab WM1 — Headless Manufacturing Application Service（2026-09-28）
 
 - 将原 Tk 制造窗口中的 T→X 业务编排提取为无 UI 依赖的 `ManufacturingService`，桌面版与未来 API 可复用同一服务。

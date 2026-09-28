@@ -1,5 +1,13 @@
 # Gate 状态（2026-09-19）
 
+## WM2 — Versioned Web Contract / DTO v1（2026-09-28）
+
+- Status: PASS — WM2 专项10/10、WM2+WM1+M1/M2+T/U/U.5/V/W/X联合84/84、Full Regression 327/327 PASS（188.986秒）、Fixed Pattern 6/6、Tk Smoke 2/2 PASS。日志位于 `work/wm2-web-contract-v1/`。
+- `xiaomang_pattern_lab.contracts` 定义唯一 `"1.0"` Web schema、Document/Evaluate/Manufacturing/Artifact/Error DTO、毫米 Bounds 和 Engine Report Mappers；没有 HTTP 或新持久设计模型。
+- `PatternDocumentDTO.document` 复用正式 `PatternDocument.to_dict()/from_dict()` 与项目迁移入口；document ID/revision 属于传输层。参考图和 Image Field 路径使用显式 asset_id 绑定，避免本机路径泄露。
+- `manufacturing_result_id` 由 canonical 文档状态、revision 和高度生成，Service snapshot 必须与响应文档匹配；响应不携带 Trimesh、Shapely 或 Tk 对象。
+- 限制：资产上传/解析、真正 revision 存储与 HTTP 冲突、GLB、服务器缓存均属于后续 WM；Image Field 必须重新绑定真实资产才可重现取样。详见 `docs/WEB_CONTRACT_V1.md`。
+
 ## WM1 — Headless Application Service Extraction（2026-09-28）
 
 - Status: PASS — 制造业务编排已从 Tk 窗口抽到 `xiaomang_pattern_lab.manufacturing_service.ManufacturingService`；依赖方向固定为 `Desktop UI / future API → Application Service → existing T/U/U.5/V/W/X engine`。

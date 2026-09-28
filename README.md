@@ -1,5 +1,9 @@
 # Xiaomang Pattern Lab / 小芒图案实验室（当前活跃项目）
 
+## WM2 — Web Contract / DTO v1
+
+新增版本化 JSON 协议层，供未来浏览器与现有 Python 应用服务交换 PatternDocument、二维求值几何、制造验证和 STL 产物信息。唯一设计事实仍是正式 PatternDocument 项目格式；协议仅负责传输。详细字段、毫米坐标、revision、资产引用与错误码见 [WEB_CONTRACT_V1.md](docs/WEB_CONTRACT_V1.md)。目前没有 Web 服务器或浏览器界面。
+
 ## WM1 — Headless Manufacturing Application Service
 
 当前桌面制造窗口不再自行组织制造步骤，而是调用无 Tk 依赖的 `ManufacturingService`。唯一主链保持 `PatternDocument → Evaluate → Gate T → Gate U → U.5 → Gate V → Gate W → Gate X`；桌面 UI 和未来 API 将复用同一业务服务。服务返回同一份制造 Mesh 给桌面预览和 STL 导出，操作仍为只读 Derived Operation，不改变工程、Undo 或 Dirty。
