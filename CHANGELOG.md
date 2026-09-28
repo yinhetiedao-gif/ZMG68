@@ -1,5 +1,12 @@
 # 更新记录
 
+## Xiaomang Pattern Lab WM5 — Web 2D Viewer / Editor Foundation（2026-09-28）
+
+- 沿用正式 PatternDocument JSON 和 WM2 DTO，本地浏览器读取文件后调用 WM3 `/api/v1/evaluate`；无第二套前端求值算法。
+- SVG 画布显示 WM3 当前五种几何（圆、椭圆、矩形、路径、实心区域），保留 evenodd 孔洞；统一毫米世界坐标转换，支持适合窗口、缩放、平移、选择及只读检查器。
+- 仅对明确对应自由源元素的最终对象允许直接拖动。拖动中只做本地临时变换，松开后一次文档 revision 与一次后端求值；取消拖动不提交。参数化或派生结果保持只读。
+- 旧项目缺少毫米映射时要求显式输入；已知本机资产路径不上传到后端并提示效果限制。未实现网页保存、撤销、参数控制、图片上传、制造或三维预览。
+
 ## Xiaomang Pattern Lab WM4 — React Web Shell（2026-09-28）
 
 - 增加独立 `web/` React + TypeScript + Vite 工作区，显示项目栏、左右侧栏、中央空白画布和底部设计/制造/三维预览模式。

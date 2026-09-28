@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "canvas": {
+    "width": 50,
+    "height": 50,
+    "unit": "mm",
+    "mm_per_unit": 1,
+    "origin_x": 0,
+    "origin_y": 0
+  },
+  "reference": {
+    "source_path": "",
+    "visible": false,
+    "preprocessing": {},
+    "metadata": {}
+  },
+  "elements": [
+    {
+      "id": "ring-1",
+      "type": "filled_region",
+      "x": 25,
+      "y": 25,
+      "width": 30,
+      "height": 30,
+      "rotation": 0,
+      "visible": true,
+      "style": {"fill": "#000000", "stroke": "none", "fill-rule": "evenodd"},
+      "group_id": null,
+      "metadata": {},
+      "path_data": "M10 10H40V40H10Z M20 20H30V30H20Z",
+      "source_transform": "",
+      "base_x": 25,
+      "base_y": 25,
+      "base_width": 30,
+      "base_height": 30
+    }
+  ],
+  "groups": [],
+  "transforms": {
+    "ring-1": {"element_id": "ring-1", "x": 25, "y": 25, "rotation": 0, "scale_x": 1, "scale_y": 1}
+  },
+  "metadata": {},
+  "fields": [],
+  "modifiers": []
+}

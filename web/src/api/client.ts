@@ -26,7 +26,7 @@ export class ContractMismatchError extends Error {
 
 type FetchLike = typeof fetch
 
-function apiBaseUrl(): string {
+export function apiBaseUrl(): string {
   // The local development URL is supplied by .env.development; production
   // deployments must explicitly set VITE_API_BASE_URL at build time.
   return (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/+$/, '')

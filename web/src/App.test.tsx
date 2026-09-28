@@ -23,9 +23,9 @@ describe('WM4 application shell', () => {
     expect(screen.getByLabelText('左侧工具栏')).toBeInTheDocument()
     expect(screen.getByLabelText('中央工作区')).toBeInTheDocument()
     expect(screen.getByLabelText('右侧检查器')).toBeInTheDocument()
-    expect(screen.getByText('拖入图片或打开项目')).toBeInTheDocument()
+    expect(screen.getByText('打开项目查看二维图案')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /图片 Image/ })).toBeDisabled()
-    expect(screen.getByRole('button', { name: /打开项目 · 即将开放/ })).toBeDisabled()
+    expect(screen.getByRole('button', { name: '打开项目' })).toBeEnabled()
     await screen.findByText('Backend Online')
   })
 
@@ -71,11 +71,11 @@ describe('WM4 application shell', () => {
     await screen.findByText('Backend Online')
     fireEvent.click(screen.getByRole('button', { name: /制造 Manufacture/ }))
     expect(screen.getByRole('heading', { name: '制造 · 即将开放' })).toBeInTheDocument()
-    expect(screen.queryByText('拖入图片或打开项目')).not.toBeInTheDocument()
+    expect(screen.queryByText('打开项目查看二维图案')).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /三维预览 3D Preview/ }))
     expect(screen.getByRole('heading', { name: '三维预览 · 即将开放' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /设计 Design/ }))
-    expect(screen.getByText('拖入图片或打开项目')).toBeInTheDocument()
+    expect(screen.getByText('打开项目查看二维图案')).toBeInTheDocument()
   })
 
   it('keeps browser-only mode state out of the persistent document', async () => {

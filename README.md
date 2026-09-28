@@ -1,8 +1,12 @@
 # Xiaomang Pattern Lab / 小芒图案实验室（当前活跃项目）
 
+## WM5 — Web 二维查看与基础编辑
+
+网页现可打开现有 PatternDocument JSON，经 WM3 `/api/v1/evaluate` 显示最终二维几何。支持适合窗口、缩放、平移、单选和检查器；仅能对可确定映射回自由源元素的对象直接拖动，松开时提交一次并重新求值。参数化派生元素保持只读。旧 SVG 单位项目必须由用户明确填写毫米比例。运行方式、验证和限制见 [WEB_2D_WM5.md](docs/WEB_2D_WM5.md)。桌面程序及制造链未改动。
+
 ## WM4 — React Web 工作区基础版
 
-新增独立 `web/` 前端，提供三栏工作区、模式导航，以及 WM3 后端在线状态和 v1.0/mm 协议握手。尚不支持在网页中导入、编辑或制造；这些入口明确标为“即将开放”。桌面 Tkinter 版本保持原样。安装、运行和范围见 [WEB_SHELL_WM4.md](docs/WEB_SHELL_WM4.md)。
+新增独立 `web/` 前端，提供三栏工作区、模式导航，以及 WM3 后端在线状态和 v1.0/mm 协议握手。该阶段尚不支持在网页中导入、编辑或制造；WM5 已补充项目打开与基础二维编辑。桌面 Tkinter 版本保持原样。安装、运行和范围见 [WEB_SHELL_WM4.md](docs/WEB_SHELL_WM4.md)。
 
 ## WM3 — 本机 Headless API（Alpha）
 

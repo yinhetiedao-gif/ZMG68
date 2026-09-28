@@ -1,5 +1,13 @@
 # Gate 状态（2026-09-19）
 
+## WM5 — Web 2D Viewer / Editor Foundation（2026-09-28）
+
+- Status: PASS — 正式 PatternDocument JSON → WM2 DTO → WM3 Evaluate → SVG 最终二维几何。前端不实现 Python 的 Field、Modifier、Grid 或 Evaluate。
+- 支持五种当前合同几何、evenodd 孔洞、毫米 World↔Screen 变换、Fit/Zoom/Pan、单选与检查器；自由源元素精确 ID/坐标映射才允许拖动。pointermove 不发请求，pointerup 一次 revision/求值；取消不提交。
+- 真实浏览器验收：144 点项目显示 144 个黑色实心元素、可选可拖；打印三星项目显示三块实心 FilledRegion；方孔样例白色孔洞正确，缩放和平移可用，console error 0。144 点未测量稳定 FPS；不能据此声称大规模性能已达标。
+- Frontend Vitest 25/25、TypeScript build PASS；Python Full Regression 335/335、Fixed Pattern 6/6、Tk Smoke 2/2 PASS。WM4 后端合同与桌面链路保持不变。
+- 限制：本地路径资产不上传，ImageField 等依赖资产的视觉结果可能不完整；旧 SVG 单位要求用户输入毫米比例；网页尚无保存、Undo、参数面板、制造或 STL 下载。
+
 ## WM4 — React Web Shell（2026-09-28）
 
 - Status: PASS — 独立 `web/` React 19 / TypeScript / Vite 8 前端；三栏布局、底部模式导航、禁用未实现入口。
