@@ -1,5 +1,15 @@
 # Gate 状态（2026-09-19）
 
+## WM1 — Headless Application Service Extraction（2026-09-28）
+
+- Status: PASS — 制造业务编排已从 Tk 窗口抽到 `xiaomang_pattern_lab.manufacturing_service.ManufacturingService`；依赖方向固定为 `Desktop UI / future API → Application Service → existing T/U/U.5/V/W/X engine`。
+- Service：`build()`、`is_current()`、`export_stl()` 无 Tk、Canvas、Dialog、MessageBox 或预览依赖；`ManufacturingServiceResult` 提供既有报告、内部 Mesh、制造 Bounds、组件数和 warning。旧 `ManufacturingWorkflow` 名称仅作为同一类的兼容别名，不存在第二条制造链。
+- Desktop：`ManufacturingDialog` 已改为调用 `ManufacturingService`；M2 `MeshPreviewDialog` 仍只消费 Service 返回的同一份 `ManufacturingMeshResult`，不进入 Service。
+- Headless：Fresh Process 导入 Service 不加载 `tkinter`，也不加载废弃的 `ppg.xiaomang_pipeline`。工程保存/读取 → Build → Gate W → Binary STL → Reload 已在无 Tk 测试中通过。
+- 真实图案：Grid + 3 star + WaveField + SizeModifier 保持 57.2169×19.8992×2mm、3 个组件、Watertight；STL 读回 Bounds、体积和组件等价；Document、source、revision、saved revision、Dirty 和 Undo 保持不变。
+- 验证：WM1+M1+M2 定向21/21、T/U/U.5/V/W/X+WM1+M1+M2 联合74/74、Full Regression 317/317 PASS（179.662秒）、Fixed Pattern 6/6、Tk Smoke 2/2 PASS。日志位于 `work/wm1-headless-services/`。
+- 范围：没有 FastAPI、REST、React、TypeScript、Three.js、GLB、数据库、云存储、用户系统或 Skill Orchestrator；不激活旧 PPG/Blender/legacy STL 制造路径。
+
 ## v0.2-M2 — Lightweight Manufacturing 3D Preview（2026-09-28）
 
 - Status: PASS — 只读轻量预览消费 M1 已生成的同一份 `ManufacturingMeshResult`；没有读取 PatternDocument、重新建模、修复、Union、移动组件或介入 STL Pipeline。

@@ -1,104 +1,19 @@
-"""Small Tk workflow over the existing, physically validated manufacturing pipeline."""
+"""Tk presentation for the headless, physically validated manufacturing service."""
 from __future__ import annotations
 
-from copy import deepcopy
-from dataclasses import dataclass
-import math
 from pathlib import Path
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 import traceback
 
-from .manufacturing_backend import ManufacturingBuildResult
-from .manufacturing_geometry import ManufacturingConversionResult
-from .mesh_validation import MeshValidationReport
+from .manufacturing_service import (
+    ManufacturingService,
+    ManufacturingServiceResult,
+    ManufacturingWorkflow,
+    ManufacturingWorkflowResult,
+    parse_height_mm,
+)
 from .mesh_preview import MeshPreviewDialog, MeshPreviewModel
-
-
-def parse_height_mm(value: str) -> float:
-    """Parse the one v0.2-M1 manufacturing parameter without touching a document."""
-
-    try:
-        height = float(str(value).strip())
-    except (TypeError, ValueError) as error:
-        raise ValueError("厚度必须是有效数字。") from error
-    if not math.isfinite(height) or height <= 0:
-        raise ValueError("厚度必须是大于 0 的有限毫米数值。")
-    return height
-
-
-@dataclass(frozen=True)
-class ManufacturingWorkflowResult:
-    height_mm: float
-    geometry_report: object
-    connectivity_report: object
-    conversion: ManufacturingConversionResult
-    build: ManufacturingBuildResult | None
-    mesh_report: MeshValidationReport | None
-    document_revision: int
-    document_snapshot: dict
-    ready: bool
-
-
-class ManufacturingWorkflow:
-    """Orchestrate Gate T/U/U.5/V/W/X; never implement their algorithms."""
-
-    def prepare(self, session, height_mm: float) -> ManufacturingWorkflowResult:
-        height = parse_height_mm(str(height_mm))
-        before = self._state(session)
-        try:
-            geometry = session.validate_final_geometry()
-            connectivity = session.analyze_connectivity()
-            conversion = session.adapt_manufacturing_geometry()
-            build = None
-            mesh = None
-            if geometry.error_count == 0 and conversion.report.converted_count and not conversion.report.skipped_invalid_count:
-                build = session.build_manufacturing_mesh(height_mm=height)
-                mesh = session.validate_manufacturing_mesh(build.mesh_result)
-        finally:
-            self._assert_read_only(session, before)
-        ready = bool(build is not None and mesh is not None and mesh.error_count == 0)
-        return ManufacturingWorkflowResult(
-            height, geometry, connectivity, conversion, build, mesh,
-            session.revision, deepcopy(session.require_document().to_dict()), ready,
-        )
-
-    def is_current(self, session, result: ManufacturingWorkflowResult, height_text: str) -> bool:
-        try:
-            height = parse_height_mm(height_text)
-        except ValueError:
-            return False
-        return bool(
-            result.document_revision == session.revision
-            and result.document_snapshot == session.require_document().to_dict()
-            and math.isclose(result.height_mm, height, rel_tol=0.0, abs_tol=1e-12)
-        )
-
-    def export(self, session, result: ManufacturingWorkflowResult, target: str | Path, *, overwrite: bool = False):
-        if not result.ready or result.build is None:
-            raise RuntimeError("制造检查尚未通过，不能导出 STL。")
-        before = self._state(session)
-        try:
-            exported = session.export_validated_stl(result.build.mesh_result, target, overwrite=overwrite)
-        finally:
-            self._assert_read_only(session, before)
-        return exported
-
-    @staticmethod
-    def _state(session):
-        return (
-            deepcopy(session.require_document().to_dict()), session.revision,
-            session.saved_revision, session.undo_record_count, session.is_dirty,
-        )
-
-    @staticmethod
-    def _assert_read_only(session, before) -> None:
-        after = (
-            session.require_document().to_dict(), session.revision,
-            session.saved_revision, session.undo_record_count, session.is_dirty,
-        )
-        if before != after:
-            raise RuntimeError("制造流程意外修改了当前设计，操作已停止。")
 
 
 class ManufacturingDialog(tk.Toplevel):
@@ -107,8 +22,8 @@ class ManufacturingDialog(tk.Toplevel):
     def __init__(self, parent, session, *, on_close=None):
         super().__init__(parent)
         self.parent, self.session, self.on_close = parent, session, on_close
-        self.workflow = ManufacturingWorkflow()
-        self.result: ManufacturingWorkflowResult | None = None
+        self.service = ManufacturingService()
+        self.result: ManufacturingServiceResult | None = None
         self._preview_dialog: MeshPreviewDialog | None = None
         self.height_var = tk.StringVar(value="2.0")
         self.status_var = tk.StringVar(value="尚未检查。请设置厚度，然后点击“检查并生成”。")
@@ -162,13 +77,13 @@ class ManufacturingDialog(tk.Toplevel):
             self.preview_button.configure(state="disabled")
             self.status_var.set("厚度已变化，请重新检查并生成。")
 
-    def prepare(self) -> ManufacturingWorkflowResult | None:
+    def prepare(self) -> ManufacturingServiceResult | None:
         self._mark_preview_stale("已重新生成制造模型，请重新打开 3D 预览。")
         self._close_preview()
         self.export_button.configure(state="disabled")
         self.preview_button.configure(state="disabled")
         try:
-            result = self.workflow.prepare(self.session, parse_height_mm(self.height_var.get()))
+            result = self.service.build(self.session, parse_height_mm(self.height_var.get()))
         except Exception as error:
             self.result = None
             self.status_var.set("✕ 无法生成制造模型：%s" % self._friendly_error(error))
@@ -186,7 +101,7 @@ class ManufacturingDialog(tk.Toplevel):
         if result is None or result.build is None or not result.ready:
             self.status_var.set("请先完成制造检查并生成有效 Mesh。")
             return
-        if not self.workflow.is_current(self.session, result, self.height_var.get()):
+        if not self.service.is_current(self.session, result, self.height_var.get()):
             self.export_button.configure(state="disabled")
             self.preview_button.configure(state="disabled")
             self.status_var.set("当前设计或厚度已变化，请重新检查并生成。")
@@ -198,7 +113,7 @@ class ManufacturingDialog(tk.Toplevel):
         model = MeshPreviewModel.from_manufacturing_result(result.build.mesh_result)
         self._preview_dialog = MeshPreviewDialog(
             self, model,
-            is_stale=lambda: not self.workflow.is_current(self.session, result, self.height_var.get()),
+            is_stale=lambda: not self.service.is_current(self.session, result, self.height_var.get()),
             on_close=lambda: setattr(self, "_preview_dialog", None),
         )
 
@@ -213,7 +128,7 @@ class ManufacturingDialog(tk.Toplevel):
             dialog.close()
         self._preview_dialog = None
 
-    def _show_result(self, result: ManufacturingWorkflowResult) -> None:
+    def _show_result(self, result: ManufacturingServiceResult) -> None:
         g, c, a, m = result.geometry_report, result.connectivity_report, result.conversion.report, result.mesh_report
         self.geometry_var.set(("✓" if g.error_count == 0 else "✕") + " Geometry：%d 有效，%d 错误，%d 警告" % (g.valid_count, g.error_count, g.warning_count))
         marker = "⚠" if c.component_count > 1 else "✓"
@@ -247,7 +162,7 @@ class ManufacturingDialog(tk.Toplevel):
 
     def export_stl(self) -> None:
         result = self.result
-        if result is None or not self.workflow.is_current(self.session, result, self.height_var.get()):
+        if result is None or not self.service.is_current(self.session, result, self.height_var.get()):
             self.export_button.configure(state="disabled")
             self.status_var.set("当前设计或厚度已变化，请重新检查并生成。")
             return
@@ -264,7 +179,7 @@ class ManufacturingDialog(tk.Toplevel):
             if not overwrite:
                 return
         try:
-            exported = self.workflow.export(self.session, result, path, overwrite=overwrite)
+            exported = self.service.export_stl(self.session, result, path, overwrite=overwrite)
         except Exception as error:
             self.status_var.set("✕ STL 导出失败：%s" % self._friendly_error(error))
             self._set_details(self.details.get("1.0", "end").rstrip() + "\n\n" + traceback.format_exc())

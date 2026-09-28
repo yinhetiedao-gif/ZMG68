@@ -6,8 +6,10 @@
 - [x] Gate T/U/U.5/V/W/X；两次实物验证 PASS（用户确认，范围见 GATE_STATUS.md）。
 - [x] v0.2-M1：Manufacturing UI，将现有制造 API 接入用户操作流程；厚度、摘要、阻止错误、STL 保存均已接入。
 - [x] v0.2-M2：Lightweight 3D Preview，只读显示最终制造 Mesh，支持 Orbit/Zoom/Fit/Reset、孔洞和多组件。
+- [x] WM1：Headless Manufacturing Application Service；桌面 UI 已通过同一无 Tk Service 调用 T→X，未来 API 不需要复制制造编排。
 - [ ] Basic Manufacturing Warnings，孤立组件、过细结构与最小壁厚提示，不自动修复。
-- [ ] Web Prototype：Web UI → Python API → 现有 Engine；先验证上传、参数调整、生成及 STL 导出。
+- [ ] WM2：先定义版本化 Web Contract / DTO（含 schema_version、document_revision），不直接暴露 Trimesh/Shapely/Tk 状态。
+- [ ] 后续 Web Prototype：FastAPI → React/TypeScript → Three.js 只读制造 Mesh 展示；先验证上传、参数调整、生成及 STL 导出。
 - [ ] 后续独立规划：3MF / AI / 自动连接 / 高级制造。
 
 本次仅冻结 v0.1-alpha，不执行任何 v0.2 项目。产品代码基线 d1ed14e；最终冻结提交以 v0.1-alpha tag 为准。

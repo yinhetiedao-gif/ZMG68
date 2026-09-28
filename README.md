@@ -1,5 +1,11 @@
 # Xiaomang Pattern Lab / 小芒图案实验室（当前活跃项目）
 
+## WM1 — Headless Manufacturing Application Service
+
+当前桌面制造窗口不再自行组织制造步骤，而是调用无 Tk 依赖的 `ManufacturingService`。唯一主链保持 `PatternDocument → Evaluate → Gate T → Gate U → U.5 → Gate V → Gate W → Gate X`；桌面 UI 和未来 API 将复用同一业务服务。服务返回同一份制造 Mesh 给桌面预览和 STL 导出，操作仍为只读 Derived Operation，不改变工程、Undo 或 Dirty。
+
+本阶段只完成服务层抽离；尚未加入 FastAPI、REST、React、TypeScript、Three.js、GLB、云端项目或 Skill Orchestrator。旧 `ppg/xiaomang_pipeline.py` 不属于当前 Web/制造入口。
+
 ## v0.2-M2 — 只读制造 3D 预览
 
 在制造窗口完成“检查并生成”后，可点击“3D 预览”查看即将导出 STL 的同一份最终制造 Mesh。窗口支持左键旋转、滚轮缩放、适合窗口与重置视角，并显示 X/Y/Z 毫米尺寸和组件数。Z 始终为厚度方向；孔洞、多组件和真实空间位置不会被预览自动修复、合并或重新排列。

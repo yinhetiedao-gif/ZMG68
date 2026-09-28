@@ -1,5 +1,13 @@
 # 更新记录
 
+## Xiaomang Pattern Lab WM1 — Headless Manufacturing Application Service（2026-09-28）
+
+- 将原 Tk 制造窗口中的 T→X 业务编排提取为无 UI 依赖的 `ManufacturingService`，桌面版与未来 API 可复用同一服务。
+- 新增 application-level `ManufacturingServiceResult`，统一返回制造报告、Bounds、组件、warning 及 Python 内部 Mesh；预览仍属于桌面 UI。
+- 桌面 `ManufacturingDialog` 已改为调用 Service；旧 Workflow 名称只保留兼容别名，没有复制制造算法或形成第二条管线。
+- 新增 Fresh Import 无 Tk/无 legacy pipeline、工程保存读取、真实打印图案、STL 读回和只读状态测试。本阶段没有开发 FastAPI、React、Three.js 或 Skill Orchestrator。
+- WM1+M1+M2 定向21/21、制造联合74/74、完整回归317/317、固定图6/6、Tk冒烟2/2通过。
+
 ## Xiaomang Pattern Lab v0.2-M2 — Lightweight Manufacturing 3D Preview（2026-09-28）
 
 - 制造窗口新增“3D 预览”；只消费“检查并生成”得到的同一份最终制造 Mesh，支持 Orbit、Zoom、适合窗口与重置视角。

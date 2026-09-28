@@ -1,5 +1,11 @@
 # Xiaomang Pattern Lab / 小芒图案实验室
 
+## WM1：无界面制造应用服务（2026-09-28）
+
+`manufacturing_service.py` 现在是桌面制造窗口与未来 API 共用的应用层入口。它在不创建 Tk root/window 的情况下协调 Gate T/U/U.5/V/W/X，并通过 `ManufacturingServiceResult` 返回制造检查、Bounds、组件、warning 和内部 Mesh。`manufacturing_ui.py` 仅负责输入、状态展示、文件对话框和预览窗口。
+
+导入 `ManufacturingService` 不会加载 Tkinter；M2 预览继续是 UI 层，只读取 Service 返回的 `ManufacturingMeshResult`。当前没有 FastAPI、React、Three.js 或 Web DTO。
+
 ## v0.2-M2：只读制造 3D 预览（2026-09-28）
 
 制造窗口的“检查并生成”成功后会启用“3D 预览”。预览直接读取同一份

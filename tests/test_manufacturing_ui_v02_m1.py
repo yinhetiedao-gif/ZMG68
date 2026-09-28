@@ -10,6 +10,7 @@ import unittest
 from unittest.mock import patch
 
 from ppg.foundation import Canvas, CircleElement, FilledRegionElement, FoundationPipeline, PatternDocument, Reference
+from xiaomang_pattern_lab.manufacturing_service import ManufacturingService
 from xiaomang_pattern_lab.manufacturing_ui import ManufacturingDialog, ManufacturingWorkflow, parse_height_mm
 from xiaomang_pattern_lab.parametric import GridParametricModel
 from xiaomang_pattern_lab.placement_assignment import ShapePrototypeRegistry
@@ -106,6 +107,7 @@ class ManufacturingDialogTests(unittest.TestCase):
                 app.session.document = document(circles(3))
                 dialog = ManufacturingDialog(app, app.session)
                 dialog.withdraw(); dialog.update()
+                self.assertIsInstance(dialog.service, ManufacturingService)
                 dialog.height_var.set("0")
                 self.assertIsNone(dialog.prepare())
                 self.assertIn("无法生成", dialog.status_var.get())
