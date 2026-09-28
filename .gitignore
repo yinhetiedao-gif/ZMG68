@@ -14,6 +14,7 @@ backups/
 source-releases/
 node_modules/
 npm-cache/
+*.tsbuildinfo
 .pytest_cache/
 *.pyc
 *.zip

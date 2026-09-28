@@ -1,5 +1,13 @@
 # Gate 状态（2026-09-19）
 
+## WM4 — React Web Shell（2026-09-28）
+
+- Status: PASS — 独立 `web/` React 19 / TypeScript / Vite 8 前端；三栏布局、底部模式导航、禁用未实现入口。
+- `web/src/api/client.ts` 统一调用 WM3 `/api/v1/health` 与 `/api/v1/contract`，校验 `schema_version=1.0`、`units=mm`；离线仍显示页面，合同不匹配明确报错。开发 URL 来自 `VITE_API_BASE_URL`。
+- 浏览器 UI 状态独立于 PatternDocument：当前仅模式、侧栏/检查器开关及未来选择/缩放/平移的暂存字段；没有设计数据写回。
+- Frontend tests 7/7、`npm run build` PASS（TypeScript 0 error）；本机 WM3 + Vite Browser Smoke：在线、Contract v1.0、三栏布局、模式切换正常，console error 0。Python Full Regression 335/335 PASS（255.820秒）、Fixed Pattern 6/6 PASS、Tk Smoke 2/2 PASS。
+- 范围：无导入、2D 绘制/编辑、Undo、制造 UI、Three.js、STL 下载、数据库、登录或云；Tk 桌面版保持原样。
+
 ## WM3 — FastAPI Headless Server v1（2026-09-28）
 
 - Status: PASS — WM3 专项8/8；WM3+WM2+WM1+M1/M2+T/U/U.5/V/W/X 联合92/92；最终 Full Regression 335/335（216.496秒）；Fixed Pattern 6/6；Tk Smoke 2/2。

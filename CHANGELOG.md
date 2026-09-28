@@ -1,5 +1,11 @@
 # 更新记录
 
+## Xiaomang Pattern Lab WM4 — React Web Shell（2026-09-28）
+
+- 增加独立 `web/` React + TypeScript + Vite 工作区，显示项目栏、左右侧栏、中央空白画布和底部设计/制造/三维预览模式。
+- 统一 API Client 对 WM3 做 Health + Contract 握手；离线与不兼容状态均有明确提示。Web 仍不能导入、编辑或制造，未实现入口禁用或标注即将开放。
+- 增加 Vitest / React Testing Library 覆盖布局、在线/离线、合同匹配/不匹配、模式切换及浏览器状态边界；不改 Python Engine 或桌面版。
+
 ## Xiaomang Pattern Lab WM3 — FastAPI Headless Server v1（2026-09-28）
 
 - 增加只绑定本机的最小 FastAPI 服务：Health、Contract、Evaluate、同步 Manufacturing Build 与按 result_id 下载 Binary STL。

@@ -1,12 +1,16 @@
 # Xiaomang Pattern Lab / 小芒图案实验室（当前活跃项目）
 
+## WM4 — React Web 工作区基础版
+
+新增独立 `web/` 前端，提供三栏工作区、模式导航，以及 WM3 后端在线状态和 v1.0/mm 协议握手。尚不支持在网页中导入、编辑或制造；这些入口明确标为“即将开放”。桌面 Tkinter 版本保持原样。安装、运行和范围见 [WEB_SHELL_WM4.md](docs/WEB_SHELL_WM4.md)。
+
 ## WM3 — 本机 Headless API（Alpha）
 
 现可通过 FastAPI 调用现有 WM2 Contract、二维 Evaluate 与制造 Service，并按同一次制造结果 ID 下载 Binary STL。开发服务器仅绑定本机；不包含网页 UI、账号或云存储。启动、接口和安全边界见 [WEB_SERVER_WM3.md](docs/WEB_SERVER_WM3.md)。桌面程序入口未变。
 
 ## WM2 — Web Contract / DTO v1
 
-新增版本化 JSON 协议层，供浏览器与现有 Python 应用服务交换 PatternDocument、二维求值几何、制造验证和 STL 产物信息。唯一设计事实仍是正式 PatternDocument 项目格式；协议仅负责传输。详细字段、毫米坐标、revision、资产引用与错误码见 [WEB_CONTRACT_V1.md](docs/WEB_CONTRACT_V1.md)。WM3 已加入本机服务器；浏览器界面尚未实现。
+新增版本化 JSON 协议层，供浏览器与现有 Python 应用服务交换 PatternDocument、二维求值几何、制造验证和 STL 产物信息。唯一设计事实仍是正式 PatternDocument 项目格式；协议仅负责传输。详细字段、毫米坐标、revision、资产引用与错误码见 [WEB_CONTRACT_V1.md](docs/WEB_CONTRACT_V1.md)。WM3 已加入本机服务器；WM4 仅提供不编辑文档的浏览器工作区外壳。
 
 ## WM1 — Headless Manufacturing Application Service
 

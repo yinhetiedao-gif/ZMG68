@@ -10,7 +10,8 @@
 - [ ] Basic Manufacturing Warnings，孤立组件、过细结构与最小壁厚提示，不自动修复。
 - [x] WM2：版本化 Web Contract / DTO v1（schema_version、document_revision、资产引用、毫米报告和制造结果身份）；实现范围见 `docs/WEB_CONTRACT_V1.md`。
 - [x] WM3：本机 FastAPI Headless Server v1；可用 HTTP 调 Evaluate / 制造 / 同结果 STL，仍无 Web UI；见 `docs/WEB_SERVER_WM3.md`。
-- [ ] 后续 Web Prototype：FastAPI → React/TypeScript → Three.js 只读制造 Mesh 展示；先验证上传、参数调整、生成及 STL 导出。
+- [x] WM4：React/TypeScript/Vite Web Shell，三栏布局与 WM3 Health/Contract 握手；尚无 2D 编辑或制造入口。见 `docs/WEB_SHELL_WM4.md`。
+- [ ] 后续 Web Prototype：2D Viewer/Editor Foundation；其后再规划上传、参数调整、制造、Three.js 只读 Mesh 与 STL 下载。WM4 不提前实现。
 - [ ] 后续独立规划：3MF / AI / 自动连接 / 高级制造。
 
 本次仅冻结 v0.1-alpha，不执行任何 v0.2 项目。产品代码基线 d1ed14e；最终冻结提交以 v0.1-alpha tag 为准。
