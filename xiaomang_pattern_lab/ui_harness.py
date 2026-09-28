@@ -48,6 +48,7 @@ from .session import PatternLabSession, ViewMode
 from .spatial_index import BoundingBoxSpatialIndex
 from .view_transform import CanvasViewTransform
 from .project_ui import ProjectWorkflowUI
+from .manufacturing_ui import ManufacturingDialog
 
 
 POSITION_MODE_LABELS = {
@@ -329,6 +330,7 @@ class PatternLabApp(ProjectWorkflowUI, tk.Tk):
         self._scope_selected_ids: tuple[str, ...] = ()
         self._scope_preview_after: str | None = None
         self._pending_stack_selection: int | None = None
+        self._manufacturing_dialog: ManufacturingDialog | None = None
         self._family_preview_after: str | None = None
         self._family_controls_ready = False
         self.grid_vars: dict[str, tk.StringVar] = {}
@@ -360,6 +362,7 @@ class PatternLabApp(ProjectWorkflowUI, tk.Tk):
             ttk.Radiobutton(toolbar, text=label, value=mode.value, variable=self.mode, command=self.refresh_canvas).pack(side="left", padx=3)
         ttk.Checkbutton(toolbar, text="隐藏原图（验证 Geometry）", variable=self.hide_reference, command=self.refresh_canvas).pack(side="left", padx=8)
         ttk.Button(toolbar, text="导出 SVG", command=self.export_svg).pack(side="right")
+        ttk.Button(toolbar, text="制造", command=self.open_manufacturing).pack(side="right", padx=5)
         ttk.Button(toolbar, text="保存工程", command=self.save_document).pack(side="right", padx=5)
         ttk.Button(toolbar, text="重新打开工程", command=self.open_document).pack(side="right")
 
@@ -2535,6 +2538,14 @@ class PatternLabApp(ProjectWorkflowUI, tk.Tk):
     def export_svg(self) -> None:
         path = filedialog.asksaveasfilename(parent=self, title="导出 SVG", defaultextension=".svg", filetypes=[("SVG", "*.svg")])
         if path: self._handle(lambda: (self.session.export_svg(path), self.refresh_log()))
+
+    def open_manufacturing(self) -> None:
+        dialog = self._manufacturing_dialog
+        if dialog is not None and dialog.winfo_exists():
+            dialog.lift(); dialog.focus_force(); return
+        self._manufacturing_dialog = ManufacturingDialog(
+            self, self.session, on_close=lambda: setattr(self, "_manufacturing_dialog", None),
+        )
 
     def _after_document_change(self) -> None:
         self._pending_project_preview = None

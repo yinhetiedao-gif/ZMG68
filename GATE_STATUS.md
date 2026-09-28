@@ -1,5 +1,15 @@
 # Gate 状态（2026-09-19）
 
+## v0.2-M1 — Integrated Manufacturing Workflow UI（2026-09-28）
+
+- 基线：v0.1-alpha / bb76f299f29f09cf9a7e2b3bb3d9dbd244e5a90b；预备备份 `backup/pre-v0.2-m1`；开发分支 `feature/v0.2-m1-manufacturing-ui`。
+- UI：顶部“制造”按钮打开独立窗口，提供2.0mm默认厚度、检查并生成、Geometry/Connectivity/Manufacturing/Mesh摘要、详情和导出 STL。状态同时使用符号和文字，不依赖颜色。
+- 架构：`ManufacturingWorkflow` 仅编排现有 session 的 Gate T/U/U.5/V/W/X API。制造结果只驻留于窗口；设计或厚度变化使结果失效。UI未实现几何、网格或STL算法。
+- 安全：无效厚度与 Gate T/W error 均阻止导出；多组件只警告；Gate X 导出前仍复验 Gate W。检查/生成/导出前后 PatternDocument、revision、saved_revision、Dirty、Undo 一致。
+- 实物类型回归：Grid + 内置Star + WaveField + SizeModifier 通过真实 Tk 制造窗口导出；读回为57.2169×19.8992×2mm、watertight、3组件，与 Physical Validation 02 一致。
+- 自动测试：新增7项核心/Tk测试；与T/U/U.5/V/W/X联合60/60 PASS；Full Regression 303/303 PASS（186.282秒）；Fixed Pattern 6/6 PASS；Tk Smoke 2/2 PASS（6.274秒）。日志位于 `work/v0.2-m1-manufacturing-ui/`。
+- 明确未做：3D Viewer、OpenGL、相机、3MF、修复、Union、桥接、壁厚、新Field/Modifier和v0.2-M2。
+
 ## v0.1-alpha — Physical Manufacturing Validated Freeze（2026-09-23）
 
 - 制造闭环：**PHYSICALLY VALIDATED** — Design → Parametric → Manufacturing2D → 3D Mesh → Validation → STL → Bambu Studio → Physical Print。

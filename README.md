@@ -1,5 +1,13 @@
 # Xiaomang Pattern Lab / 小芒图案实验室（当前活跃项目）
 
+## v0.2-M1 — 软件内制造工作流
+
+顶部“制造”按钮打开独立制造窗口。用户可设置唯一制造参数“厚度（mm）”，点击“检查并生成”后查看二维几何、连通组件、制造转换和 Mesh 摘要；只有 Gate W 无错误时才能通过系统保存对话框导出 Binary STL。多组件会明确警告但不自动连接，也不阻止合法导出。
+
+该窗口只编排既有 `PatternDocument → Evaluate → T → U → U.5 → V → W → X` 链路。检查、生成和导出均为临时派生操作，不修改工程、不增加 Undo、不改变 Dirty。设计或厚度变化后必须重新检查。技术详情保存在窗口详情区和现有日志中。本阶段没有 3D Viewer、自动修复、Union、桥接或新制造算法。
+
+开发启动后：完成二维设计 → 点击“制造” → 输入厚度 → “检查并生成” → 阅读摘要 → “导出 STL”。
+
 ## v0.1-alpha — Physical Manufacturing Validated Freeze（2026-09-23）
 
 End-to-end manufacturing pipeline: **PHYSICALLY VALIDATED**。

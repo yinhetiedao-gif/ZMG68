@@ -1,5 +1,14 @@
 # 更新记录
 
+## Xiaomang Pattern Lab v0.2-M1 — Integrated Manufacturing Workflow UI（2026-09-28）
+
+- 新增顶部“制造”入口及轻量独立窗口：厚度、检查并生成、制造摘要、详情、导出 STL。
+- 界面只调用既有 Gate T/U/U.5/V/W/X API；没有复制几何转换、挤出、Mesh 检查、连通性或 STL 序列化算法。
+- 无效/非正/非有限厚度安全拒绝；Gate T/W error 阻止导出；多组件显示警告但保持现有允许导出策略。
+- 设计或厚度变化会令旧制造结果失效；Gate X 在写文件前仍会再次执行 Gate W 检查。
+- 制造全过程保持 PatternDocument、Dirty、Undo 不变；成功窗口显示路径、XYZ毫米尺寸和组件数。
+- 增加实际打印类型（Grid + Wave + Star Size）经 UI 导出并读回的自动测试；没有加入 3D Viewer 或 v0.2-M2 功能。
+
 ## Xiaomang Pattern Lab v0.1-alpha — 实物制造验证冻结（2026-09-23）
 
 - 仅文档发布冻结：产品代码仍为 d1ed14e，最终文档提交由 v0.1-alpha 标签及 backup/v0.1-alpha-physical-validated 保存。

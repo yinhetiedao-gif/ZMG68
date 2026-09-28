@@ -4,7 +4,7 @@
 
 - [x] v0.1-alpha 制造闭环：Design → Parametric → Manufacturing2D → 3D Mesh → Validation → STL → Bambu Studio → Physical Print。
 - [x] Gate T/U/U.5/V/W/X；两次实物验证 PASS（用户确认，范围见 GATE_STATUS.md）。
-- [ ] v0.2 计划：Manufacturing UI，将现有制造 API 接入用户操作流程。
+- [x] v0.2-M1：Manufacturing UI，将现有制造 API 接入用户操作流程；厚度、摘要、阻止错误、STL 保存均已接入。
 - [ ] Lightweight 3D Preview，仅显示最终制造实体。
 - [ ] Basic Manufacturing Warnings，孤立组件、过细结构与最小壁厚提示，不自动修复。
 - [ ] Web Prototype：Web UI → Python API → 现有 Engine；先验证上传、参数调整、生成及 STL 导出。
