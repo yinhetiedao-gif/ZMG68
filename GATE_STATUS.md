@@ -1,5 +1,12 @@
 # Gate 状态（2026-09-19）
 
+## WM6 — Web Parametric Controls MVP（2026-09-28）
+
+- Status: PASS — 前端核心、真实打印工程浏览器导入与修改/撤销、回归测试均通过；144 点在自动化导入测试通过，尚未测量浏览器 FPS。
+- 现有 PatternDocumentDTO 由 `web/src/document/editor.ts` 集中不可变编辑；右侧 Transform/Grid/Field/Modifier/Shape 控件不实现 Python Evaluate 算法。图像与组合场只读，未知/派生数据保留。
+- 滑杆 pointermove 不提交；pointerup 一次 revision/Evaluate/Undo。Undo/Redo 各求值一次；失败保留上次有效画布并回滚文档/历史。窄屏检查器不再被隐藏。
+- Web Vitest 38/38、TypeScript build PASS、Python Full Regression 335/335、Fixed Pattern 6/6、Tk Smoke 2/2 PASS。真实浏览器在线/Contract v1.0、小屏检查器可访问；实物打印三星工程导入后显示三颗实心黑星，参数改变第一颗的 path scale 10→14.4，Undo 恢复 10；浏览器捕获的 error 级控制台日志为空。未采集 FPS。详见 `docs/WEB_PARAMETRIC_WM6.md`。
+
 ## WM5 — Web 2D Viewer / Editor Foundation（2026-09-28）
 
 - Status: PASS — 正式 PatternDocument JSON → WM2 DTO → WM3 Evaluate → SVG 最终二维几何。前端不实现 Python 的 Field、Modifier、Grid 或 Evaluate。

@@ -117,7 +117,8 @@ export function withMillimetreMapping(dto: PatternDocumentDTO, mmPerUnit: number
 /** Only exact, free source elements can be edited by WM5. Generated Grid IDs are not proof of source mapping. */
 export function directSourceElement(dto: PatternDocumentDTO, finalId: string, finalX: number, finalY: number): SourceElement | null {
   const document = dto.document
-  if (document.metadata['xiaomang_pattern_lab.parametric'] || document.fields.length || document.modifiers.length) return null
+  if (document.metadata['xiaomang_pattern_lab.parametric'] || document.metadata['xiaomang_pattern_lab.shared_modifiers']
+      || document.metadata['xiaomang_pattern_lab.placement_assignment'] || document.fields.length || document.modifiers.length) return null
   const source = document.elements.find((item) => item.id === finalId)
   const scale = millimetresPerUnit(document)
   if (!source || !scale || !source.visible) return null

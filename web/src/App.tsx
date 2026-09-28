@@ -4,6 +4,11 @@ import {
 } from './api/client'
 import { evaluateDocument } from './api/evaluate'
 import { Workspace2D } from './geometry/Workspace2D'
+import { InspectorControls, type EditAction } from './document/InspectorControls'
+import {
+  restoreSnapshot, updateElement, updateField, updateGrid, updateReplacement,
+  updateScalarModifier, updateStackModifier,
+} from './document/editor'
 import type { FinalGeometry, PatternDocumentDTO } from './model/types'
 import {
   directSourceElement, millimetresPerUnit, moveSourceElement,
@@ -60,11 +65,17 @@ export function App() {
   const [mappingValue, setMappingValue] = useState('')
   const [pendingPreview, setPendingPreview] = useState<{ id: string; dx: number; dy: number } | null>(null)
   const [fitToken, setFitToken] = useState(0)
+  const historyRef = useRef<{ past: PatternDocumentDTO[]; future: PatternDocumentDTO[] }>({ past: [], future: [] })
+  const [historyCount, setHistoryCount] = useState({ past: 0, future: 0 })
   const inputRef = useRef<HTMLInputElement>(null)
   const evaluateController = useRef<AbortController | null>(null)
   const evaluateSequence = useRef(0)
 
   const reconnect = useCallback(() => setRetry((value) => value + 1), [])
+  const publishHistory = (next: { past: PatternDocumentDTO[]; future: PatternDocumentDTO[] }) => {
+    historyRef.current = next
+    setHistoryCount({ past: next.past.length, future: next.future.length })
+  }
   useEffect(() => {
     const controller = new AbortController()
     let current = true
@@ -84,6 +95,7 @@ export function App() {
   const runEvaluate = useCallback((dto: PatternDocumentDTO, options: {
     fileName?: string; warnings?: string[]; fitOnSuccess?: boolean
     rollback?: PatternDocumentDTO
+    onFailure?: () => void
   } = {}) => {
     evaluateController.current?.abort()
     const controller = new AbortController()
@@ -107,6 +119,7 @@ export function App() {
       if (options.fitOnSuccess) setFitToken((value) => value + 1)
     }).catch((error: unknown) => {
       if (controller.signal.aborted || sequence !== evaluateSequence.current) return
+      options.onFailure?.()
       setProject((current) => ({
         ...current,
         currentDocument: options.rollback ?? current.currentDocument,
@@ -121,6 +134,7 @@ export function App() {
   const acceptProject = (dto: PatternDocumentDTO, fileName: string, warnings: string[]) => {
     setProjectError(null)
     setMapping(null)
+    publishHistory({ past: [], future: [] })
     setBrowser((current) => ({ ...current, selectedElementIds: [], activeMode: 'design' }))
     runEvaluate(dto, { fileName, warnings, fitOnSuccess: true })
   }
@@ -153,7 +167,14 @@ export function App() {
   const sourceCanDrag = (item: FinalGeometry) => {
     const dto = project.currentDocument
     const source = dto && directSourceElement(dto, item.id, item.x, item.y)
-    return Boolean(source && source.type === item.type)
+    return project.evaluateStatus === 'ready' && Boolean(source && source.type === item.type)
+  }
+  const commitDocument = (next: PatternDocumentDTO, before: PatternDocumentDTO) => {
+    if (next === before || project.evaluateStatus !== 'ready') return
+    const previousHistory = historyRef.current
+    publishHistory({ past: [...previousHistory.past, before], future: [] })
+    setProjectError(null)
+    runEvaluate(next, { rollback: before, onFailure: () => publishHistory(previousHistory) })
   }
   const commitDrag = (id: string, dx: number, dy: number) => {
     const dto = project.currentDocument
@@ -162,10 +183,54 @@ export function App() {
     try {
       const next = moveSourceElement(dto, id, dx, dy)
       setPendingPreview({ id, dx, dy })
-      runEvaluate(next, { rollback: dto })
+      commitDocument(next, dto)
     } catch (error) {
       setProjectError(error instanceof Error ? error.message : '无法拖动该元素。')
     }
+  }
+  const editParameter = (action: EditAction) => {
+    const dto = project.currentDocument
+    if (!dto || project.evaluateStatus !== 'ready') return
+    try {
+      let next: PatternDocumentDTO
+      if (action.kind === 'grid') next = updateGrid(dto, action.key, action.value)
+      else if (action.kind === 'element' && typeof action.value === 'number') {
+        const final = project.finalGeometry.find((item) => item.id === action.id)
+        if (!final || !sourceCanDrag(final)) throw new Error('该元素没有可靠的源映射，不能直接编辑。')
+        next = updateElement(dto, action.id, action.key, action.value)
+      } else if (action.kind === 'field' && (typeof action.value === 'number' || typeof action.value === 'boolean')) {
+        next = updateField(dto, action.id, action.key, action.value)
+      } else if (action.kind === 'scalar' && (typeof action.value === 'number' || typeof action.value === 'boolean')) {
+        next = updateScalarModifier(dto, action.id, action.key, action.value)
+      } else if (action.kind === 'stack' && (typeof action.value === 'number' || typeof action.value === 'boolean')) {
+        next = updateStackModifier(dto, action.id, action.key, action.value)
+      } else if (action.kind === 'shape' && typeof action.value === 'string') {
+        next = updateReplacement(dto, action.id, action.value)
+      } else throw new Error('不支持的编辑操作。')
+      commitDocument(next, dto)
+    } catch (error) {
+      setProjectError(error instanceof Error ? error.message : '参数修改失败。')
+    }
+  }
+  const undo = () => {
+    const dto = project.currentDocument
+    const history = historyRef.current
+    if (!dto || project.evaluateStatus !== 'ready' || !history.past.length) return
+    const before = history.past[history.past.length - 1]
+    publishHistory({ past: history.past.slice(0, -1), future: [...history.future, dto] })
+    runEvaluate(restoreSnapshot(before, dto.document_revision), {
+      rollback: dto, onFailure: () => publishHistory(history),
+    })
+  }
+  const redo = () => {
+    const dto = project.currentDocument
+    const history = historyRef.current
+    if (!dto || project.evaluateStatus !== 'ready' || !history.future.length) return
+    const after = history.future[history.future.length - 1]
+    publishHistory({ past: [...history.past, dto], future: history.future.slice(0, -1) })
+    runEvaluate(restoreSnapshot(after, dto.document_revision), {
+      rollback: dto, onFailure: () => publishHistory(history),
+    })
   }
 
   const connected = connection.kind === 'online'
@@ -200,13 +265,15 @@ export function App() {
         <button className="open-project-side" type="button" onClick={() => inputRef.current?.click()}>打开本地项目</button>
         <SideGroup title="素材来源" index="01" items={sourceItems} />
         <SideGroup title="图案结构" index="02" items={patternItems} />
-        <div className="sidebar-footnote"><span className="footnote-icon">i</span><p>项目 JSON 仅在浏览器读取；上传图片、参数控制和制造尚未开放。</p></div>
+        <div className="sidebar-footnote"><span className="footnote-icon">i</span><p>项目 JSON 在浏览器读取；参数编辑通过 Python 求值。图片上传与制造尚未开放。</p></div>
       </aside>
 
       <main className="workspace" aria-label="中央工作区">
         <div className="workspace-toolbar">
           <div className="breadcrumb"><span>工作区</span><span className="crumb-divider">/</span><strong>{modeName}</strong></div>
           <div className="workspace-scale">{project.currentDocument ? `CANVAS · ${project.finalGeometry.length} ELEMENTS · mm` : 'CANVAS · 暂无文档'}</div>
+          <div className="history-actions"><button type="button" onClick={undo} disabled={!historyCount.past || project.evaluateStatus !== 'ready'}>撤销</button>
+            <button type="button" onClick={redo} disabled={!historyCount.future || project.evaluateStatus !== 'ready'}>重做</button></div>
         </div>
         <div className="canvas-stage">
           {browser.activeMode === 'design' && project.currentDocument && project.evaluateStatus !== 'idle' ? (
@@ -223,7 +290,7 @@ export function App() {
               <h1>打开项目查看二维图案</h1>
               <p>读取本地 PatternDocument JSON，并由 Python 计算最终几何。</p>
               <button type="button" className="primary-action" onClick={() => inputRef.current?.click()}>打开项目</button>
-              <span className="empty-hint">WM5 · Web 2D Viewer / Editor Foundation</span>
+              <span className="empty-hint">WM6 · Parametric Controls MVP</span>
             </section>
           ) : (
             <section className="empty-state future-state" aria-label={`${modeName}即将开放`}>
@@ -259,7 +326,7 @@ export function App() {
               <span>{mode.label}</span><small>{mode.secondary}</small>
               {mode.id !== 'design' && <em>COMING SOON</em>}
             </button>)}
-          <span className="mode-bar-spacer" /><span className="mode-version">WM5 / 2D</span>
+          <span className="mode-bar-spacer" /><span className="mode-version">WM6 / 2D</span>
         </nav>
       </main>
 
@@ -270,8 +337,11 @@ export function App() {
           <dl><dt>ID</dt><dd>{selected.id}</dd><dt>类型</dt><dd>{selected.type}</dd>
             <dt>中心</dt><dd>{selected.x.toFixed(2)}, {selected.y.toFixed(2)} mm</dd>
             <dt>范围</dt><dd>{selected.width.toFixed(2)} × {selected.height.toFixed(2)} mm</dd></dl>
-          <p>{sourceCanDrag(selected) ? '可直接拖动；释放鼠标后提交一次。' : '派生或参数化元素：本阶段只读，不猜测源映射。'}</p>
+          <p>{sourceCanDrag(selected) ? '可直接拖动；释放鼠标后提交一次。' : '派生或参数化元素不可直接拖动；可编辑其文档规则。'}</p>
         </div> : <div className="inspector-empty"><span className="inspect-glyph" aria-hidden="true">⌗</span><strong>未选择对象</strong><p>No selection</p><small>点击元素可查看其世界毫米信息。</small></div>}
+        {project.currentDocument && <InspectorControls key={`${project.currentDocument.document_id}:${project.documentRevision}:${project.evaluateStatus}`}
+          dto={project.currentDocument} selected={selected}
+          onEdit={editParameter} disabled={project.evaluateStatus !== 'ready'} />}
         <div className={`connection-card ${connection.kind}`}>
           <div className="connection-card-head"><span>连接状态</span><span className="connection-state-text">{connected ? '已连接' : connection.kind === 'checking' ? '检查中' : connection.kind === 'offline' ? '离线' : '协议不兼容'}</span></div>
           <p>{connected ? 'Python Engine 已就绪，合同 v1.0 · mm 验证通过。' : connection.message}</p>

@@ -1,5 +1,12 @@
 # 更新记录
 
+## Xiaomang Pattern Lab WM6 — Web Parametric Controls MVP（2026-09-28）
+
+- 增加集中式不可变 Document 编辑层与右侧参数检查器，支持已有矩阵、参数场、效果层、形状替换和明确映射的自由源元素变换；Python 仍是唯一求值后端。
+- 滑杆草稿不发 API，请求仅在松手提交；一次编辑对应一个 revision、一次 Evaluate 和一条会话 Undo。撤销/重做也各求值一次。
+- 求值失败回滚文档及历史并保留上次有效画面；小屏不再隐藏检查器。未新增算法、制造或 Web 资产上传。
+- Web 38/38、TypeScript 构建、Python 335/335、固定图 6/6、Tk 冒烟 2/2 通过。真实浏览器导入实物打印三星工程，修改参数后第一颗星的 SVG 缩放从 10 变为 14.4，撤销恢复为 10；滑杆数值与精确输入一致。
+
 ## Xiaomang Pattern Lab WM5 — Web 2D Viewer / Editor Foundation（2026-09-28）
 
 - 沿用正式 PatternDocument JSON 和 WM2 DTO，本地浏览器读取文件后调用 WM3 `/api/v1/evaluate`；无第二套前端求值算法。

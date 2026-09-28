@@ -137,7 +137,7 @@ describe('WM5 project → Python Evaluate → 2D workspace', () => {
     const canvas = await screen.findByRole('img', { name: '最终二维几何，单位毫米' })
     await waitFor(() => expect(canvas.querySelectorAll('[data-element-id]')).toHaveLength(1))
     fireEvent.pointerDown(canvas.querySelector('[data-element-id]')!, { button: 0, clientX: 20, clientY: 20 })
-    expect(screen.getByText(/本阶段只读/)).toBeInTheDocument()
+    expect(screen.getByText(/派生或参数化元素不可直接拖动/)).toBeInTheDocument()
     fireEvent.pointerUp(canvas, { clientX: 30, clientY: 30 })
     expect(fetchMock.mock.calls.filter(([url]) => String(url).includes('/evaluate'))).toHaveLength(1)
   })

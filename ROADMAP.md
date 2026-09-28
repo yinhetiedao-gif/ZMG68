@@ -12,6 +12,7 @@
 - [x] WM3：本机 FastAPI Headless Server v1；可用 HTTP 调 Evaluate / 制造 / 同结果 STL，仍无 Web UI；见 `docs/WEB_SERVER_WM3.md`。
 - [x] WM4：React/TypeScript/Vite Web Shell，三栏布局与 WM3 Health/Contract 握手；尚无 2D 编辑或制造入口。见 `docs/WEB_SHELL_WM4.md`。
 - [x] WM5：2D Viewer/Editor Foundation，打开项目 JSON、Python Evaluate、最终二维 SVG、毫米坐标视图与有限的自由源元素拖动；见 `docs/WEB_2D_WM5.md`。
+- [x] WM6：现有参数化配置的网页检查器、提交一次求值、会话撤销/重做和失败回滚；只读字段与浏览器验收限制见 `docs/WEB_PARAMETRIC_WM6.md`。
 - [ ] 后续 Web Prototype：图片上传、参数调整、制造、Three.js 只读 Mesh 与 STL 下载。WM5 不提前实现。
 - [ ] 后续独立规划：3MF / AI / 自动连接 / 高级制造。
 
