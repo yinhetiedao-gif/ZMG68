@@ -13,7 +13,7 @@
 
 `PatternDocumentDTO`：`schema_version`、`document_id`、`document_revision`、`document`、`assets[]`。`document` 保留正式项目的 Element IDs、Groups、Transforms、Grid/其他 Parametric 元数据、Field/Composite Field、Modifier 顺序、Local Override、Shape Replacement、Random/Occupancy 与当前可持久配置。它不包含选择、Hover、鼠标、Zoom/Pan、Tab、窗口、3D 相机或滚动位置。
 
-桌面 `reference.source_path` / ImageField `image_path` 不能直接传输。调用 `PatternDocumentDTO.from_document(..., asset_bindings={本机路径: "asset-123"})`，DTO 将路径清空，并用 `assets[]` 描述 `reference` 或 `field:<field_id>` 与资产 ID 的关系。缺失绑定直接报 `unbound_asset`；其他 metadata 中出现绝对路径会报 `local_path_forbidden`，不静默丢弃。服务端将来通过自己的资产解析器向 `to_document(asset_sources={"asset-123": 本机路径})` 注入路径；未绑定时几何仍可恢复，但图片驱动 Field 需资产解析后才能重现取样。WM2 没有上传、存储或下载接口。
+桌面 `reference.source_path` / ImageField `image_path` 不能直接传输。调用 `PatternDocumentDTO.from_document(..., asset_bindings={本机路径: "asset-123"})`，DTO 将路径清空，并用 `assets[]` 描述 `reference`、历史 `reference.metadata/preprocessing.*path`、历史 `document.metadata.source_svg` 或 `field:<field_id>` 与资产 ID 的关系。缺失绑定直接报 `unbound_asset`；其他 metadata 中出现绝对路径会报 `local_path_forbidden`，不静默丢弃。服务端将来通过自己的资产解析器向 `to_document(asset_sources={"asset-123": 本机路径})` 注入路径；未绑定时几何仍可恢复，但图片驱动 Field 需资产解析后才能重现取样。WM2 没有上传、存储或下载接口。
 
 ```json
 {

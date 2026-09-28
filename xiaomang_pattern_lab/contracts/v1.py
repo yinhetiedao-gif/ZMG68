@@ -183,6 +183,19 @@ class PatternDocumentDTO:
             identifier = _asset_id(path, asset_bindings)
             assets.append({"role": "reference", "asset_id": identifier, "media_type": "image/unknown"})
             reference["source_path"] = ""
+        for section in ("metadata", "preprocessing"):
+            for key, value in reference.get(section, {}).items():
+                if key.endswith("path") and isinstance(value, str) and value:
+                    identifier = _asset_id(value, asset_bindings)
+                    assets.append({"role": "reference.%s.%s" % (section, key),
+                                   "asset_id": identifier, "media_type": "image/unknown"})
+                    reference[section][key] = ""
+        source_svg = payload.get("metadata", {}).get("source_svg", "")
+        if isinstance(source_svg, str) and source_svg and _absolute_path(source_svg):
+            identifier = _asset_id(source_svg, asset_bindings)
+            assets.append({"role": "document.metadata.source_svg", "asset_id": identifier,
+                           "media_type": "image/svg+xml"})
+            payload["metadata"]["source_svg"] = ""
         for index, field in enumerate(payload.get("fields", [])):
             if field.get("type") == "image":
                 parameters = field.get("parameters", {})
@@ -224,6 +237,15 @@ class PatternDocumentDTO:
             path = "" if asset_sources is None else asset_sources.get(identifier, "")
             if role == "reference":
                 payload["reference"]["source_path"] = path
+            elif role.startswith("reference.metadata.") or role.startswith("reference.preprocessing."):
+                _, section, key = role.split(".", 2)
+                if key not in payload["reference"].get(section, {}):
+                    raise ContractError("invalid_document", "参考图附属资产引用无效。")
+                payload["reference"][section][key] = path
+            elif role == "document.metadata.source_svg":
+                if "source_svg" not in payload.get("metadata", {}):
+                    raise ContractError("invalid_document", "SVG 来源资产引用无效。")
+                payload["metadata"]["source_svg"] = path
             elif role.startswith("field:"):
                 field_id = role[6:]
                 matches = [field for field in payload.get("fields", []) if field.get("id") == field_id and field.get("type") == "image"]
@@ -440,6 +462,11 @@ class ManufacturingBuildResponseDTO:
         for asset in document_dto.assets:
             if asset["role"] == "reference":
                 snapshot["reference"]["source_path"] = ""
+            elif asset["role"].startswith("reference.metadata.") or asset["role"].startswith("reference.preprocessing."):
+                _, section, key = asset["role"].split(".", 2)
+                snapshot["reference"][section][key] = ""
+            elif asset["role"] == "document.metadata.source_svg":
+                snapshot["metadata"]["source_svg"] = ""
             elif asset["role"].startswith("field:"):
                 field_id = asset["role"][6:]
                 for field in snapshot.get("fields", []):

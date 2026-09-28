@@ -106,16 +106,19 @@ class WebContractWM2Tests(unittest.TestCase):
     def test_local_asset_paths_are_replaced_and_rebindable(self):
         with TemporaryDirectory() as temporary:
             image = str(Path(temporary) / "reference.png")
+            source_svg = str(Path(temporary) / "vectorized.svg")
             pattern = sample()
             pattern.reference.source_path = image
+            pattern.reference.metadata["preprocessed_path"] = image
+            pattern.metadata["source_svg"] = source_svg
             pattern.fields = [{"id": "image", "type": "image", "parameters": {"image_path": image}}]
             original = deepcopy(pattern.to_dict())
-            dto = PatternDocumentDTO.from_document(pattern, "doc-image", 1, asset_bindings={image: "asset-123"})
+            dto = PatternDocumentDTO.from_document(pattern, "doc-image", 1, asset_bindings={image: "asset-123", source_svg: "asset-svg"})
             encoded = canonical_json(dto.to_dict())
             self.assertNotIn(image, encoded)
             self.assertNotIn(str(Path(temporary)), encoded)
-            self.assertEqual(len(dto.assets), 2)
-            self.assertEqual(dto.to_document(asset_sources={"asset-123": image}).to_dict(), original)
+            self.assertEqual(len(dto.assets), 4)
+            self.assertEqual(dto.to_document(asset_sources={"asset-123": image, "asset-svg": source_svg}).to_dict(), original)
             self.assertEqual(dto.to_document().reference.source_path, "")
             with self.assertRaises(ContractError) as failure:
                 PatternDocumentDTO.from_document(pattern, "doc-image", 1)
