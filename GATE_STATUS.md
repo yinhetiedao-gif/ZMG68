@@ -1,5 +1,12 @@
 # Gate 状态（2026-09-19）
 
+## WM5.6 — Web 编辑时元素可见性修复（2026-09-29）
+
+- 范围仅 Web 编辑 Bug：直接拖动时由浏览器临时写入 SVG 位移，最终 Evaluate 可能在同一 React 批次返回，React 未观察到临时属性，导致旧位移残留、最终几何被二次平移甚至移出视野。现在在提交后的 layout 阶段显式协调该属性；求值成功/失败后都清理临时位移。
+- Evaluate 响应在替换上一帧前拒绝非正几何尺寸与重复 final ID；数字输入的空白中间态不再把滑杆显示为 0。编辑请求加载中继续保留上一帧；失败继续保留上一帧并回滚项目。
+- 验证记录见 `work/wm5-6/edit-visibility-report.md`；未修改 Python 几何算法、导入流程、Grid 或制造链。
+- Web Vitest 51/51 PASS、TypeScript/Vite Build PASS、Python Full Regression 339/339 PASS、固定图 6/6、Tk Smoke 2/2。实际浏览器打开 144 元素工程，宽度 9→12mm 与直接拖动后始终显示 144 个实心元素，revision 各加一，拖动临时 transform 已清除。现有浏览器后台为未重启的旧 WM3 进程，不含 WM5.5 图片上传端点；新版源码的 PNG 导入及编辑经真实 Python TestClient 回归通过。
+
 ## WM5.5 增量 — Web 图片 / SVG 导入（2026-09-29）
 
 - 从已通过的 WM6 代码基线增量实现，未回退 WM6；后端增加 `POST /api/v1/assets` 与 `POST /api/v1/import`，前端增加按钮与拖放入口。

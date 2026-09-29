@@ -18,6 +18,7 @@ function validGeometry(value: unknown): value is FinalGeometry {
   return typeof item.id === 'string' && item.id.length > 0 && supported.has(String(item.type))
     && item.units === 'mm'
     && ['x', 'y', 'width', 'height', 'rotation'].every((key) => typeof item[key] === 'number' && Number.isFinite(item[key]))
+    && (item.width as number) > 1e-6 && (item.height as number) > 1e-6
     && (item.type !== 'path' && item.type !== 'filled_region'
       || typeof item.path_data === 'string' && item.path_data_coordinate_system === 'element_local')
 }
@@ -50,9 +51,12 @@ export async function evaluateDocument(
   }
   if (!payload || typeof payload !== 'object') throw new EvaluateError('二维求值返回格式无效。')
   const result = payload as Record<string, unknown>
+  const ids = Array.isArray(result.geometry) ? result.geometry.map((item: unknown) =>
+    item && typeof item === 'object' ? (item as Record<string, unknown>).id : null) : []
   if (result.schema_version !== '1.0' || result.document_id !== dto.document_id
       || result.document_revision !== dto.document_revision
       || !Array.isArray(result.geometry) || !result.geometry.every(validGeometry)
+      || new Set(ids).size !== ids.length
       || (result.bounds_mm !== null && !validBounds(result.bounds_mm))
       || !Array.isArray(result.warnings)) {
     throw new EvaluateError('二维求值结果与项目版本、毫米单位或受支持几何不匹配。')

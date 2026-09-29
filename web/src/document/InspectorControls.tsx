@@ -38,7 +38,8 @@ function NumericControl({ spec, value, onCommit }: { spec: NumericSpec; value: n
     <label htmlFor={inputId}>{spec.label}</label>
     <div className="parameter-inputs">
       <input type="range" aria-label={`${spec.label}滑杆`} min={spec.min} max={spec.max} step={spec.integer ? spec.step : 'any'}
-        value={Number.isFinite(Number(draft)) ? Math.min(spec.max, Math.max(spec.min, Number(draft))) : value}
+        value={draft.trim() && Number.isFinite(Number(draft))
+          ? Math.min(spec.max, Math.max(spec.min, Number(draft))) : value}
         onChange={(event) => change(event.target.value)} onPointerUp={commit} onKeyUp={commit} onBlur={commit} />
       <input id={inputId} type="number" min={spec.min} max={spec.max} step={spec.step}
         value={draft} onChange={(event) => change(event.target.value)}

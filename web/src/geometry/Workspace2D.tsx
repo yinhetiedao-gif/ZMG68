@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type PointerEvent, type WheelEvent } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type PointerEvent, type WheelEvent } from 'react'
 import type { BoundsMM, FinalGeometry } from '../model/types'
 import { geometryShape } from './render'
 import { fitView, panBy, screenToWorld, zoomAt, type Point, type ViewTransform, type Viewport } from './view'
@@ -28,6 +28,9 @@ export function Workspace2D({
   const stage = useRef<HTMLDivElement>(null)
   const svg = useRef<SVGSVGElement>(null)
   const interaction = useRef<Interaction | null>(null)
+  // Pointer frames temporarily own this DOM attribute. Reconcile it after
+  // React commits, including a response that resolves before the next paint.
+  const lastDragNode = useRef<SVGGElement | null>(null)
   const frame = useRef<number | null>(null)
   const lastCursorUpdate = useRef(0)
   const [viewport, setViewport] = useState<Viewport>({ width: 800, height: 600 })
@@ -57,6 +60,17 @@ export function Workspace2D({
     if (frame.current !== null) cancelAnimationFrame(frame.current)
   }, [])
 
+  useLayoutEffect(() => {
+    const node = lastDragNode.current
+    if (!node || interaction.current?.kind === 'drag') return
+    if (pendingPreview && pendingPreview.id === node.dataset.elementId) {
+      node.setAttribute('transform', `translate(${pendingPreview.dx} ${pendingPreview.dy})`)
+    } else {
+      node.removeAttribute('transform')
+      lastDragNode.current = null
+    }
+  }, [pendingPreview, geometry])
+
   const screenPoint = (event: { clientX: number; clientY: number }): Point => {
     const rect = svg.current?.getBoundingClientRect()
     return { x: event.clientX - (rect?.left ?? 0), y: event.clientY - (rect?.top ?? 0) }
@@ -76,6 +90,7 @@ export function Workspace2D({
       kind: 'drag', id: item.id, start: screenToWorld(screenPoint(event), view),
       node: event.currentTarget, next: { x: 0, y: 0 },
     }
+    lastDragNode.current = event.currentTarget
     event.currentTarget.setPointerCapture?.(event.pointerId)
   }
   const onBackgroundDown = (event: PointerEvent<SVGSVGElement>) => {
@@ -131,6 +146,7 @@ export function Workspace2D({
     const dy = world.y - active.start.y
     if (Math.abs(dx) + Math.abs(dy) < 1e-8) {
       active.node.removeAttribute('transform')
+      lastDragNode.current = null
       return
     }
     active.node.setAttribute('transform', `translate(${dx} ${dy})`)
@@ -143,7 +159,10 @@ export function Workspace2D({
     }
     const active = interaction.current
     interaction.current = null
-    if (active?.kind === 'drag') active.node.removeAttribute('transform')
+    if (active?.kind === 'drag') {
+      active.node.removeAttribute('transform')
+      lastDragNode.current = null
+    }
   }
 
   return (
