@@ -149,6 +149,10 @@ button { font: inherit; }
 .mapping-card input { width: 100%; border: 1px solid #c9d7df; border-radius: 6px; padding: 9px; font: inherit; }
 .mapping-card div { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
 .mapping-card button { padding: 9px 13px; border: 1px solid #cbdce4; border-radius: 6px; background: #eaf4f8; color: #315d76; cursor: pointer; }
+.layout-parameters { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px !important; max-height: 45vh; overflow-y: auto; }
+.mapping-card:has(.layout-parameters) { width: min(510px, 94%); max-height: 85vh; overflow-y: auto; }
+.mapping-card .layout-actions { flex-wrap: wrap; }
+.layout-preview { display: block; width: 100%; height: 180px; margin-top: 10px; background: #fff; border: 1px solid #d5e0e6; border-radius: 6px; }
 .inspector-selection { padding: 25px 6px; border-bottom: 1px solid #e7ebee; font-size: 11px; }
 .inspector-selection > strong { color: #365f78; font-size: 12px; }
 .inspector-selection dl { display: grid; grid-template-columns: 48px minmax(0, 1fr); gap: 10px 6px; margin: 16px 0; }

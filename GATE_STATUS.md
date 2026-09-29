@@ -1,5 +1,12 @@
 # Gate 状态（2026-09-19）
 
+## WM6.7 — Recognition 与 Layout 分离、手动转换（2026-09-29）
+
+- 基线 `ee07ab6`，保护引用 `backup/pre-wm6-7-recognition-layout`；未修改 PatternAnalyzer、Grid/Radial/Curve 参数化算法或其他产品功能。
+- Recognition 只推荐：现有结构模型匹配时直接应用；未匹配时 Python 以既有参数化模型准备手动布局，先返回独立提案和只读预览。用户取消不改文档，确认后前端只提交一次并求值一次。
+- Free 保留原位置并可在已加载文档中使用。Grid 手动参数为行列/间距/中心；Radial 为中心/半径/数量/角度偏移；Curve 为沿现有模型的直线初始路径、数量与元素尺寸。Radial Layout 不等于 Radial Field。
+- 验证：Web Vitest 67/67 PASS、TypeScript/Vite build PASS、Python Web/导入定向 13/13 PASS、固定图自检 6/6 PASS。全量 Python 回归在持续输出 Tk 对象销毁异常时再次无法收尾，已中断，状态为未验证；没有人工浏览器验证。本提交不宣称为新的完整 LKG。
+
 ## WM6.6 — Web 图案结构可用性与推荐分离（2026-09-29）
 
 - 基线 `8284a5c`，保护引用 `backup/pre-wm6-6-pattern-availability`；仅调整 Web 图案结构桥接和对应测试，不修改 PatternAnalyzer 算法或新增 family。

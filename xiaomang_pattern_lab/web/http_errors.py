@@ -30,6 +30,9 @@ HTTP_STATUS_BY_CODE = {
     "asset_not_found": 404,
     "import_failed": 422,
     "pattern_family_unavailable": 422,
+    "empty_layout": 422,
+    "invalid_layout": 422,
+    "invalid_layout_parameter": 422,
     "internal_error": 500,
 }
 

@@ -6,7 +6,7 @@ function reply(value: unknown, status = 200): Response {
   return { ok: status < 400, status, json: async () => value } as Response
 }
 
-function backend(recommended: 'grid' | null = 'grid', failFamily?: string) {
+function backend(recommended: 'grid' | null = 'grid', failFamily?: string, analyzeFails = false) {
   const elements = Array.from({ length: 36 }, (_, index) => ({
     id: `dot-${index}`, type: 'circle', x: 10 + index % 6 * 10,
     y: 10 + Math.floor(index / 6) * 10, width: 4, height: 4,
@@ -27,19 +27,29 @@ function backend(recommended: 'grid' | null = 'grid', failFamily?: string) {
     if (path.endsWith('/assets')) return Promise.resolve(reply({ asset_id: 'imported' }))
     if (path.endsWith('/import')) return Promise.resolve(reply(dto))
     if (path.endsWith('/analyze-pattern')) {
+      if (analyzeFails) return Promise.resolve(reply({ message: '识别失败' }, 422))
       const request = body.document as typeof dto
       return Promise.resolve(reply({ document_id: request.document_id,
         document_revision: request.document_revision, recommended_family: recommended,
         confidence: recommended === 'grid' ? .95 : 0,
         analysis_status: recommended ? 'matched' : 'no_match' }))
     }
-    if (path.endsWith('/apply-pattern')) {
+    if (path.endsWith('/prepare-pattern')) {
       if (body.family === failFamily) return Promise.resolve(reply({ message: '无法应用该图案结构：未找到稳定格点。' }, 422))
       const request = body.document as typeof dto
-      return Promise.resolve(reply({ ...request, document_revision: request.document_revision + 1,
+      const proposed = { ...request, document_revision: request.document_revision + 1,
         document: { ...request.document, metadata: { 'xiaomang_pattern_lab.parametric': {
           family: body.family === 'free' ? 'free_parametric' : body.family,
-        } } } }))
+        } } } }
+      const defaults = body.family === 'grid' ? { rows: 6, columns: 6, spacing_x: 10, spacing_y: 10, offset_x: 35, offset_y: 35 }
+        : body.family === 'radial' ? { count: 36, center_x: 35, center_y: 35, radius: 25, angular_offset: 0 }
+          : { count: 36, element_width: 4, element_height: 4 }
+      return Promise.resolve(reply({ mode: recommended === body.family || body.family === 'free' ? 'direct' : 'manual',
+        proposed_document: proposed, parameters: recommended === body.family || body.family === 'free' ? {} :
+          body.parameters ?? defaults,
+        preview: { geometry: proposed.document.elements.map((element) => ({ ...element, units: 'mm' })),
+          bounds_mm: { min_x: 8, min_y: 8, max_x: 62, max_y: 62, width: 54, height: 54, units: 'mm' },
+          document_id: 'imported', document_revision: proposed.document_revision, schema_version: '1.0', warnings: [] } }))
     }
     const request = body.document as typeof dto
     return Promise.resolve(reply({ schema_version: '1.0', document_id: request.document_id,
@@ -72,7 +82,7 @@ describe('WM6.5 Web pattern structure bridge', () => {
     await screen.findByText('推荐：规则矩阵 Grid（95%）')
     fireEvent.click(grid)
     await waitFor(() => expect(screen.getByText('revision 1')).toBeInTheDocument())
-    expect(calls.filter((item) => item.path.endsWith('/apply-pattern'))).toHaveLength(1)
+    expect(calls.filter((item) => item.path.endsWith('/prepare-pattern'))).toHaveLength(1)
     expect(calls.filter((item) => item.path.endsWith('/evaluate'))).toHaveLength(2)
     expect(calls.filter((item) => item.path.endsWith('/analyze-pattern')).length).toBeGreaterThanOrEqual(1)
     expect(screen.getByRole('img', { name: '最终二维几何，单位毫米' }).querySelectorAll('[data-element-id]')).toHaveLength(36)
@@ -89,7 +99,7 @@ describe('WM6.5 Web pattern structure bridge', () => {
     expect(screen.getByText('revision 0')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: '自由布局 Free' }))
     await waitFor(() => expect(screen.getByText('revision 1')).toBeInTheDocument())
-    expect(calls.filter((item) => item.path.endsWith('/apply-pattern'))).toHaveLength(2)
+    expect(calls.filter((item) => item.path.endsWith('/prepare-pattern'))).toHaveLength(2)
   })
 
   it('keeps structure buttons enabled while analysis is still running', async () => {
@@ -108,7 +118,7 @@ describe('WM6.5 Web pattern structure bridge', () => {
     expect(screen.getByRole('button', { name: '放射 Radial' })).toBeEnabled()
     expect(screen.getByRole('button', { name: '曲线 Curve' })).toBeEnabled()
     expect(screen.getByRole('button', { name: '自由布局 Free' })).toBeEnabled()
-    expect(calls.filter((item) => item.path.endsWith('/apply-pattern'))).toHaveLength(0)
+    expect(calls.filter((item) => item.path.endsWith('/prepare-pattern'))).toHaveLength(0)
     finishAnalysis?.(reply({ document_id: 'imported', document_revision: 0,
       recommended_family: 'grid', confidence: .9, analysis_status: 'matched' }))
     await screen.findByText('推荐：规则矩阵 Grid（90%）')
@@ -135,5 +145,51 @@ describe('WM6.5 Web pattern structure bridge', () => {
       timeout: 1500,
     })
     expect(calls.filter((item) => item.path.endsWith('/evaluate'))).toHaveLength(3)
+  })
+
+  it.each([['grid', '规则矩阵 Grid'], ['radial', '放射 Radial'], ['along_curve', '曲线 Curve']])(
+    'manually converts unrecognized elements to %s only after confirmation', async (_, label) => {
+      const calls = backend(null)
+      await importSvg()
+      await screen.findByText('暂无可靠推荐；可手动尝试图案结构。')
+      fireEvent.click(screen.getByRole('button', { name: label }))
+      await screen.findByRole('dialog', { name: '手动转换图案结构' })
+      expect(screen.getByRole('img', { name: '手动布局预览' })).toBeInTheDocument()
+      expect(screen.getByText('revision 0')).toBeInTheDocument()
+      fireEvent.click(screen.getByRole('button', { name: '取消' }))
+      expect(screen.getByText('revision 0')).toBeInTheDocument()
+      expect(calls.filter((item) => item.path.endsWith('/evaluate'))).toHaveLength(1)
+      fireEvent.click(screen.getByRole('button', { name: label }))
+      await screen.findByRole('dialog', { name: '手动转换图案结构' })
+      fireEvent.click(screen.getByRole('button', { name: `转换为${label}` }))
+      await waitFor(() => expect(screen.getByText('revision 1')).toBeInTheDocument())
+      expect(calls.filter((item) => item.path.endsWith('/evaluate'))).toHaveLength(2)
+    },
+  )
+
+  it('keeps manual layouts available when analysis itself fails', async () => {
+    backend(null, undefined, true)
+    await importSvg()
+    await screen.findByText(/分析失败：识别失败/)
+    expect(screen.getByRole('button', { name: '规则矩阵 Grid' })).toBeEnabled()
+    fireEvent.click(screen.getByRole('button', { name: '规则矩阵 Grid' }))
+    await screen.findByRole('dialog', { name: '手动转换图案结构' })
+  })
+
+  it('previews changed manual parameters without committing, then confirms once', async () => {
+    const calls = backend(null)
+    await importSvg()
+    fireEvent.click(screen.getByRole('button', { name: '规则矩阵 Grid' }))
+    await screen.findByRole('dialog', { name: '手动转换图案结构' })
+    fireEvent.change(screen.getByRole('spinbutton', { name: '行数' }), { target: { value: '4' } })
+    expect(screen.getByRole('button', { name: '转换为规则矩阵 Grid' })).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: '刷新转换结果' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: '转换为规则矩阵 Grid' })).toBeEnabled())
+    expect(screen.getByText('revision 0')).toBeInTheDocument()
+    expect(calls.filter((item) => item.path.endsWith('/evaluate'))).toHaveLength(1)
+    expect(calls.filter((item) => item.path.endsWith('/prepare-pattern'))).toHaveLength(2)
+    fireEvent.click(screen.getByRole('button', { name: '转换为规则矩阵 Grid' }))
+    await waitFor(() => expect(screen.getByText('revision 1')).toBeInTheDocument())
+    expect(calls.filter((item) => item.path.endsWith('/evaluate'))).toHaveLength(2)
   })
 })
