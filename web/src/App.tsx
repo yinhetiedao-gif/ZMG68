@@ -7,8 +7,9 @@ import { importImage } from './api/import'
 import { analyzePattern, runPatternAction, type DesktopPatternAction, type PatternAnalysis, type PatternFamily } from './api/pattern'
 import { Workspace2D } from './geometry/Workspace2D'
 import { InspectorControls, type EditAction } from './document/InspectorControls'
+import type { ParameterCatalog } from './document/parameterSchema'
 import {
-  restoreSnapshot, updateElement, updateField, updateGrid, updateReplacement,
+  restoreSnapshot, updateElement, updateField, updateGrid, updateLayout, updateReplacement,
   updateScalarModifier, updateStackModifier,
 } from './document/editor'
 import type { FinalGeometry, PatternDocumentDTO } from './model/types'
@@ -39,6 +40,7 @@ const modes: { id: WorkspaceMode; label: string; secondary: string }[] = [
 
 export function App() {
   const [connection, setConnection] = useState<ConnectionState>({ kind: 'checking', message: '正在连接后端…' })
+  const [parameterCatalog, setParameterCatalog] = useState<ParameterCatalog | null>(null)
   const [retry, setRetry] = useState(0)
   const [browser, setBrowser] = useState(initialBrowserState)
   const [project, setProject] = useState(initialDocumentState)
@@ -75,8 +77,12 @@ export function App() {
     const controller = new AbortController()
     let current = true
     setConnection({ kind: 'checking', message: '正在连接后端…' })
-    checkBackend(fetch, controller.signal).then(() => {
-      if (current) setConnection({ kind: 'online', message: 'Backend Online' })
+    checkBackend(fetch, controller.signal).then(({ contract }) => {
+      if (current) {
+        setParameterCatalog(contract.parameter_definitions?.schema_version === '1.0' &&
+          contract.parameter_definitions.units === 'mm' ? contract.parameter_definitions : null)
+        setConnection({ kind: 'online', message: 'Backend Online' })
+      }
     }).catch((error: unknown) => {
       if (!current) return
       if (error instanceof ContractMismatchError) setConnection({ kind: 'incompatible', message: error.message })
@@ -274,15 +280,16 @@ export function App() {
     if (!dto || project.evaluateStatus !== 'ready') return
     try {
       let next: PatternDocumentDTO
-      if (action.kind === 'grid') next = updateGrid(dto, action.key, action.value)
+      if (action.kind === 'grid') next = updateGrid(dto, action.key, action.value, parameterCatalog)
+      else if (action.kind === 'layout') next = updateLayout(dto, action.key, action.value, parameterCatalog)
       else if (action.kind === 'element' && typeof action.value === 'number') {
         const final = project.finalGeometry.find((item) => item.id === action.id)
         if (!final || !sourceCanDrag(final)) throw new Error('该元素没有可靠的源映射，不能直接编辑。')
         next = updateElement(dto, action.id, action.key, action.value)
-      } else if (action.kind === 'field' && (typeof action.value === 'number' || typeof action.value === 'boolean')) {
-        next = updateField(dto, action.id, action.key, action.value)
+      } else if (action.kind === 'field') {
+        next = updateField(dto, action.id, action.key, action.value, parameterCatalog)
       } else if (action.kind === 'scalar' && (typeof action.value === 'number' || typeof action.value === 'boolean')) {
-        next = updateScalarModifier(dto, action.id, action.key, action.value)
+        next = updateScalarModifier(dto, action.id, action.key, action.value, parameterCatalog)
       } else if (action.kind === 'stack' && (typeof action.value === 'number' || typeof action.value === 'boolean')) {
         next = updateStackModifier(dto, action.id, action.key, action.value)
       } else if (action.kind === 'shape' && typeof action.value === 'string') {
@@ -481,7 +488,7 @@ export function App() {
           <p>{sourceCanDrag(selected) ? '可直接拖动；释放鼠标后提交一次。' : '派生或参数化元素不可直接拖动；可编辑其文档规则。'}</p>
         </div> : <div className="inspector-empty"><span className="inspect-glyph" aria-hidden="true">⌗</span><strong>未选择对象</strong><p>No selection</p><small>点击元素可查看其世界毫米信息。</small></div>}
         {project.currentDocument && <InspectorControls key={`${project.currentDocument.document_id}:${project.documentRevision}:${project.evaluateStatus}`}
-          dto={project.currentDocument} selected={selected}
+          dto={project.currentDocument} selected={selected} parameterCatalog={parameterCatalog}
           onEdit={editParameter} disabled={project.evaluateStatus !== 'ready'} />}
         <div className={`connection-card ${connection.kind}`}>
           <div className="connection-card-head"><span>连接状态</span><span className="connection-state-text">{connected ? '已连接' : connection.kind === 'checking' ? '检查中' : connection.kind === 'offline' ? '离线' : '协议不兼容'}</span></div>

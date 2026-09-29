@@ -306,8 +306,10 @@ def create_app(*, asset_resolver: AssetResolver | None = None,
         return {"status": "ok", "contract_version": CURRENT_WEB_SCHEMA_VERSION}
 
     @app.get("/api/v1/contract")
-    def contract() -> dict[str, str]:
-        return {"schema_version": CURRENT_WEB_SCHEMA_VERSION, "units": "mm"}
+    def contract() -> dict:
+        from xiaomang_pattern_lab.parameter_definitions import parameter_definitions
+        return {"schema_version": CURRENT_WEB_SCHEMA_VERSION, "units": "mm",
+                "parameter_definitions": parameter_definitions()}
 
     @app.post("/api/v1/assets")
     async def upload_asset(request: Request) -> JSONResponse:

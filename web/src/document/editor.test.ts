@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import type { PatternDocumentDTO } from '../model/types'
 import {
-  restoreSnapshot, updateElement, updateField, updateGrid, updateReplacement,
+  restoreSnapshot, updateElement, updateField, updateGrid, updateLayout, updateReplacement,
   updateScalarModifier, updateStackModifier,
 } from './editor'
+import type { ParameterCatalog } from './parameterSchema'
 
 function fixture(): PatternDocumentDTO {
   return {
@@ -35,6 +36,26 @@ function fixture(): PatternDocumentDTO {
 }
 
 describe('WM6 centralized immutable document edits', () => {
+  it('edits Python-defined radial layout once without changing its source elements', () => {
+    const initial = fixture()
+    initial.document.metadata['xiaomang_pattern_lab.parametric'] = {
+      mode: 'radial', model: { count: 12, center_x: 0 }, parametric_model: { count: 12, center_x: 0 },
+    }
+    const catalog: ParameterCatalog = { schema_version: '1.0', units: 'mm', definitions: {
+      layout: { radial: { label: '放射', parameters: [
+        { id: 'count', label: '数量', type: 'integer', default: 12, value: 12, min: 1, max: 3000,
+          step: 1, unit: '', options: [] },
+      ] } }, field: {}, modifier: {},
+    } }
+    const changed = updateLayout(initial, 'count', 20, catalog)
+    expect(changed.document_revision).toBe(1)
+    expect(changed.document.elements).toBe(initial.document.elements)
+    expect(changed.document.metadata['xiaomang_pattern_lab.parametric']).toMatchObject({
+      model: { count: 20 }, parametric_model: { count: 20 },
+    })
+    expect(() => updateLayout(initial, 'count', 2.5, catalog)).toThrow()
+    expect(() => updateLayout(initial, 'unknown', 2, catalog)).toThrow()
+  })
   it('commits source transform once without mutating the input', () => {
     const initial = fixture()
     const changed = updateElement(initial, 'dot-1', 'x', 25)

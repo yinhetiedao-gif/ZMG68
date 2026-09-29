@@ -1,3 +1,5 @@
+import type { ParameterCatalog } from '../document/parameterSchema'
+
 export const EXPECTED_SCHEMA_VERSION = '1.0' as const
 export const EXPECTED_UNITS = 'mm' as const
 
@@ -9,6 +11,7 @@ export interface HealthResponse {
 export interface ContractResponse {
   schema_version: string
   units: string
+  parameter_definitions?: ParameterCatalog
 }
 
 export interface BackendHandshake {

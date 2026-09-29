@@ -1,5 +1,6 @@
 import type { PatternDocument, PatternDocumentDTO } from '../model/types'
 import { millimetresPerUnit } from '../model/project'
+import { groupFor, validateParameter, type ParameterCatalog } from './parameterSchema'
 import {
   asRecord, ELEMENT_SPECS, FIELD_SPECS, GRID_SPECS, MAPPING_SPECS,
   PARAMETRIC_KEY, PLACEMENT_KEY, POSITION_SPECS, STACK_KEY,
@@ -14,6 +15,16 @@ function numeric(value: number, key: string, specs: { key: string; min: number; 
   }
   if (key === 'direction' && value !== -1 && value !== 1) throw new DocumentEditError('方向只能为 -1 或 1。')
   return value
+}
+
+function catalogValue(catalog: ParameterCatalog | null, category: 'layout' | 'field' | 'modifier',
+  type: string, key: string, value: number | boolean | string): boolean {
+  const group = groupFor(catalog, category, type)
+  if (!group) return false
+  const definition = group.parameters.find((item) => item.id === key)
+  if (!definition) throw new DocumentEditError(`参数 ${key} 不在 Python Schema 中。`)
+  if (!validateParameter(definition, value)) throw new DocumentEditError(`参数 ${key} 超出 Python Schema 允许范围。`)
+  return true
 }
 
 function changed(dto: PatternDocumentDTO, document: PatternDocument): PatternDocumentDTO {
@@ -41,19 +52,24 @@ export function updateElement(dto: PatternDocumentDTO, id: string, key: string, 
   })
 }
 
-export function updateField(dto: PatternDocumentDTO, id: string, key: string, value: number | boolean): PatternDocumentDTO {
+export function updateField(dto: PatternDocumentDTO, id: string, key: string, value: number | boolean | string,
+  catalog: ParameterCatalog | null = null): PatternDocumentDTO {
   let found = false
   const fields = dto.document.fields.map((field) => {
     if (field.id !== id) return field
     found = true
     const type = String(field.type)
-    if (type === 'image' || type === 'composite' || !FIELD_SPECS[type]) throw new DocumentEditError('此参数场目前只读。')
+    if (type === 'image' || type === 'composite' || (!FIELD_SPECS[type] && !groupFor(catalog, 'field', type))) throw new DocumentEditError('此参数场目前只读。')
     const parameters = asRecord(field.parameters) ?? {}
     if (key === 'invert') {
       if (typeof value !== 'boolean' || !('invert' in parameters)) throw new DocumentEditError('该场不支持反转。')
+      catalogValue(catalog, 'field', type, key, value)
     } else {
-      if (typeof value !== 'number' || !(key in parameters)) throw new DocumentEditError('该参数不存在。')
-      numeric(value, key, FIELD_SPECS[type])
+      if (!(key in parameters)) throw new DocumentEditError('该参数不存在。')
+      if (!catalogValue(catalog, 'field', type, key, value)) {
+        if (typeof value !== 'number') throw new DocumentEditError('该参数需要数字。')
+        numeric(value, key, FIELD_SPECS[type])
+      }
       if (type === 'linear' && (key === 'start' || key === 'end')) {
         const start = key === 'start' ? value : parameters.start
         const end = key === 'end' ? value : parameters.end
@@ -67,7 +83,8 @@ export function updateField(dto: PatternDocumentDTO, id: string, key: string, va
   return changed(dto, { ...dto.document, fields })
 }
 
-export function updateScalarModifier(dto: PatternDocumentDTO, id: string, key: string, value: number | boolean): PatternDocumentDTO {
+export function updateScalarModifier(dto: PatternDocumentDTO, id: string, key: string, value: number | boolean,
+  catalog: ParameterCatalog | null = null): PatternDocumentDTO {
   let found = false
   const modifiers = dto.document.modifiers.map((modifier) => {
     if (modifier.id !== id) return modifier
@@ -83,8 +100,9 @@ export function updateScalarModifier(dto: PatternDocumentDTO, id: string, key: s
       numeric(value, key, [{ key: 'threshold', min: 0, max: 1 }])
       return { ...modifier, threshold: value }
     }
-    if ((type === 'size' || type === 'rotation') && MAPPING_SPECS.some((item) => item.key === key)) {
-      numeric(value, key, MAPPING_SPECS)
+    if ((type === 'size' || type === 'rotation') && (MAPPING_SPECS.some((item) => item.key === key) ||
+        groupFor(catalog, 'modifier', type)?.parameters.some((item) => item.id === key))) {
+      if (!catalogValue(catalog, 'modifier', type, key, value)) numeric(value, key, MAPPING_SPECS)
       const mapping = asRecord(modifier.mapping) ?? {}
       if (type === 'size' && (key === 'min_output' || key === 'max_output') && value < 0) throw new DocumentEditError('尺寸比例不能为负。')
       return { ...modifier, mapping: { ...mapping, [key]: value } }
@@ -119,8 +137,9 @@ export function updateStackModifier(dto: PatternDocumentDTO, id: string, key: st
   })
 }
 
-export function updateGrid(dto: PatternDocumentDTO, key: string, value: number): PatternDocumentDTO {
-  numeric(value, key, GRID_SPECS)
+export function updateGrid(dto: PatternDocumentDTO, key: string, value: number,
+  catalog: ParameterCatalog | null = null): PatternDocumentDTO {
+  if (!catalogValue(catalog, 'layout', 'grid', key, value)) numeric(value, key, GRID_SPECS)
   const state = asRecord(dto.document.metadata[PARAMETRIC_KEY])
   if (state?.mode !== 'grid') throw new DocumentEditError('当前不是规则矩阵项目。')
   const base = asRecord(state.grid) ?? asRecord(state.model)
@@ -154,6 +173,23 @@ export function updateGrid(dto: PatternDocumentDTO, key: string, value: number):
   for (const modelKey of ['grid', 'model', 'parametric_model']) {
     const model = asRecord(state[modelKey])
     if (model) nextState[modelKey] = { ...model, ...patch }
+  }
+  return changed(dto, { ...dto.document, metadata: { ...dto.document.metadata, [PARAMETRIC_KEY]: nextState } })
+}
+
+export function updateLayout(dto: PatternDocumentDTO, key: string, value: number | boolean,
+  catalog: ParameterCatalog | null): PatternDocumentDTO {
+  const state = asRecord(dto.document.metadata[PARAMETRIC_KEY])
+  const mode = String(state?.mode ?? '')
+  if (mode !== 'radial' && mode !== 'along_curve') throw new DocumentEditError('当前布局不支持此参数。')
+  const model = asRecord(state?.model) ?? asRecord(state?.parametric_model)
+  if (!model || !(key in model)) throw new DocumentEditError('布局参数不存在。')
+  if (!catalogValue(catalog, 'layout', mode, key, value)) throw new DocumentEditError('缺少布局的 Python 参数定义。')
+  if (model[key] === value) return dto
+  const nextState = { ...state }
+  for (const alias of ['model', 'parametric_model']) {
+    const item = asRecord(state?.[alias])
+    if (item) nextState[alias] = { ...item, [key]: value }
   }
   return changed(dto, { ...dto.document, metadata: { ...dto.document.metadata, [PARAMETRIC_KEY]: nextState } })
 }

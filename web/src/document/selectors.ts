@@ -73,6 +73,14 @@ export function gridModel(dto: PatternDocumentDTO): Record<string, unknown> | nu
   return asRecord(state.grid) ?? asRecord(state.model)
 }
 
+export function layoutModel(dto: PatternDocumentDTO): { mode: string; model: Record<string, unknown> } | null {
+  const state = asRecord(dto.document.metadata[PARAMETRIC_KEY])
+  if (!state) return null
+  const mode = String(state.mode ?? '')
+  const model = asRecord(state.model) ?? asRecord(state.parametric_model)
+  return model ? { mode, model } : null
+}
+
 export function placementState(dto: PatternDocumentDTO): Record<string, unknown> | null {
   const state = asRecord(dto.document.metadata[PLACEMENT_KEY])
   return state?.enabled === true ? state : null

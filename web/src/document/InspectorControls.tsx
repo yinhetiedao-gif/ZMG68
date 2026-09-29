@@ -1,15 +1,18 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import type { FinalGeometry, PatternDocumentDTO } from '../model/types'
 import { directSourceElement, millimetresPerUnit } from '../model/project'
+import { ParameterPanel } from './ParameterPanel'
+import { groupFor, type ParameterCatalog } from './parameterSchema'
 import {
   asRecord, ELEMENT_SPECS, FIELD_SPECS, fieldRecords, GRID_SPECS,
-  gridModel, MAPPING_SPECS, placementState, POSITION_SPECS,
+  gridModel, layoutModel, MAPPING_SPECS, placementState, POSITION_SPECS,
   scalarModifiers, stackModifiers, type NumericSpec,
 } from './selectors'
 
 export type EditAction =
   | { kind: 'element' | 'field' | 'scalar' | 'stack' | 'shape'; id: string; key: string; value: number | boolean | string }
   | { kind: 'grid'; key: string; value: number }
+  | { kind: 'layout'; key: string; value: number | boolean }
 
 function NumericControl({ spec, value, onCommit, sliderMax = spec.max }: {
   spec: NumericSpec; value: number; onCommit: (value: number) => void; sliderMax?: number
@@ -59,16 +62,18 @@ const modifierLabel: Record<string, string> = {
   size: '尺寸', rotation: '旋转', position: '位置/变形', field_position: '场位移', density: '密度',
 }
 
-export function InspectorControls({ dto, selected, onEdit, disabled }: {
+export function InspectorControls({ dto, selected, onEdit, disabled, parameterCatalog = null }: {
   dto: PatternDocumentDTO
   selected: FinalGeometry | null
   onEdit: (action: EditAction) => void
   disabled: boolean
+  parameterCatalog?: ParameterCatalog | null
 }) {
   const [fieldId, setFieldId] = useState<string>('')
   const fields = fieldRecords(dto)
   const activeField = fields.find((field) => field.id === fieldId) ?? fields[0]
   const grid = gridModel(dto)
+  const layout = layoutModel(dto)
   const placement = placementState(dto)
   const scale = millimetresPerUnit(dto.document) ?? 1
   const editable = selected ? directSourceElement(dto, selected.id, selected.x, selected.y) : null
@@ -99,11 +104,21 @@ export function InspectorControls({ dto, selected, onEdit, disabled }: {
 
     {grid && <section className="inspector-section" aria-label="矩阵结构参数">
       <h3>PARAMETRIC / 矩阵结构</h3>
-      {GRID_SPECS.filter((item) => typeof grid[item.key] === 'number').map((item) =>
+      {groupFor(parameterCatalog, 'layout', 'grid') ? <ParameterPanel group={groupFor(parameterCatalog, 'layout', 'grid')!}
+        values={grid} onCommit={(key, value) => { if (typeof value === 'number') onEdit({ kind: 'grid', key, value }) }} />
+        : GRID_SPECS.filter((item) => typeof grid[item.key] === 'number').map((item) =>
         <NumericControl key={item.key} spec={item} value={Number(grid[item.key])}
           onCommit={(next) => onEdit({ kind: 'grid', key: item.key, value: next })} />)}
       {Array.isArray(grid.basis_u_vector) && <p className="inspector-readonly">当前含斜向基向量；间距和旋转会同步调整基向量。</p>}
     </section>}
+
+    {layout && (layout.mode === 'radial' || layout.mode === 'along_curve') &&
+      groupFor(parameterCatalog, 'layout', layout.mode) &&
+      <section className="inspector-section" aria-label="布局结构参数">
+        <h3>LAYOUT / {groupFor(parameterCatalog, 'layout', layout.mode)!.label}</h3>
+        <ParameterPanel group={groupFor(parameterCatalog, 'layout', layout.mode)!} values={layout.model}
+          onCommit={(key, value) => { if (typeof value !== 'string') onEdit({ kind: 'layout', key, value }) }} />
+      </section>}
 
     {fields.length > 0 && <section className="inspector-section" aria-label="参数场">
       <h3>FIELD / 参数场</h3>
@@ -118,6 +133,9 @@ export function InspectorControls({ dto, selected, onEdit, disabled }: {
         const type = String(activeField.type)
         const parameters = asRecord(activeField.parameters) ?? {}
         if (type === 'composite') return <p className="inspector-readonly">组合场只读：A={String(parameters.input_a_field_id ?? '—')}，B={String(parameters.input_b_field_id ?? '—')}，运算={String(parameters.operator ?? '—')}。原始引用完整保留。</p>
+        const group = groupFor(parameterCatalog, 'field', type)
+        if (group) return <ParameterPanel group={group} values={parameters}
+          onCommit={(key, value) => onEdit({ kind: 'field', id: String(activeField.id), key, value })} />
         if (type === 'image' || !FIELD_SPECS[type]) return <p className="inspector-readonly">该参数场当前只读；图片资产尚未接入网页。</p>
         return <>
           {FIELD_SPECS[type].filter((item) => typeof parameters[item.key] === 'number').map((item) =>
@@ -143,7 +161,10 @@ export function InspectorControls({ dto, selected, onEdit, disabled }: {
               onChange={(event) => onEdit({ kind: 'scalar', id, key: 'enabled', value: event.target.checked })} />
               {modifierLabel[type] ?? type} · {id}</label>
             <small>Field: {String(modifier.field_id ?? '—')}</small>
-            {(type === 'size' || type === 'rotation') && MAPPING_SPECS.filter((item) => typeof mapping[item.key] === 'number').map((item) =>
+            {(type === 'size' || type === 'rotation') && groupFor(parameterCatalog, 'modifier', type)
+              ? <ParameterPanel group={groupFor(parameterCatalog, 'modifier', type)!} values={mapping}
+                onCommit={(key, value) => onEdit({ kind: 'scalar', id, key, value })} />
+              : (type === 'size' || type === 'rotation') && MAPPING_SPECS.filter((item) => typeof mapping[item.key] === 'number').map((item) =>
               <NumericControl key={item.key} spec={item} value={Number(mapping[item.key])}
                 onCommit={(next) => onEdit({ kind: 'scalar', id, key: item.key, value: next })} />)}
             {type === 'density' && typeof modifier.threshold === 'number' &&
