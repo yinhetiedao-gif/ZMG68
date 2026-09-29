@@ -2,10 +2,11 @@
 
 ## Web P0 — 固定设计工作区（2026-09-29）
 
-- 状态：PARTIAL。核心布局已修复，仍需真实导入图案后的右栏人工验证和可收尾的 Python 全量回归。
+- 状态：PASS。使用现有文件入口加载 `work/physical-validation-02/physical_validation_02_real_pattern.pattern.json` 完成真实 Web UI 验收；本轮仅补验证与记录，不改产品代码，不进入 P1。
 - 仅调整 Web 样式：页面固定为视口高度，body/root 不整体滚动；左右栏独立纵向滚动，中央 Canvas 与底部模式栏留在固定工作区。旧版已把参数配置放入右侧 Inspector，当前没有大型参数化弹窗；本轮仅删除已无用途的旧弹窗样式，保留必要的毫米映射小弹窗。不修改参数化算法、文档或 Python Engine。
 - Web 新增布局合同测试，Vitest 65/65 PASS，TypeScript/Vite build PASS，固定图自检 6/6 PASS。真实浏览器以 1440px 宽、768/900/1080 高视口检查：页面滚动量 0、Canvas 与模式栏位置稳定；768 高度下左栏 scrollHeight 953 > clientHeight 644，滚轮使左栏 scrollTop 从 0 增至约 309，body 保持 0；浏览器 error 日志为空。
-- 局限：浏览器文件选择器未成功触发，故本轮未完成真实图案导入后的右栏滚动与 Zoom/Pan 人工复测；这些功能的既有 Web 自动测试继续通过。Python 全量回归因既有 Tk Variable 销毁异常持续输出而中断，不能记作 PASS。本状态不提升为完整 Last Known Good，也不进入 P1。
+- 最终 UI 验收：在 1440×768 浏览器视口中，该项目显示 3 个实心星形及 Grid、Wave Field、Size Modifier 控件；左栏 scrollTop 0→280.6、右栏 0→982.9，body 始终 0，顶栏 top=0、Canvas top=128、底部模式栏 top=696 均未移动。画布 Zoom 14.12→16.94 px/mm，空白区拖动使 SVG 平移量增加约 (40,30)px，元素仍为 3 个。右栏“最小输出”0.625→0.7 后 revision 0→1、元素仍为 3 个且无浏览器 error 日志。
+- 最终回归：Web 受影响测试 18/18 PASS、TypeScript/Vite build PASS、Tk smoke 2/2 PASS。此前 Python 全量回归因 Tk Variable 析构异常持续输出而中断；该异常在本轮 P0 开始前已有记录，本轮未修改 Python 代码，也未将全量回归标为 PASS。
 
 ## Web 参数化体验对齐 Desktop（2026-09-29）
 
