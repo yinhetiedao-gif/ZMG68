@@ -24,6 +24,11 @@ HTTP_STATUS_BY_CODE = {
     "manufacturing_validation_failed": 422,
     "artifact_not_found": 404,
     "request_too_large": 413,
+    "asset_too_large": 413,
+    "asset_store_full": 429,
+    "invalid_asset": 422,
+    "asset_not_found": 404,
+    "import_failed": 422,
     "internal_error": 500,
 }
 

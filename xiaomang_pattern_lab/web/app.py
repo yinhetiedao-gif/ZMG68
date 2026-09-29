@@ -2,9 +2,11 @@
 from __future__ import annotations
 
 import hashlib
+from copy import deepcopy
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any
+from urllib.parse import unquote
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -12,6 +14,10 @@ from fastapi.responses import JSONResponse, Response
 from starlette.concurrency import run_in_threadpool
 
 from ppg.foundation import FoundationPipeline
+from ppg.foundation import SVGNormalizer
+from ppg.integrations import ImageToSVGVectorizationAdapter
+from xiaomang_pattern_lab.adapters import BinaryThresholdImageProcessingAdapter
+from xiaomang_pattern_lab.faithful_mapping import FaithfulMappingAdapter
 from xiaomang_pattern_lab.contracts import (
     ArtifactDTO, ContractError, CURRENT_WEB_SCHEMA_VERSION, EvaluateRequestDTO,
     EvaluateResponseDTO, ManufacturingBuildRequestDTO,
@@ -21,7 +27,7 @@ from xiaomang_pattern_lab.manufacturing_service import ManufacturingService
 from xiaomang_pattern_lab.session import PatternLabSession
 from xiaomang_pattern_lab.stl_export import STLExporter
 
-from .assets import AssetResolver, NullAssetResolver
+from .assets import AssetResolver, MAX_ASSET_BYTES, NullAssetResolver, TemporaryAssetStore
 from .http_errors import (
     WebError, contract_error_handler, internal_error_handler, web_error_handler,
 )
@@ -30,6 +36,7 @@ from .runtime_store import InMemoryManufacturingResultStore, StoredManufacturing
 
 MAX_REQUEST_BYTES = 2 * 1024 * 1024
 LOCAL_DEV_ORIGINS = ("http://localhost:5173", "http://127.0.0.1:5173",
+                     "http://localhost:5174", "http://127.0.0.1:5174",
                      "http://localhost:3000", "http://127.0.0.1:3000")
 JSON_DOCUMENT_BODY = {"requestBody": {"required": True, "content": {
     "application/json": {"schema": {"type": "object", "additionalProperties": True},
@@ -103,15 +110,46 @@ def _build(document, dto: PatternDocumentDTO, height_mm: float):
     return result_id, StoredManufacturingResult(result, encoded, stl_bytes)
 
 
+def _import_asset(item) -> dict[str, Any]:
+    """Use the desktop's existing replaceable raster/vector adapters, then DTO."""
+    if item.media_type == "image/svg+xml":
+        document = SVGNormalizer().normalize_file(str(item.path))
+    else:
+        processor = BinaryThresholdImageProcessingAdapter()
+        vectorizer = ImageToSVGVectorizationAdapter(mode="simple")
+        output = item.path.parent / item.asset_id / "vectorized.svg"
+        output.parent.mkdir(exist_ok=True)
+        document = FaithfulMappingAdapter(processor, vectorizer).map_raster(
+            str(item.path), str(output)).document
+    # Local temporary paths are server details, never Web Contract contents.
+    document = deepcopy(document)
+    document.reference.source_path = ""
+    for section in (document.reference.metadata, document.reference.preprocessing):
+        for key in list(section):
+            if key.endswith("path"):
+                section[key] = ""
+    document.metadata["source_svg"] = ""
+    document.metadata["source_asset_id"] = item.asset_id
+    # SVG/pixel user units require a display mapping. This is explicitly not
+    # a verified manufacturing scale; callers must confirm dimensions later.
+    if document.canvas.mm_per_unit is None:
+        document.canvas.mm_per_unit = 1.0
+        document.metadata["web_import_scale_unconfirmed"] = True
+    dto = PatternDocumentDTO.from_document(document, item.asset_id, 0)
+    return dto.to_dict()
+
+
 def create_app(*, asset_resolver: AssetResolver | None = None,
-               result_store: InMemoryManufacturingResultStore | None = None) -> FastAPI:
+               result_store: InMemoryManufacturingResultStore | None = None,
+               asset_store: TemporaryAssetStore | None = None) -> FastAPI:
     """Build an isolated headless server instance; importing does not start it."""
     resolver = asset_resolver if asset_resolver is not None else NullAssetResolver()
     store = result_store if result_store is not None else InMemoryManufacturingResultStore()
+    uploads = asset_store if asset_store is not None else TemporaryAssetStore()
     app = FastAPI(title="Xiaomang Pattern Lab API", version="0.3-alpha")
     app.add_middleware(CORSMiddleware, allow_origins=list(LOCAL_DEV_ORIGINS),
                        allow_credentials=False, allow_methods=["GET", "POST"],
-                       allow_headers=["Content-Type"])
+                       allow_headers=["Content-Type", "X-Filename"])
     app.add_exception_handler(ContractError, contract_error_handler)
     app.add_exception_handler(WebError, web_error_handler)
     app.add_exception_handler(Exception, internal_error_handler)
@@ -123,6 +161,41 @@ def create_app(*, asset_resolver: AssetResolver | None = None,
     @app.get("/api/v1/contract")
     def contract() -> dict[str, str]:
         return {"schema_version": CURRENT_WEB_SCHEMA_VERSION, "units": "mm"}
+
+    @app.post("/api/v1/assets")
+    async def upload_asset(request: Request) -> JSONResponse:
+        media_type = request.headers.get("content-type", "").split(";", 1)[0].lower()
+        if media_type not in {"image/png", "image/jpeg", "image/svg+xml"}:
+            raise WebError("invalid_asset", "仅支持 PNG、JPG/JPEG 和 SVG。")
+        filename = unquote(request.headers.get("x-filename", "image"))
+        data = bytearray()
+        async for chunk in request.stream():
+            data.extend(chunk)
+            if len(data) > MAX_ASSET_BYTES:
+                raise WebError("asset_too_large", "文件超过 8 MiB 限制。")
+        try:
+            item = await run_in_threadpool(uploads.put, bytes(data), media_type, filename)
+        except OverflowError as error:
+            raise WebError("asset_store_full", str(error)) from error
+        except ValueError as error:
+            raise WebError("invalid_asset", str(error)) from error
+        return JSONResponse({"asset_id": item.asset_id, "media_type": item.media_type,
+                             "filename": item.filename})
+
+    @app.post("/api/v1/import", openapi_extra=JSON_DOCUMENT_BODY)
+    async def import_asset(request: Request) -> JSONResponse:
+        payload = await _read_payload(request)
+        identifier = payload.get("asset_id")
+        if not isinstance(identifier, str):
+            raise WebError("invalid_asset", "缺少资产 ID。")
+        item = uploads.get(identifier)
+        if item is None:
+            raise WebError("asset_not_found", "图片不存在或已经过期，请重新导入。")
+        try:
+            dto = await run_in_threadpool(_import_asset, item)
+        except (ValueError, OSError, RuntimeError) as error:
+            raise WebError("import_failed", "图片转换失败：%s" % error) from error
+        return JSONResponse(dto)
 
     @app.post("/api/v1/evaluate", openapi_extra=JSON_DOCUMENT_BODY)
     async def evaluate(request: Request) -> JSONResponse:

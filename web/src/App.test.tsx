@@ -24,9 +24,11 @@ describe('WM4 application shell', () => {
     expect(screen.getByLabelText('中央工作区')).toBeInTheDocument()
     expect(screen.getByLabelText('右侧检查器')).toBeInTheDocument()
     expect(screen.getByText('打开项目查看二维图案')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /图片 Image/ })).toBeDisabled()
+    expect(screen.getByRole('button', { name: /基础形状 Shapes/ })).toBeDisabled()
     expect(screen.getByRole('button', { name: '打开项目' })).toBeEnabled()
     await screen.findByText('Backend Online')
+    expect(screen.getByRole('button', { name: /导入 PNG \/ JPG/ })).toBeEnabled()
+    expect(screen.getByRole('button', { name: /导入 SVG/ })).toBeEnabled()
   })
 
   it('calls WM3 health and contract through one API client', async () => {

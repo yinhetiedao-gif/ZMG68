@@ -3,6 +3,7 @@ import {
   BackendOfflineError, checkBackend, ContractMismatchError, EXPECTED_SCHEMA_VERSION,
 } from './api/client'
 import { evaluateDocument } from './api/evaluate'
+import { importImage } from './api/import'
 import { Workspace2D } from './geometry/Workspace2D'
 import { InspectorControls, type EditAction } from './document/InspectorControls'
 import {
@@ -23,11 +24,6 @@ type ConnectionState =
   | { kind: 'offline'; message: string }
   | { kind: 'incompatible'; message: string }
 
-const sourceItems = [
-  { label: '图片 Image', mark: '▧' },
-  { label: '矢量 SVG', mark: '◇' },
-  { label: '基础形状 Shapes', mark: '◯' },
-]
 const patternItems = [
   { label: '规则矩阵 Grid', mark: '▦' },
   { label: '放射 Radial', mark: '✳' },
@@ -68,6 +64,9 @@ export function App() {
   const historyRef = useRef<{ past: PatternDocumentDTO[]; future: PatternDocumentDTO[] }>({ past: [], future: [] })
   const [historyCount, setHistoryCount] = useState({ past: 0, future: 0 })
   const inputRef = useRef<HTMLInputElement>(null)
+  const imageInputRef = useRef<HTMLInputElement>(null)
+  const svgInputRef = useRef<HTMLInputElement>(null)
+  const [importing, setImporting] = useState(false)
   const evaluateController = useRef<AbortController | null>(null)
   const evaluateSequence = useRef(0)
 
@@ -153,6 +152,30 @@ export function App() {
     } catch (error) {
       setProjectError(error instanceof Error ? error.message : '无法读取项目。')
     }
+  }
+  const openImage = async (file: File) => {
+    if (importing) return
+    setImporting(true)
+    setProjectError(null)
+    try {
+      const dto = await importImage(file)
+      acceptProject(dto, file.name, dto.document.metadata.web_import_scale_unconfirmed
+        ? ['导入图案暂按 1 原始单位 = 1 mm 显示；制造前必须确认真实尺寸。'] : [])
+    } catch (error) {
+      setProjectError(error instanceof Error ? error.message : '导入图片失败。')
+    } finally {
+      setImporting(false)
+    }
+  }
+  const onImageFile = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (file) void openImage(file)
+  }
+  const onDrop = (event: React.DragEvent<HTMLElement>) => {
+    event.preventDefault()
+    const file = event.dataTransfer.files[0]
+    if (file) void openImage(file)
   }
   const confirmMapping = () => {
     if (!mapping) return
@@ -263,9 +286,18 @@ export function App() {
       <aside className="sidebar" aria-label="左侧工具栏">
         <div className="sidebar-intro"><span className="eyebrow">WORKSPACE / 工作台</span><p>打开项目，查看并移动可直接编辑的二维元素。</p></div>
         <button className="open-project-side" type="button" onClick={() => inputRef.current?.click()}>打开本地项目</button>
-        <SideGroup title="素材来源" index="01" items={sourceItems} />
+        <section className="side-group" aria-label="素材来源">
+          <div className="group-heading"><span>01</span><h2>素材来源</h2></div>
+          <div className="side-items">
+            <button className="side-item" type="button" disabled={importing || !connected}
+              onClick={() => imageInputRef.current?.click()}><span className="side-item-mark">▧</span>导入 PNG / JPG</button>
+            <button className="side-item" type="button" disabled={importing || !connected}
+              onClick={() => svgInputRef.current?.click()}><span className="side-item-mark">◇</span>导入 SVG</button>
+            <button className="side-item" type="button" disabled title="即将开放"><span className="side-item-mark">◯</span>基础形状 Shapes</button>
+          </div>
+        </section>
         <SideGroup title="图案结构" index="02" items={patternItems} />
-        <div className="sidebar-footnote"><span className="footnote-icon">i</span><p>项目 JSON 在浏览器读取；参数编辑通过 Python 求值。图片上传与制造尚未开放。</p></div>
+        <div className="sidebar-footnote"><span className="footnote-icon">i</span><p>拖入 PNG/JPG/SVG 可由 Python 转换为独立元素；制造尚未开放。</p></div>
       </aside>
 
       <main className="workspace" aria-label="中央工作区">
@@ -275,7 +307,7 @@ export function App() {
           <div className="history-actions"><button type="button" onClick={undo} disabled={!historyCount.past || project.evaluateStatus !== 'ready'}>撤销</button>
             <button type="button" onClick={redo} disabled={!historyCount.future || project.evaluateStatus !== 'ready'}>重做</button></div>
         </div>
-        <div className="canvas-stage">
+        <div className="canvas-stage" onDragOver={(event) => event.preventDefault()} onDrop={onDrop}>
           {browser.activeMode === 'design' && project.currentDocument && project.evaluateStatus !== 'idle' ? (
             <Workspace2D geometry={project.finalGeometry} bounds={project.bounds} mmPerUnit={scale}
               view={browser.viewTransform}
@@ -300,6 +332,7 @@ export function App() {
             </section>
           )}
           {project.evaluateStatus === 'loading' && <div className="viewer-notice" role="status">Python 正在计算最终二维几何…</div>}
+          {importing && <div className="viewer-notice" role="status">Python 正在转换图片为可编辑元素…</div>}
           {project.evaluateError && <div className="viewer-error" role="alert">{project.evaluateError}</div>}
           {projectError && <div className="viewer-error" role="alert">{projectError}</div>}
           {project.warnings.length > 0 && <div className="viewer-warning" role="note">{project.warnings.join(' ')}</div>}
@@ -353,5 +386,9 @@ export function App() {
     </div>
     <input ref={inputRef} type="file" accept=".json,application/json" className="visually-hidden"
       aria-label="选择 PatternDocument 项目文件" onChange={(event) => void onFile(event)} />
+    <input ref={imageInputRef} type="file" accept=".png,.jpg,.jpeg,image/png,image/jpeg" className="visually-hidden"
+      aria-label="选择 PNG 或 JPG 图片" onChange={onImageFile} />
+    <input ref={svgInputRef} type="file" accept=".svg,image/svg+xml" className="visually-hidden"
+      aria-label="选择 SVG 图片" onChange={onImageFile} />
   </div>
 }

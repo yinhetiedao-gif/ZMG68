@@ -1,5 +1,13 @@
 # Gate 状态（2026-09-19）
 
+## WM5.5 增量 — Web 图片 / SVG 导入（2026-09-29）
+
+- 从已通过的 WM6 代码基线增量实现，未回退 WM6；后端增加 `POST /api/v1/assets` 与 `POST /api/v1/import`，前端增加按钮与拖放入口。
+- PNG/JPG 使用既有 BinaryThresholdImageProcessingAdapter、ImageToSVGVectorizationAdapter 与 FaithfulMappingAdapter；SVG 使用既有 SVGNormalizer。网页不包含矢量化或 SVG 解析算法。
+- Alpha 临时资产仅在服务进程内保存；8 MiB、32 项、30 分钟 TTL；不向前端回传本机绝对路径。导入结果为真实 Element DTO，隐藏原图仍可求值。
+- 未确认物理尺寸的图案以 1 原始单位 = 1 mm 临时显示并显著提示；不应将该值视为打印尺寸确认。
+- 专项测试覆盖规则/渐变/星形点阵 PNG、JPG、带孔 SVG、无效类型/超限/丢失/过期资产、Evaluate；浏览器规则点阵 PNG 实际显示 144 个实心元素，浏览器 error 日志 0。前端 41/41、TypeScript build PASS；Python 完整回归 338/338、固定六图 6/6、Tk Smoke 2/2 PASS。
+
 ## WM6 — Web Parametric Controls MVP（2026-09-28）
 
 - Status: PASS — 前端核心、真实打印工程浏览器导入与修改/撤销、回归测试均通过；144 点在自动化导入测试通过，尚未测量浏览器 FPS。
