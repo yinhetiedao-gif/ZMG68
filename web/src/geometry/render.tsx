@@ -15,14 +15,16 @@ function pathTransform(item: FinalGeometry, mmPerUnit: number): string {
   const baseY = (item.base_y ?? 0) / mmPerUnit
   const baseWidth = (item.base_width ?? mmPerUnit) / mmPerUnit
   const baseHeight = (item.base_height ?? mmPerUnit) / mmPerUnit
-  const parts = source ? [source] : []
+  const parts: string[] = []
   if (x !== baseX || y !== baseY) parts.push(`translate(${x - baseX} ${y - baseY})`)
+  if (item.rotation) parts.push(`rotate(${item.rotation} ${baseX} ${baseY})`)
   if (item.width / mmPerUnit !== baseWidth || item.height / mmPerUnit !== baseHeight) {
     parts.push(`translate(${baseX} ${baseY})`)
     parts.push(`scale(${item.width / mmPerUnit / Math.max(baseWidth, 1e-9)} ${item.height / mmPerUnit / Math.max(baseHeight, 1e-9)})`)
     parts.push(`translate(${-baseX} ${-baseY})`)
   }
-  if (item.rotation) parts.push(`rotate(${item.rotation} ${baseX} ${baseY})`)
+  // Source coordinates must be mapped to world space before edits scale around the world-space center.
+  if (source) parts.push(source)
   return parts.join(' ')
 }
 

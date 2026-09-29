@@ -118,6 +118,33 @@ describe('WM6 Inspector and committed-document boundary', () => {
     expect(lastDocument(mock).elements[0].x).toBe(24)
   })
 
+  it('edits a filled region width then height without changing its center or losing the path', async () => {
+    const mock = backend()
+    const plain = documentFixture()
+    plain.fields = []
+    plain.modifiers = []
+    Object.assign(plain.elements[0], {
+      id: 'layer-7', type: 'filled_region', x: 10, y: 710, width: 20, height: 20,
+      base_x: 10, base_y: 710, base_width: 20, base_height: 20,
+      source_transform: 'translate(0 700)', path_data: 'M0 0H20V20H0Z',
+    })
+    const canvas = await open(plain)
+    fireEvent.pointerDown(canvas.querySelector('[data-element-id="layer-7"]')!, { button: 0 })
+    const width = screen.getByRole('spinbutton', { name: '宽度 mm' })
+    fireEvent.change(width, { target: { value: '30' } })
+    fireEvent.blur(width)
+    await waitFor(() => expect(evaluations(mock)).toHaveLength(2))
+    expect(lastDocument(mock).elements[0]).toMatchObject({ x: 10, y: 710, width: 30, height: 20 })
+    expect(canvas.querySelector('[data-element-id="layer-7"] path')).toBeInTheDocument()
+    const height = screen.getByRole('spinbutton', { name: '高度 mm' })
+    await waitFor(() => expect(height).toBeEnabled())
+    fireEvent.change(height, { target: { value: '25' } })
+    fireEvent.blur(height)
+    await waitFor(() => expect(evaluations(mock)).toHaveLength(3))
+    expect(lastDocument(mock).elements[0]).toMatchObject({ x: 10, y: 710, width: 30, height: 25 })
+    expect(canvas.querySelector('[data-element-id="layer-7"] path')).toBeInTheDocument()
+  })
+
   it('commits Modifier mapping and enable without changing modifier order', async () => {
     const mock = backend()
     await open()
