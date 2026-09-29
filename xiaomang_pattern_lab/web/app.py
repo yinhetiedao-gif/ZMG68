@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 from copy import deepcopy
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -194,7 +195,8 @@ def create_app(*, asset_resolver: AssetResolver | None = None,
         try:
             dto = await run_in_threadpool(_import_asset, item)
         except (ValueError, OSError, RuntimeError) as error:
-            raise WebError("import_failed", "图片转换失败：%s" % error) from error
+            logging.getLogger(__name__).warning("WM5.5 import failed", exc_info=error)
+            raise WebError("import_failed", "图片转换失败，请检查图片内容和本机转换服务。") from error
         return JSONResponse(dto)
 
     @app.post("/api/v1/evaluate", openapi_extra=JSON_DOCUMENT_BODY)

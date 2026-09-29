@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import unittest
+from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
@@ -65,6 +66,11 @@ class WebImportWM55Tests(unittest.TestCase):
         self.assertEqual(self.upload(b"<svg><!DOCTYPE x></svg>", "image/svg+xml", "bad.svg").status_code, 422)
         self.assertEqual(self.upload(b"x" * (8 * 1024 * 1024 + 1), "image/png", "large.png").status_code, 413)
         self.assertEqual(self.client.post("/api/v1/import", json={"asset_id": "missing"}).status_code, 404)
+        uploaded = self.upload(self.fixtures["regular_dot_matrix"].read_bytes(), "image/png", "valid.png")
+        with patch("xiaomang_pattern_lab.web.app._import_asset", side_effect=RuntimeError("C:\\private\\image.png")):
+            failed = self.client.post("/api/v1/import", json={"asset_id": uploaded.json()["asset_id"]})
+        self.assertEqual(failed.status_code, 422)
+        self.assertNotIn("C:\\private", failed.text)
         store = TemporaryAssetStore(ttl_seconds=0)
         with TestClient(create_app(asset_store=store)) as client:
             result = client.post("/api/v1/assets", content=self.fixtures["regular_dot_matrix"].read_bytes(),
