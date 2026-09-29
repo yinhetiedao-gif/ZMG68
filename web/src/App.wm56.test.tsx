@@ -35,6 +35,11 @@ function backend(fail = false) {
   const mock = vi.fn<typeof fetch>((url, init) => {
     if (String(url).endsWith('/health')) return Promise.resolve(reply({ status: 'ok', contract_version: '1.0' }))
     if (String(url).endsWith('/contract')) return Promise.resolve(reply({ schema_version: '1.0', units: 'mm' }))
+    if (String(url).endsWith('/analyze-pattern')) {
+      const dto = JSON.parse(String(init?.body)) as { document: { document_id: string; document_revision: number } }
+      return Promise.resolve(reply({ document_id: dto.document.document_id,
+        document_revision: dto.document.document_revision, recommended: 'free', families: [], warnings: [] }))
+    }
     const payload = JSON.parse(String(init?.body)) as Payload
     return new Promise<Response>((resolve) => pending.push({ payload, resolve }))
   })

@@ -4,6 +4,7 @@ import {
 } from './api/client'
 import { evaluateDocument } from './api/evaluate'
 import { importImage } from './api/import'
+import { analyzePattern, applyPattern, type PatternAnalysis, type PatternFamily } from './api/pattern'
 import { Workspace2D } from './geometry/Workspace2D'
 import { InspectorControls, type EditAction } from './document/InspectorControls'
 import {
@@ -25,31 +26,16 @@ type ConnectionState =
   | { kind: 'incompatible'; message: string }
 
 const patternItems = [
-  { label: '规则矩阵 Grid', mark: '▦' },
-  { label: '放射 Radial', mark: '✳' },
-  { label: '曲线 Curve', mark: '〰' },
-  { label: '自由布局 Free', mark: '⌁' },
-]
+  { id: 'grid', label: '规则矩阵 Grid', mark: '▦' },
+  { id: 'radial', label: '放射 Radial', mark: '✳' },
+  { id: 'along_curve', label: '曲线 Curve', mark: '〰' },
+  { id: 'free', label: '自由布局 Free', mark: '⌁' },
+] satisfies { id: PatternFamily; label: string; mark: string }[]
 const modes: { id: WorkspaceMode; label: string; secondary: string }[] = [
   { id: 'design', label: '设计', secondary: 'Design' },
   { id: 'manufacture', label: '制造', secondary: 'Manufacture' },
   { id: 'preview', label: '三维预览', secondary: '3D Preview' },
 ]
-
-function SideGroup({ title, index, items }: {
-  title: string
-  index: string
-  items: { label: string; mark: string }[]
-}) {
-  return <section className="side-group" aria-label={title}>
-    <div className="group-heading"><span>{index}</span><h2>{title}</h2></div>
-    <div className="side-items">{items.map((item) =>
-      <button className="side-item" key={item.label} type="button" disabled title="即将开放">
-        <span className="side-item-mark" aria-hidden="true">{item.mark}</span>
-        <span>{item.label}</span><span className="soon-dot" aria-hidden="true" />
-      </button>)}</div>
-  </section>
-}
 
 export function App() {
   const [connection, setConnection] = useState<ConnectionState>({ kind: 'checking', message: '正在连接后端…' })
@@ -69,6 +55,14 @@ export function App() {
   const [importing, setImporting] = useState(false)
   const evaluateController = useRef<AbortController | null>(null)
   const evaluateSequence = useRef(0)
+  const analyzeController = useRef<AbortController | null>(null)
+  const analyzeSequence = useRef(0)
+  const [patternAnalysis, setPatternAnalysis] = useState<PatternAnalysis | null>(null)
+  const [analysisStatus, setAnalysisStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle')
+  const [analysisError, setAnalysisError] = useState<string | null>(null)
+  const [applyingPattern, setApplyingPattern] = useState(false)
+  const applyingPatternRef = useRef(false)
+  const activeDocumentRef = useRef<PatternDocumentDTO | null>(null)
 
   const reconnect = useCallback(() => setRetry((value) => value + 1), [])
   const publishHistory = (next: { past: PatternDocumentDTO[]; future: PatternDocumentDTO[] }) => {
@@ -90,13 +84,35 @@ export function App() {
     return () => { current = false; controller.abort() }
   }, [retry])
   useEffect(() => () => evaluateController.current?.abort(), [])
+  useEffect(() => () => analyzeController.current?.abort(), [])
+
+  const requestPatternAnalysis = useCallback((dto: PatternDocumentDTO) => {
+    analyzeController.current?.abort()
+    const controller = new AbortController()
+    analyzeController.current = controller
+    const sequence = ++analyzeSequence.current
+    setPatternAnalysis(null)
+    setAnalysisStatus('loading')
+    setAnalysisError(null)
+    void analyzePattern(dto, controller.signal).then((result) => {
+      if (sequence !== analyzeSequence.current) return
+      setPatternAnalysis(result)
+      setAnalysisStatus('ready')
+    }).catch((error: unknown) => {
+      if (controller.signal.aborted || sequence !== analyzeSequence.current) return
+      setAnalysisStatus('error')
+      setAnalysisError(error instanceof Error ? error.message : '图案分析失败。')
+    })
+  }, [])
 
   const runEvaluate = useCallback((dto: PatternDocumentDTO, options: {
     fileName?: string; warnings?: string[]; fitOnSuccess?: boolean
     rollback?: PatternDocumentDTO
     onFailure?: () => void
+    analyzeOnSuccess?: boolean
   } = {}) => {
     evaluateController.current?.abort()
+    activeDocumentRef.current = dto
     const controller = new AbortController()
     evaluateController.current = controller
     const sequence = ++evaluateSequence.current
@@ -116,9 +132,11 @@ export function App() {
       }))
       setPendingPreview(null)
       if (options.fitOnSuccess) setFitToken((value) => value + 1)
+      if (options.analyzeOnSuccess) requestPatternAnalysis(dto)
     }).catch((error: unknown) => {
       if (controller.signal.aborted || sequence !== evaluateSequence.current) return
       options.onFailure?.()
+      activeDocumentRef.current = options.rollback ?? dto
       setProject((current) => ({
         ...current,
         currentDocument: options.rollback ?? current.currentDocument,
@@ -128,14 +146,18 @@ export function App() {
       }))
       setPendingPreview(null)
     })
-  }, [])
+  }, [requestPatternAnalysis])
 
   const acceptProject = (dto: PatternDocumentDTO, fileName: string, warnings: string[]) => {
     setProjectError(null)
     setMapping(null)
     publishHistory({ past: [], future: [] })
     setBrowser((current) => ({ ...current, selectedElementIds: [], activeMode: 'design' }))
-    runEvaluate(dto, { fileName, warnings, fitOnSuccess: true })
+    analyzeController.current?.abort()
+    ++analyzeSequence.current
+    setPatternAnalysis(null)
+    setAnalysisStatus('idle')
+    runEvaluate(dto, { fileName, warnings, fitOnSuccess: true, analyzeOnSuccess: true })
   }
   const onFile = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -192,12 +214,31 @@ export function App() {
     const source = dto && directSourceElement(dto, item.id, item.x, item.y)
     return project.evaluateStatus === 'ready' && Boolean(source && source.type === item.type)
   }
-  const commitDocument = (next: PatternDocumentDTO, before: PatternDocumentDTO) => {
+  const commitDocument = (next: PatternDocumentDTO, before: PatternDocumentDTO, analyzeOnSuccess = false) => {
     if (next === before || project.evaluateStatus !== 'ready') return
     const previousHistory = historyRef.current
     publishHistory({ past: [...previousHistory.past, before], future: [] })
     setProjectError(null)
-    runEvaluate(next, { rollback: before, onFailure: () => publishHistory(previousHistory) })
+    runEvaluate(next, { rollback: before, onFailure: () => publishHistory(previousHistory), analyzeOnSuccess })
+  }
+  const selectPattern = async (family: PatternFamily) => {
+    const dto = project.currentDocument
+    if (!dto || project.evaluateStatus !== 'ready' || applyingPatternRef.current || !connected) return
+    const candidate = patternAnalysis?.families.find((item) => item.id === family)
+    if (!candidate?.available || patternAnalysis?.document_revision !== dto.document_revision) return
+    applyingPatternRef.current = true
+    setApplyingPattern(true)
+    setProjectError(null)
+    try {
+      const next = await applyPattern(dto, family)
+      if (activeDocumentRef.current !== dto) return
+      commitDocument(next, dto, true)
+    } catch (error) {
+      setProjectError(error instanceof Error ? error.message : '图案结构转换失败。')
+    } finally {
+      applyingPatternRef.current = false
+      setApplyingPattern(false)
+    }
   }
   const commitDrag = (id: string, dx: number, dy: number) => {
     const dto = project.currentDocument
@@ -296,7 +337,27 @@ export function App() {
             <button className="side-item" type="button" disabled title="即将开放"><span className="side-item-mark">◯</span>基础形状 Shapes</button>
           </div>
         </section>
-        <SideGroup title="图案结构" index="02" items={patternItems} />
+        <section className="side-group" aria-label="图案结构">
+          <div className="group-heading"><span>02</span><h2>图案结构</h2></div>
+          <div className="side-items">{patternItems.map((item) => {
+            const candidate = patternAnalysis?.families.find((value) => value.id === item.id)
+            const available = candidate?.available && patternAnalysis?.document_revision === project.documentRevision
+              && project.evaluateStatus === 'ready' && connected && !applyingPattern
+            return <button className="side-item" key={item.id} type="button" disabled={!available}
+              title={available ? `识别可信度 ${Math.round((candidate?.confidence ?? 0) * 100)}%` : candidate?.reason || '当前图案尚未识别出该结构'}
+              onClick={() => void selectPattern(item.id)}>
+              <span className="side-item-mark" aria-hidden="true">{item.mark}</span>
+              <span>{item.label}</span>{!available && <span className="soon-dot" aria-hidden="true" />}
+            </button>
+          })}</div>
+          <p className="pattern-analysis-status" role="status">
+            {analysisStatus === 'loading' ? '正在识别图案结构…'
+              : analysisStatus === 'ready' ? `推荐：${patternItems.find((item) => item.id === patternAnalysis?.recommended)?.label ?? '自由布局 Free'}`
+                : analysisStatus === 'error' ? `识别失败：${analysisError}` : '导入图案后自动分析结构。'}
+          </p>
+          {project.currentDocument && <button type="button" onClick={() => requestPatternAnalysis(project.currentDocument!)}
+            disabled={!connected || project.evaluateStatus !== 'ready' || analysisStatus === 'loading'}>重新分析</button>}
+        </section>
         <div className="sidebar-footnote"><span className="footnote-icon">i</span><p>拖入 PNG/JPG/SVG 可由 Python 转换为独立元素；制造尚未开放。</p></div>
       </aside>
 

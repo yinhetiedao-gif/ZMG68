@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import logging
 from copy import deepcopy
+from dataclasses import replace
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any
@@ -25,6 +26,7 @@ from xiaomang_pattern_lab.contracts import (
     ManufacturingBuildResponseDTO, PatternDocumentDTO, parse_json,
 )
 from xiaomang_pattern_lab.manufacturing_service import ManufacturingService
+from xiaomang_pattern_lab.pattern_analyzer import PatternAnalyzer
 from xiaomang_pattern_lab.session import PatternLabSession
 from xiaomang_pattern_lab.stl_export import STLExporter
 
@@ -85,6 +87,45 @@ def _document_payload(payload: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(document, dict):
         raise ContractError("invalid_document", "缺少有效的 PatternDocumentDTO。")
     return document
+
+
+def _pattern_analysis(dto: PatternDocumentDTO):
+    analysis = PatternAnalyzer().analyze_families(dto.to_document().elements)
+    families = []
+    for item in (*analysis.candidates, analysis.fallback):
+        available = bool(item.model is not None and
+                         (item.family == "free" or item.confidence >= 0.72) and
+                         dto.document.get("elements"))
+        families.append({"id": item.family, "confidence": item.confidence,
+                         "available": available, "parameters": {
+                             key: value for key, value in item.parameters.items()
+                             if key != "path_points"},
+                         "reason": str(item.diagnostics.get("reason", ""))})
+    return analysis, {"document_id": dto.document_id,
+                      "document_revision": dto.document_revision,
+                      "recommended": analysis.recommended.family if analysis.recommended else "free",
+                      "families": families, "warnings": []}
+
+
+def _apply_pattern(dto: PatternDocumentDTO, family: str) -> dict[str, Any]:
+    analysis, _ = _pattern_analysis(dto)
+    candidates = {item.family: item for item in (*analysis.candidates, analysis.fallback)}
+    candidate = candidates.get(family)
+    if candidate is None or candidate.model is None or not dto.document.get("elements") or (
+            family != "free" and candidate.confidence < 0.72):
+        raise WebError("pattern_family_unavailable", "当前图案没有可靠的该结构识别结果，请重新分析或使用自由布局。")
+    with TemporaryDirectory(prefix="xiaomang-pattern-") as temporary:
+        session = PatternLabSession(FoundationPipeline(None, None), Path(temporary), document=dto.to_document())
+        if family == "grid":
+            session.activate_grid(candidate.model)
+        elif family == "radial":
+            session.activate_radial(candidate.model)
+        elif family == "along_curve":
+            session.activate_along_curve(candidate.model)
+        else:
+            session.activate_free_parametric(candidate.model)
+        return replace(dto, document=session.require_document().to_dict(),
+                       document_revision=dto.document_revision + 1).to_dict()
 
 
 def _build(document, dto: PatternDocumentDTO, height_mm: float):
@@ -209,6 +250,24 @@ def create_app(*, asset_resolver: AssetResolver | None = None,
                                            document, dto.document.document_id,
                                            dto.document.document_revision)
         return JSONResponse(response.to_dict())
+
+    @app.post("/api/v1/analyze-pattern", openapi_extra=JSON_DOCUMENT_BODY)
+    async def analyze_pattern(request: Request) -> JSONResponse:
+        dto = PatternDocumentDTO.from_dict(_document_payload(await _read_payload(request)))
+        _, result = await run_in_threadpool(_pattern_analysis, dto)
+        return JSONResponse(result)
+
+    @app.post("/api/v1/apply-pattern", openapi_extra=JSON_DOCUMENT_BODY)
+    async def apply_pattern(request: Request) -> JSONResponse:
+        payload = await _read_payload(request)
+        dto = PatternDocumentDTO.from_dict(_document_payload(payload))
+        family = payload.get("family")
+        if not isinstance(family, str):
+            raise ContractError("invalid_document", "缺少图案结构类型。")
+        if payload.get("document_revision") != dto.document_revision:
+            raise ContractError("stale_revision", "图案分析已过期，请重新分析当前项目。")
+        result = await run_in_threadpool(_apply_pattern, dto, family)
+        return JSONResponse(result)
 
     @app.post("/api/v1/manufacturing/build", openapi_extra=JSON_DOCUMENT_BODY)
     async def manufacturing_build(request: Request) -> JSONResponse:
