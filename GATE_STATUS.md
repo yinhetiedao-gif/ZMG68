@@ -1,5 +1,12 @@
 # Gate 状态（2026-09-19）
 
+## Web P0 — 固定设计工作区（2026-09-29）
+
+- 状态：PARTIAL。核心布局已修复，仍需真实导入图案后的右栏人工验证和可收尾的 Python 全量回归。
+- 仅调整 Web 样式：页面固定为视口高度，body/root 不整体滚动；左右栏独立纵向滚动，中央 Canvas 与底部模式栏留在固定工作区。旧版已把参数配置放入右侧 Inspector，当前没有大型参数化弹窗；本轮仅删除已无用途的旧弹窗样式，保留必要的毫米映射小弹窗。不修改参数化算法、文档或 Python Engine。
+- Web 新增布局合同测试，Vitest 65/65 PASS，TypeScript/Vite build PASS，固定图自检 6/6 PASS。真实浏览器以 1440px 宽、768/900/1080 高视口检查：页面滚动量 0、Canvas 与模式栏位置稳定；768 高度下左栏 scrollHeight 953 > clientHeight 644，滚轮使左栏 scrollTop 从 0 增至约 309，body 保持 0；浏览器 error 日志为空。
+- 局限：浏览器文件选择器未成功触发，故本轮未完成真实图案导入后的右栏滚动与 Zoom/Pan 人工复测；这些功能的既有 Web 自动测试继续通过。Python 全量回归因既有 Tk Variable 销毁异常持续输出而中断，不能记作 PASS。本状态不提升为完整 Last Known Good，也不进入 P1。
+
 ## Web 参数化体验对齐 Desktop（2026-09-29）
 
 - 桌面 `try_parametric` 仅分析并暂存推荐；`convert_pending_grid` 显式转换推荐 family；`enter_free_parametric` 保留元素位置；`bake_to_free_elements` 物化后移除结构模型。Web 已按这四种语义拆开，不再通过点击 Grid/Radial/Curve/Free 调用手动排布。
