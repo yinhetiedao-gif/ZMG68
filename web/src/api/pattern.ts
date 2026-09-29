@@ -2,6 +2,7 @@ import { apiBaseUrl } from './client'
 import type { EvaluateResponse, PatternDocumentDTO } from '../model/types'
 
 export type PatternFamily = 'grid' | 'radial' | 'along_curve' | 'free'
+export type DesktopPatternAction = 'convert_recommended' | 'enter_free' | 'bake'
 
 export interface PatternAnalysis {
   document_id: string
@@ -40,6 +41,17 @@ export async function analyzePattern(dto: PatternDocumentDTO, signal?: AbortSign
       || (result.recommended_family !== null
         && !['grid', 'radial', 'along_curve', 'free'].includes(result.recommended_family))) {
     throw new Error('图案分析结果与当前项目不匹配。')
+  }
+  return result
+}
+
+export async function runPatternAction(dto: PatternDocumentDTO, action: DesktopPatternAction): Promise<PatternDocumentDTO> {
+  const result = await post<PatternDocumentDTO>('/api/v1/pattern-action', {
+    document: dto, document_revision: dto.document_revision, action,
+  })
+  if (result.document_id !== dto.document_id || result.document_revision !== dto.document_revision + 1
+      || !result.document || !Array.isArray(result.document.elements)) {
+    throw new Error('参数化操作结果与当前项目不匹配。')
   }
   return result
 }

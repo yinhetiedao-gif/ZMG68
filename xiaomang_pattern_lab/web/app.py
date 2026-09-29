@@ -124,6 +124,34 @@ def _apply_pattern(dto: PatternDocumentDTO, family: str) -> dict[str, Any]:
                        document_revision=dto.document_revision + 1).to_dict()
 
 
+def _desktop_pattern_action(dto: PatternDocumentDTO, action: str) -> dict[str, Any]:
+    """Expose the desktop's explicit Session actions, never a manual layout fallback."""
+    with TemporaryDirectory(prefix="xiaomang-pattern-action-") as temporary:
+        session = PatternLabSession(FoundationPipeline(None, None), Path(temporary), document=dto.to_document())
+        if action == "convert_recommended":
+            recommendation = session.analyze_families().recommended
+            if recommendation is None or recommendation.model is None:
+                raise WebError("no_recommendation", "当前没有可靠的推荐结构；可进入自由参数化。")
+            if recommendation.family == "grid":
+                session.activate_grid(recommendation.model)
+            elif recommendation.family == "radial":
+                session.activate_radial(recommendation.model)
+            elif recommendation.family == "along_curve":
+                session.activate_along_curve(recommendation.model)
+            else:
+                raise WebError("unsupported_family", "当前推荐结构暂不支持转换。")
+        elif action == "enter_free":
+            session.activate_free_parametric(session.analyze_families().fallback.model)
+        elif action == "bake":
+            if not session.has_parametric_model:
+                raise WebError("not_parametric", "当前不是参数化结构，无需烘焙。")
+            session.bake_to_free_elements()
+        else:
+            raise WebError("invalid_pattern_action", "不支持的参数化操作。")
+        return replace(dto, document=session.require_document().to_dict(),
+                       document_revision=dto.document_revision + 1).to_dict()
+
+
 def _manual_layout(dto: PatternDocumentDTO, family: str, raw: dict[str, Any] | None = None):
     """Supply parameters to existing layout models, never to a second layout engine."""
     items = [item for item in dto.to_document().elements if item.visible and item.width > 0 and item.height > 0]
@@ -345,6 +373,17 @@ def create_app(*, asset_resolver: AssetResolver | None = None,
             raise ContractError("stale_revision", "图案分析已过期，请重新分析当前项目。")
         result = await run_in_threadpool(_apply_pattern, dto, family)
         return JSONResponse(result)
+
+    @app.post("/api/v1/pattern-action", openapi_extra=JSON_DOCUMENT_BODY)
+    async def pattern_action(request: Request) -> JSONResponse:
+        payload = await _read_payload(request)
+        dto = PatternDocumentDTO.from_dict(_document_payload(payload))
+        if payload.get("document_revision") != dto.document_revision:
+            raise ContractError("stale_revision", "文档已更改，请重新操作当前项目。")
+        action = payload.get("action")
+        if not isinstance(action, str):
+            raise ContractError("invalid_document", "缺少参数化操作。")
+        return JSONResponse(await run_in_threadpool(_desktop_pattern_action, dto, action))
 
     @app.post("/api/v1/prepare-pattern", openapi_extra=JSON_DOCUMENT_BODY)
     async def prepare_pattern(request: Request) -> JSONResponse:

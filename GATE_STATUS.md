@@ -1,5 +1,11 @@
 # Gate 状态（2026-09-19）
 
+## Web 参数化体验对齐 Desktop（2026-09-29）
+
+- 桌面 `try_parametric` 仅分析并暂存推荐；`convert_pending_grid` 显式转换推荐 family；`enter_free_parametric` 保留元素位置；`bake_to_free_elements` 物化后移除结构模型。Web 已按这四种语义拆开，不再通过点击 Grid/Radial/Curve/Free 调用手动排布。
+- Web family 按钮只选择候选，当前结构另行显示；自动分析只提示推荐。新 `/api/v1/pattern-action` 薄路由复用桌面 `PatternLabSession` 的转换、Free、烘焙方法，不改 PatternAnalyzer 或参数化算法；旧 `/prepare-pattern` 保留兼容但本页不再触发。
+- 定向 Python 14/14 PASS（包含真实 PNG 导入结果与桌面 Session 文档逐项相等、Grid/Radial/Curve、Free 保位、烘焙、失败拒绝）；Web Vitest 64/64 PASS；TypeScript/Vite build PASS；固定图自检 6/6 PASS。完整 Python 回归已启动，但 Tk 对象销毁报错连续输出、约 150 秒仍未收尾，已中断，不能标为 PASS；未执行桌面/Web 并排人工 GUI 测试。现有运行中 Web 服务未被强制停止，需更新服务进程才能使用新路由；当前不是新完整 LKG。
+
 ## WM6.7 — Recognition 与 Layout 分离、手动转换（2026-09-29）
 
 - 基线 `ee07ab6`，保护引用 `backup/pre-wm6-7-recognition-layout`；未修改 PatternAnalyzer、Grid/Radial/Curve 参数化算法或其他产品功能。

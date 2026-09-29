@@ -4,9 +4,8 @@ import {
 } from './api/client'
 import { evaluateDocument } from './api/evaluate'
 import { importImage } from './api/import'
-import { analyzePattern, preparePattern, type PatternAnalysis, type PatternFamily, type PatternPreparation } from './api/pattern'
+import { analyzePattern, runPatternAction, type DesktopPatternAction, type PatternAnalysis, type PatternFamily } from './api/pattern'
 import { Workspace2D } from './geometry/Workspace2D'
-import { geometryShape } from './geometry/render'
 import { InspectorControls, type EditAction } from './document/InspectorControls'
 import {
   restoreSnapshot, updateElement, updateField, updateGrid, updateReplacement,
@@ -32,12 +31,6 @@ const patternItems = [
   { id: 'along_curve', label: '曲线 Curve', mark: '〰' },
   { id: 'free', label: '自由布局 Free', mark: '⌁' },
 ] satisfies { id: PatternFamily; label: string; mark: string }[]
-const layoutParameterLabels: Record<string, string> = {
-  rows: '行数', columns: '列数', spacing_x: '水平间距 mm', spacing_y: '垂直间距 mm',
-  offset_x: '中心 X mm', offset_y: '中心 Y mm', center_x: '中心 X mm', center_y: '中心 Y mm',
-  radius: '半径 mm', count: '元素数量', angular_offset: '角度偏移 °',
-  element_width: '元素宽度 mm', element_height: '元素高度 mm',
-}
 const modes: { id: WorkspaceMode; label: string; secondary: string }[] = [
   { id: 'design', label: '设计', secondary: 'Design' },
   { id: 'manufacture', label: '制造', secondary: 'Manufacture' },
@@ -70,10 +63,7 @@ export function App() {
   const [analysisError, setAnalysisError] = useState<string | null>(null)
   const [applyingPattern, setApplyingPattern] = useState(false)
   const applyingPatternRef = useRef(false)
-  const [pendingLayout, setPendingLayout] = useState<{
-    family: PatternFamily; source: PatternDocumentDTO; prepared: PatternPreparation
-    values: Record<string, string>; dirty: boolean
-  } | null>(null)
+  const [selectedFamily, setSelectedFamily] = useState<PatternFamily | null>(null)
   const activeDocumentRef = useRef<PatternDocumentDTO | null>(null)
 
   const reconnect = useCallback(() => setRetry((value) => value + 1), [])
@@ -180,7 +170,7 @@ export function App() {
 
   const acceptProject = (dto: PatternDocumentDTO, fileName: string, warnings: string[]) => {
     setProjectError(null)
-    setPendingLayout(null)
+    setSelectedFamily(null)
     setMapping(null)
     publishHistory({ past: [], future: [] })
     setBrowser((current) => ({ ...current, selectedElementIds: [], activeMode: 'design' }))
@@ -243,61 +233,29 @@ export function App() {
   }
   const commitDocument = (next: PatternDocumentDTO, before: PatternDocumentDTO) => {
     if (next === before || project.evaluateStatus === 'idle') return
-    setPendingLayout(null)
     const previousHistory = historyRef.current
     publishHistory({ past: [...previousHistory.past, before], future: [] })
     setProjectError(null)
     runEvaluate(next, { rollback: before, onFailure: () => publishHistory(previousHistory), analyzeDelayMs: 400 })
   }
-  const selectPattern = async (family: PatternFamily) => {
+  const executePatternAction = async (action: DesktopPatternAction) => {
     const dto = project.currentDocument
-    if (!dto || (family !== 'free' && !hasEditableGeometry)
-        || applyingPatternRef.current || !connected) return
+    if (!dto || applyingPatternRef.current || !connected || project.evaluateStatus !== 'ready') return
     applyingPatternRef.current = true
     setApplyingPattern(true)
     setProjectError(null)
     try {
-      const prepared = await preparePattern(dto, family)
-      if (activeDocumentRef.current !== dto) return
-      if (prepared.mode === 'direct') commitDocument(prepared.proposed_document, dto)
-      else setPendingLayout({ family, source: dto, prepared,
-        values: Object.fromEntries(Object.entries(prepared.parameters).map(([key, value]) => [key, String(value)])),
-        dirty: false })
-    } catch (error) {
-      setProjectError(error instanceof Error ? error.message : '图案结构转换失败。')
-    } finally {
-      applyingPatternRef.current = false
-      setApplyingPattern(false)
-    }
-  }
-  const refreshManualLayout = async () => {
-    const pending = pendingLayout
-    if (!pending || applyingPatternRef.current) return
-    const parameters: Record<string, number> = {}
-    for (const [key, text] of Object.entries(pending.values)) {
-      if (!text.trim() || !Number.isFinite(Number(text))) {
-        setProjectError(`${layoutParameterLabels[key] ?? key} 不是有效数字。`)
-        return
+      const result = await runPatternAction(dto, action)
+      if (activeDocumentRef.current === dto) {
+        setSelectedFamily(null)
+        commitDocument(result, dto)
       }
-      parameters[key] = Number(text)
-    }
-    applyingPatternRef.current = true
-    setApplyingPattern(true)
-    setProjectError(null)
-    try {
-      const prepared = await preparePattern(pending.source, pending.family, parameters)
-      if (activeDocumentRef.current === pending.source) setPendingLayout({ ...pending, prepared, dirty: false })
     } catch (error) {
-      setProjectError(error instanceof Error ? error.message : '无法预备手动布局。')
+      setProjectError(error instanceof Error ? error.message : '参数化操作失败。')
     } finally {
       applyingPatternRef.current = false
       setApplyingPattern(false)
     }
-  }
-  const confirmManualLayout = () => {
-    if (!pendingLayout || pendingLayout.dirty || activeDocumentRef.current !== pendingLayout.source) return
-    commitDocument(pendingLayout.prepared.proposed_document, pendingLayout.source)
-    setPendingLayout(null)
   }
   const commitDrag = (id: string, dx: number, dy: number) => {
     const dto = project.currentDocument
@@ -363,6 +321,9 @@ export function App() {
       && element.width > 0 && element.height > 0) && project.finalGeometry.length > 0)
   const modeName = modes.find((mode) => mode.id === browser.activeMode)?.label ?? '设计'
   const scale = project.currentDocument ? millimetresPerUnit(project.currentDocument.document) ?? 1 : 1
+  const activePattern = project.currentDocument?.document.metadata['xiaomang_pattern_lab.parametric']
+  const activeFamily = activePattern && typeof activePattern === 'object' && 'family' in activePattern
+    ? String(activePattern.family) : null
 
   return <div className="app-shell">
     <header className="topbar">
@@ -403,16 +364,19 @@ export function App() {
         <section className="side-group" aria-label="图案结构">
           <div className="group-heading"><span>02</span><h2>图案结构</h2></div>
           <p className="pattern-analysis-status">自动识别仅提供推荐；布局由你选择。</p>
+          <p className="pattern-analysis-status">当前结构：{activeFamily === 'free_parametric' ? '自由参数化'
+            : patternItems.find((item) => item.id === activeFamily)?.label ?? '原始元素'}</p>
           <div className="side-items">{patternItems.map((item) => {
-            const available = Boolean(project.currentDocument && connected && !applyingPattern && !pendingLayout
+            const available = Boolean(project.currentDocument && connected && !applyingPattern
               && (item.id === 'free' || hasEditableGeometry))
             const recommended = analysisStatus === 'ready'
               && patternAnalysis?.document_id === project.currentDocument?.document_id
               && patternAnalysis?.document_revision === project.documentRevision
               && patternAnalysis?.recommended_family === item.id
-            return <button className="side-item" key={item.id} type="button" disabled={!available}
-              title={available ? '可尝试使用；若当前图案无法拟合，Python 会说明原因。' : '请先导入有效的二维图案。'}
-              onClick={() => void selectPattern(item.id)}>
+            return <button className={`side-item ${selectedFamily === item.id ? 'selected' : ''}`} key={item.id}
+              type="button" disabled={!available} aria-pressed={selectedFamily === item.id}
+              title={available ? '仅选择候选结构，不改变元素位置。' : '请先导入有效的二维图案。'}
+              onClick={() => setSelectedFamily(item.id)}>
               <span className="side-item-mark" aria-hidden="true">{item.mark}</span>
               <span>{item.label}</span>{recommended && <small>推荐 {Math.round((patternAnalysis?.confidence ?? 0) * 100)}%</small>}
               {!available && <span className="soon-dot" aria-hidden="true" />}
@@ -427,8 +391,19 @@ export function App() {
                     : analysisStatus === 'error' ? `分析失败：${analysisError}；结构仍可尝试使用。`
                       : '导入图案后自动分析结构。'}
           </p>
-          {project.currentDocument && <button type="button" onClick={() => requestPatternAnalysis(project.currentDocument!)}
-            disabled={!connected || analysisStatus === 'loading'}>重新分析</button>}
+          {selectedFamily && <p className="pattern-analysis-status">已选候选：{patternItems.find((item) => item.id === selectedFamily)?.label}；不会自动重排。</p>}
+          <div className="pattern-actions">
+            <button type="button" disabled={!connected || !hasEditableGeometry || analysisStatus === 'loading'}
+              onClick={() => project.currentDocument && requestPatternAnalysis(project.currentDocument)}>尝试参数化</button>
+            <button type="button" disabled={!connected || !hasEditableGeometry || applyingPattern
+              || analysisStatus !== 'ready' || !patternAnalysis?.recommended_family || patternAnalysis.recommended_family === 'free'}
+              onClick={() => void executePatternAction('convert_recommended')}>转换为推荐结构</button>
+            <button type="button" disabled={!connected || !hasEditableGeometry || applyingPattern}
+              onClick={() => void executePatternAction('enter_free')}>进入自由参数化</button>
+            <button type="button" disabled={!connected || !project.currentDocument || applyingPattern
+              || !project.currentDocument.document.metadata['xiaomang_pattern_lab.parametric']}
+              onClick={() => void executePatternAction('bake')}>烘焙为自由元素</button>
+          </div>
         </section>
         <div className="sidebar-footnote"><span className="footnote-icon">i</span><p>拖入 PNG/JPG/SVG 可由 Python 转换为独立元素；制造尚未开放。</p></div>
       </aside>
@@ -479,31 +454,6 @@ export function App() {
               </label>
               <div><button type="button" onClick={() => setMapping(null)}>取消</button>
                 <button type="button" onClick={confirmMapping}>按此比例打开</button></div>
-            </div>
-          </div>}
-          {pendingLayout && <div className="mapping-overlay" role="dialog" aria-label="手动转换图案结构">
-            <div className="mapping-card">
-              <h2>当前图案不是该结构</h2>
-              <p>可以手动将现有元素排成{patternItems.find((item) => item.id === pendingLayout.family)?.label}。
-                原始图案会作为源快照保留；确认前不会修改项目。</p>
-              <div className="layout-parameters">{Object.entries(pendingLayout.values).map(([key, value]) =>
-                <label key={key}>{layoutParameterLabels[key] ?? key}
-                  <input type="number" step={['rows', 'columns', 'count'].includes(key) ? 1 : 'any'}
-                    value={value} onChange={(event) => setPendingLayout((current) => current && ({
-                      ...current, values: { ...current.values, [key]: event.target.value }, dirty: true,
-                    }))} />
-                </label>)}</div>
-              {pendingLayout.prepared.preview?.bounds_mm && <svg className="layout-preview" role="img"
-                aria-label="手动布局预览" viewBox={`${pendingLayout.prepared.preview.bounds_mm.min_x - 8} ${pendingLayout.prepared.preview.bounds_mm.min_y - 8} ${Math.max(1, pendingLayout.prepared.preview.bounds_mm.width + 16)} ${Math.max(1, pendingLayout.prepared.preview.bounds_mm.height + 16)}`}>
-                {pendingLayout.prepared.preview.geometry.map((item) =>
-                  <g key={item.id}>{geometryShape(item, scale)}</g>)}
-              </svg>}
-              <p>转换结果：{pendingLayout.prepared.proposed_document.document.elements.length} 个可编辑元素。
-                {pendingLayout.dirty ? '参数已修改，请先刷新转换结果。' : '确认后仅提交一次。'}</p>
-              <div className="layout-actions"><button type="button" onClick={() => { setPendingLayout(null); setProjectError(null) }}>取消</button>
-                <button type="button" disabled={applyingPattern} onClick={() => void refreshManualLayout()}>刷新转换结果</button>
-                <button type="button" disabled={applyingPattern || pendingLayout.dirty} onClick={confirmManualLayout}>
-                  转换为{patternItems.find((item) => item.id === pendingLayout.family)?.label}</button></div>
             </div>
           </div>}
         </div>
