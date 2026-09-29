@@ -1,5 +1,11 @@
 # Gate 状态（2026-09-19）
 
+## Web P1-B — 非破坏性布局工作流（2026-09-29）
+
+- 状态：PASS。P1-A 的真实浏览器 Schema 验收先通过；随后仅调整 Web 布局交互，Python PatternAnalyzer 和 Grid/Radial/Curve 算法未修改。
+- 导入图片/无结构工程默认为 Free，保持原始位置；自动分析只显示推荐。左侧选择 Grid/Radial/Curve 时，由现有 Python `prepare-pattern` 返回独立提案；右侧复用 P1-A Generic ParameterPanel 暂存参数。仅点击“应用布局”才提交一次文档修订并求值一次；取消不修改文档。切回 Free 时复用既有 `bake`，不在 React 实现布局数学。
+- Web 单测 72/72 PASS、TypeScript/Vite build PASS。实际 Edge 浏览器通过文件输入加载实物验证工程和 144 点 PNG：Free 默认显示，三种布局选择均不触发 Evaluate，应用各触发一次；暂存的 Grid 行数修改不提前提交，Free 应用另触发一次；浏览器无致命 Console 错误。全量 Python 回归不属于本轮范围，未运行。
+
 ## Web P0 — 固定设计工作区（2026-09-29）
 
 - 状态：PASS。使用现有文件入口加载 `work/physical-validation-02/physical_validation_02_real_pattern.pattern.json` 完成真实 Web UI 验收；本轮仅补验证与记录，不改产品代码，不进入 P1。

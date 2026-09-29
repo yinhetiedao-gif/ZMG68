@@ -6,7 +6,7 @@ function reply(value: unknown, status = 200): Response {
   return { ok: status < 400, status, json: async () => value } as Response
 }
 
-function backend(recommended: 'grid' | null = 'grid', failAction?: string) {
+function backend(recommended: 'grid' | null = 'grid', failPrepare?: string) {
   const elements = Array.from({ length: 36 }, (_, index) => ({
     id: `dot-${index}`, type: 'circle', x: 10 + index % 6 * 10,
     y: 10 + Math.floor(index / 6) * 10, width: 4, height: 4,
@@ -23,7 +23,14 @@ function backend(recommended: 'grid' | null = 'grid', failAction?: string) {
       ? JSON.parse(String(init.body)) as Record<string, unknown> : {}
     calls.push({ path, body })
     if (path.endsWith('/health')) return Promise.resolve(reply({ status: 'ok', contract_version: '1.0' }))
-    if (path.endsWith('/contract')) return Promise.resolve(reply({ schema_version: '1.0', units: 'mm' }))
+    if (path.endsWith('/contract')) return Promise.resolve(reply({ schema_version: '1.0', units: 'mm',
+      parameter_definitions: { schema_version: '1.0', units: 'mm', definitions: { layout: {
+        grid: { label: '规则矩阵', parameters: [{ id: 'rows', label: '行数', type: 'integer', default: 6, value: 6, min: 1, max: 100, step: 1, unit: '', options: [] }] },
+        radial: { label: '放射布局', parameters: [{ id: 'count', label: '数量', type: 'integer', default: 36, value: 36, min: 1, max: 100, step: 1, unit: '', options: [] }] },
+        along_curve: { label: '曲线布局', parameters: [{ id: 'count', label: '数量', type: 'integer', default: 36, value: 36, min: 1, max: 100, step: 1, unit: '', options: [] }] },
+        free: { label: '自由布局', parameters: [] },
+      }, field: {}, modifier: {} } },
+    }))
     if (path.endsWith('/assets')) return Promise.resolve(reply({ asset_id: 'imported' }))
     if (path.endsWith('/import')) return Promise.resolve(reply(dto))
     if (path.endsWith('/analyze-pattern')) {
@@ -32,8 +39,20 @@ function backend(recommended: 'grid' | null = 'grid', failAction?: string) {
         document_revision: request.document_revision, recommended_family: recommended,
         confidence: recommended ? .95 : 0, analysis_status: recommended ? 'matched' : 'no_match' }))
     }
+    if (path.endsWith('/prepare-pattern')) {
+      if (body.family === failPrepare) return Promise.resolve(reply({ message: '布局提案准备失败。' }, 422))
+      const request = body.document as typeof dto
+      const family = String(body.family)
+      const model = family === 'grid' ? { rows: 6, columns: 6, spacing_x: 10, spacing_y: 10 }
+        : family === 'radial' ? { count: 36, center_x: 35, center_y: 35, base_radius: 25 }
+          : { count: 36, element_width: 4, element_height: 4 }
+      const proposed = { ...request, document_revision: request.document_revision + 1,
+        document: { ...request.document, metadata: { ...request.document.metadata,
+          'xiaomang_pattern_lab.parametric': { mode: family, model, grid: family === 'grid' ? model : undefined } } } }
+      return Promise.resolve(reply({ mode: 'manual', proposed_document: proposed, parameters: {},
+        preview: { geometry: [], bounds_mm: null, warnings: [] } }))
+    }
     if (path.endsWith('/pattern-action')) {
-      if (body.action === failAction) return Promise.resolve(reply({ message: '当前没有可靠的推荐结构。' }, 422))
       const request = body.document as typeof dto
       const metadata = { ...request.document.metadata }
       if (body.action === 'bake') delete metadata['xiaomang_pattern_lab.parametric']
@@ -60,7 +79,7 @@ async function importSvg() {
 }
 
 describe('Web/Desktop parameterization semantics', () => {
-  it('imports without rearrangement; family selection and Try only analyze', async () => {
+  it('imports in Free; selecting any family does not commit or evaluate', async () => {
     const calls = backend()
     await importSvg()
     await screen.findByText('推荐：规则矩阵 Grid（95%）')
@@ -69,48 +88,83 @@ describe('Web/Desktop parameterization semantics', () => {
     }
     expect(screen.getByText('revision 0')).toBeInTheDocument()
     expect(calls.filter((item) => item.path.endsWith('/pattern-action'))).toHaveLength(0)
-    expect(calls.filter((item) => item.path.endsWith('/prepare-pattern'))).toHaveLength(0)
     expect(calls.filter((item) => item.path.endsWith('/evaluate'))).toHaveLength(1)
-    fireEvent.click(screen.getByRole('button', { name: '尝试参数化' }))
-    await waitFor(() => expect(calls.filter((item) => item.path.endsWith('/analyze-pattern'))).toHaveLength(2))
+    expect(screen.getByText('当前结构：自由布局 Free')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '尝试参数化' })).not.toBeInTheDocument()
     expect(screen.getByText('revision 0')).toBeInTheDocument()
   })
 
-  it('converts only on explicit recommendation action; one commit and evaluate', async () => {
+  it('uses recommendation only as selection; Apply commits once and evaluates once', async () => {
     const calls = backend()
     await importSvg()
     await screen.findByText('推荐：规则矩阵 Grid（95%）')
-    fireEvent.click(screen.getByRole('button', { name: '放射 Radial' }))
-    fireEvent.click(screen.getByRole('button', { name: '转换为推荐结构' }))
+    fireEvent.click(screen.getByRole('button', { name: '使用推荐' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: '应用布局' })).toBeEnabled())
+    expect(screen.getByText('revision 0')).toBeInTheDocument()
+    expect(calls.filter((item) => item.path.endsWith('/evaluate'))).toHaveLength(1)
+    fireEvent.click(screen.getByRole('button', { name: '应用布局' }))
     await waitFor(() => expect(screen.getByText('revision 1')).toBeInTheDocument())
-    expect(calls.filter((item) => item.path.endsWith('/pattern-action')).map((item) => item.body.action))
-      .toEqual(['convert_recommended'])
+    expect(screen.getByText('当前结构：规则矩阵 Grid')).toBeInTheDocument()
+    expect(calls.filter((item) => item.path.endsWith('/pattern-action'))).toHaveLength(0)
     expect(calls.filter((item) => item.path.endsWith('/evaluate'))).toHaveLength(2)
   })
 
-  it('enters Free without a recommendation and can bake', async () => {
+  it('keeps Free available without a recommendation, and Cancel does not change document', async () => {
     const calls = backend(null)
     await importSvg()
     await screen.findByText('暂无可靠推荐；可手动尝试图案结构。')
-    expect(screen.getByRole('button', { name: '转换为推荐结构' })).toBeDisabled()
-    fireEvent.click(screen.getByRole('button', { name: '进入自由参数化' }))
-    await waitFor(() => expect(screen.getByText('revision 1')).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: '放射 Radial' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: '应用布局' })).toBeEnabled())
+    fireEvent.click(screen.getByRole('button', { name: '取消布局' }))
+    expect(screen.getByText('revision 0')).toBeInTheDocument()
     expect(screen.getByRole('img', { name: '最终二维几何，单位毫米' }).querySelectorAll('[data-element-id]')).toHaveLength(36)
-    fireEvent.click(screen.getByRole('button', { name: '烘焙为自由元素' }))
-    await waitFor(() => expect(screen.getByText('revision 2')).toBeInTheDocument())
-    expect(calls.filter((item) => item.path.endsWith('/pattern-action')).map((item) => item.body.action))
-      .toEqual(['enter_free', 'bake'])
-    expect(calls.filter((item) => item.path.endsWith('/evaluate'))).toHaveLength(3)
+    expect(calls.filter((item) => item.path.endsWith('/evaluate'))).toHaveLength(1)
   })
 
-  it('keeps the document and geometry when a conversion fails', async () => {
-    const calls = backend('grid', 'convert_recommended')
+  it('keeps the document and geometry when a layout proposal fails', async () => {
+    const calls = backend('grid', 'grid')
     await importSvg()
     await screen.findByText('推荐：规则矩阵 Grid（95%）')
-    fireEvent.click(screen.getByRole('button', { name: '转换为推荐结构' }))
-    await screen.findByText('当前没有可靠的推荐结构。')
+    fireEvent.click(screen.getByRole('button', { name: '使用推荐' }))
+    await screen.findByText('布局提案准备失败。')
     expect(screen.getByText('revision 0')).toBeInTheDocument()
     expect(calls.filter((item) => item.path.endsWith('/evaluate'))).toHaveLength(1)
+  })
+
+  it('edits a staged Grid parameter without changing the document until Apply', async () => {
+    const calls = backend()
+    await importSvg()
+    fireEvent.click(screen.getByRole('button', { name: /规则矩阵 Grid/ }))
+    const rows = await screen.findByRole('spinbutton', { name: '行数' })
+    fireEvent.change(rows, { target: { value: '5' } })
+    fireEvent.blur(rows)
+    expect(screen.getByText('revision 0')).toBeInTheDocument()
+    expect(calls.filter((item) => item.path.endsWith('/evaluate'))).toHaveLength(1)
+    fireEvent.click(screen.getByRole('button', { name: '应用布局' }))
+    await waitFor(() => expect(screen.getByText('revision 1')).toBeInTheDocument())
+    const evaluations = calls.filter((item) => item.path.endsWith('/evaluate'))
+    expect(evaluations).toHaveLength(2)
+    const evaluated = evaluations[1].body.document as { document: { metadata: Record<string, { grid: { rows: number } }> } }
+    expect(evaluated.document.metadata['xiaomang_pattern_lab.parametric'].grid.rows).toBe(5)
+  })
+
+  it('returns from an applied Grid to Free only on explicit Apply', async () => {
+    const calls = backend()
+    await importSvg()
+    fireEvent.click(screen.getByRole('button', { name: /规则矩阵 Grid/ }))
+    await waitFor(() => expect(screen.getByRole('button', { name: '应用布局' })).toBeEnabled())
+    fireEvent.click(screen.getByRole('button', { name: '应用布局' }))
+    await waitFor(() => expect(screen.getByText('revision 1')).toBeInTheDocument())
+    await screen.findByText('当前结构：规则矩阵 Grid')
+    await waitFor(() => expect(screen.getByRole('button', { name: '自由布局 Free' })).toBeEnabled())
+    fireEvent.click(screen.getByRole('button', { name: '自由布局 Free' }))
+    expect(screen.getByText('revision 1')).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByRole('button', { name: '应用布局' })).toBeEnabled())
+    fireEvent.click(screen.getByRole('button', { name: '应用布局' }))
+    await waitFor(() => expect(calls.filter((item) => item.path.endsWith('/pattern-action'))).toHaveLength(1))
+    await waitFor(() => expect(screen.getByText('revision 2')).toBeInTheDocument())
+    expect(calls.filter((item) => item.path.endsWith('/pattern-action')).map((item) => item.body.action)).toEqual(['bake'])
+    expect(calls.filter((item) => item.path.endsWith('/evaluate'))).toHaveLength(3)
   })
 
   it('keeps candidate selection available during automatic analysis', async () => {

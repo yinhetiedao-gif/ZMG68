@@ -3,6 +3,8 @@ import type { FinalGeometry, PatternDocumentDTO } from '../model/types'
 import { directSourceElement, millimetresPerUnit } from '../model/project'
 import { ParameterPanel } from './ParameterPanel'
 import { groupFor, type ParameterCatalog } from './parameterSchema'
+import type { LayoutDraft } from './layoutDraft'
+import type { PatternFamily } from '../api/pattern'
 import {
   asRecord, ELEMENT_SPECS, FIELD_SPECS, fieldRecords, GRID_SPECS,
   gridModel, layoutModel, MAPPING_SPECS, placementState, POSITION_SPECS,
@@ -62,18 +64,26 @@ const modifierLabel: Record<string, string> = {
   size: '尺寸', rotation: '旋转', position: '位置/变形', field_position: '场位移', density: '密度',
 }
 
-export function InspectorControls({ dto, selected, onEdit, disabled, parameterCatalog = null }: {
+export function InspectorControls({ dto, selected, onEdit, disabled, parameterCatalog = null,
+  layoutSelection = null, layoutDraft = null, layoutBusy = false, onLayoutDraftEdit }: {
   dto: PatternDocumentDTO
   selected: FinalGeometry | null
   onEdit: (action: EditAction) => void
   disabled: boolean
   parameterCatalog?: ParameterCatalog | null
+  layoutSelection?: PatternFamily | null
+  layoutDraft?: LayoutDraft | null
+  layoutBusy?: boolean
+  onLayoutDraftEdit?: (key: string, value: number | boolean) => void
 }) {
   const [fieldId, setFieldId] = useState<string>('')
   const fields = fieldRecords(dto)
   const activeField = fields.find((field) => field.id === fieldId) ?? fields[0]
   const grid = gridModel(dto)
   const layout = layoutModel(dto)
+  const stagedValues = layoutDraft?.proposal ? layoutSelection === 'grid'
+    ? gridModel(layoutDraft.proposal) : layoutModel(layoutDraft.proposal)?.model : null
+  const stagedGroup = layoutSelection ? groupFor(parameterCatalog, 'layout', layoutSelection) : null
   const placement = placementState(dto)
   const scale = millimetresPerUnit(dto.document) ?? 1
   const editable = selected ? directSourceElement(dto, selected.id, selected.x, selected.y) : null
@@ -102,7 +112,19 @@ export function InspectorControls({ dto, selected, onEdit, disabled, parameterCa
       </div>}
     </section>}
 
-    {grid && <section className="inspector-section" aria-label="矩阵结构参数">
+    {layoutSelection && <section className="inspector-section" aria-label="布局参数">
+      <h3>LAYOUT / {stagedGroup?.label ?? '自由布局'}</h3>
+      {layoutBusy ? <p className="inspector-readonly">正在由 Python 准备布局参数…</p>
+        : layoutSelection === 'free' ? <p className="inspector-readonly">自由布局保留当前元素位置；点击“应用布局”才会确认。</p>
+          : stagedGroup && stagedValues && layoutDraft?.family === layoutSelection
+            ? <ParameterPanel key={`${layoutSelection}:${layoutDraft.sourceRevision}`} group={stagedGroup}
+              values={stagedValues} onCommit={(key, value) => {
+                if (typeof value !== 'string') onLayoutDraftEdit?.(key, value)
+              }} />
+            : <p className="inspector-readonly">布局参数暂不可用，请重新选择布局。</p>}
+    </section>}
+
+    {!layoutSelection && grid && <section className="inspector-section" aria-label="矩阵结构参数">
       <h3>PARAMETRIC / 矩阵结构</h3>
       {groupFor(parameterCatalog, 'layout', 'grid') ? <ParameterPanel group={groupFor(parameterCatalog, 'layout', 'grid')!}
         values={grid} onCommit={(key, value) => { if (typeof value === 'number') onEdit({ kind: 'grid', key, value }) }} />
@@ -112,7 +134,7 @@ export function InspectorControls({ dto, selected, onEdit, disabled, parameterCa
       {Array.isArray(grid.basis_u_vector) && <p className="inspector-readonly">当前含斜向基向量；间距和旋转会同步调整基向量。</p>}
     </section>}
 
-    {layout && (layout.mode === 'radial' || layout.mode === 'along_curve') &&
+    {!layoutSelection && layout && (layout.mode === 'radial' || layout.mode === 'along_curve') &&
       groupFor(parameterCatalog, 'layout', layout.mode) &&
       <section className="inspector-section" aria-label="布局结构参数">
         <h3>LAYOUT / {groupFor(parameterCatalog, 'layout', layout.mode)!.label}</h3>

@@ -4,10 +4,11 @@ import {
 } from './api/client'
 import { evaluateDocument } from './api/evaluate'
 import { importImage } from './api/import'
-import { analyzePattern, runPatternAction, type DesktopPatternAction, type PatternAnalysis, type PatternFamily } from './api/pattern'
+import { analyzePattern, preparePattern, runPatternAction, type PatternAnalysis, type PatternFamily } from './api/pattern'
 import { Workspace2D } from './geometry/Workspace2D'
 import { InspectorControls, type EditAction } from './document/InspectorControls'
 import type { ParameterCatalog } from './document/parameterSchema'
+import { currentLayoutFamily, editLayoutDraft, initialLayoutDraft, layoutCommitDocument, type LayoutDraft } from './document/layoutDraft'
 import {
   restoreSnapshot, updateElement, updateField, updateGrid, updateLayout, updateReplacement,
   updateScalarModifier, updateStackModifier,
@@ -66,6 +67,9 @@ export function App() {
   const [applyingPattern, setApplyingPattern] = useState(false)
   const applyingPatternRef = useRef(false)
   const [selectedFamily, setSelectedFamily] = useState<PatternFamily | null>(null)
+  const [layoutDraft, setLayoutDraft] = useState<LayoutDraft | null>(null)
+  const [preparingLayout, setPreparingLayout] = useState(false)
+  const layoutSequence = useRef(0)
   const activeDocumentRef = useRef<PatternDocumentDTO | null>(null)
 
   const reconnect = useCallback(() => setRetry((value) => value + 1), [])
@@ -176,7 +180,10 @@ export function App() {
 
   const acceptProject = (dto: PatternDocumentDTO, fileName: string, warnings: string[]) => {
     setProjectError(null)
-    setSelectedFamily(null)
+    ++layoutSequence.current
+    setSelectedFamily(currentLayoutFamily(dto))
+    setLayoutDraft(initialLayoutDraft(dto))
+    setPreparingLayout(false)
     setMapping(null)
     publishHistory({ past: [], future: [] })
     setBrowser((current) => ({ ...current, selectedElementIds: [], activeMode: 'design' }))
@@ -242,26 +249,75 @@ export function App() {
     const previousHistory = historyRef.current
     publishHistory({ past: [...previousHistory.past, before], future: [] })
     setProjectError(null)
-    runEvaluate(next, { rollback: before, onFailure: () => publishHistory(previousHistory), analyzeDelayMs: 400 })
+    ++layoutSequence.current
+    setSelectedFamily(currentLayoutFamily(next))
+    setLayoutDraft(initialLayoutDraft(next))
+    setPreparingLayout(false)
+    runEvaluate(next, { rollback: before, onFailure: () => {
+      publishHistory(previousHistory)
+      setSelectedFamily(currentLayoutFamily(before))
+      setLayoutDraft(initialLayoutDraft(before))
+    }, analyzeDelayMs: 400 })
   }
-  const executePatternAction = async (action: DesktopPatternAction) => {
+  const selectLayout = async (family: PatternFamily) => {
     const dto = project.currentDocument
-    if (!dto || applyingPatternRef.current || !connected || project.evaluateStatus !== 'ready') return
+    if (!dto || !connected || !hasEditableGeometry) return
+    const sequence = ++layoutSequence.current
+    setSelectedFamily(family)
+    setProjectError(null)
+    if (family === 'free') {
+      setLayoutDraft({ family, sourceRevision: dto.document_revision, proposal: null, changed: false })
+      setPreparingLayout(false)
+      return
+    }
+    if (currentLayoutFamily(dto) === family) {
+      setLayoutDraft(initialLayoutDraft(dto))
+      setPreparingLayout(false)
+      return
+    }
+    setLayoutDraft(null)
+    setPreparingLayout(true)
+    try {
+      // An empty parameter set asks the existing Python engine for editable layout defaults.
+      const result = await preparePattern(dto, family, {})
+      if (sequence === layoutSequence.current && activeDocumentRef.current === dto)
+        setLayoutDraft({ family, sourceRevision: dto.document_revision, proposal: result.proposed_document, changed: false })
+    } catch (error) {
+      if (sequence === layoutSequence.current) setProjectError(error instanceof Error ? error.message : '布局提案准备失败。')
+    } finally {
+      if (sequence === layoutSequence.current) setPreparingLayout(false)
+    }
+  }
+  const applyLayout = async () => {
+    const dto = project.currentDocument
+    if (!dto || !layoutDraft || applyingPatternRef.current || project.evaluateStatus !== 'ready') return
     applyingPatternRef.current = true
     setApplyingPattern(true)
-    setProjectError(null)
     try {
-      const result = await runPatternAction(dto, action)
-      if (activeDocumentRef.current === dto) {
-        setSelectedFamily(null)
-        commitDocument(result, dto)
+      if (layoutDraft.family === 'free') {
+        if (currentLayoutFamily(dto) !== 'free') {
+          const result = await runPatternAction(dto, 'bake')
+          if (activeDocumentRef.current === dto) commitDocument(result, dto)
+        }
+      } else {
+        const next = layoutCommitDocument(layoutDraft, dto)
+        if (next) commitDocument(next, dto)
       }
     } catch (error) {
-      setProjectError(error instanceof Error ? error.message : '参数化操作失败。')
+      setProjectError(error instanceof Error ? error.message : '应用布局失败。')
     } finally {
       applyingPatternRef.current = false
       setApplyingPattern(false)
     }
+  }
+  const cancelLayout = () => {
+    const dto = project.currentDocument
+    if (!dto) return
+    ++layoutSequence.current
+    setSelectedFamily(currentLayoutFamily(dto))
+    setLayoutDraft(initialLayoutDraft(dto))
+    setPreparingLayout(false)
+    setProjectError(null)
   }
   const commitDrag = (id: string, dx: number, dy: number) => {
     const dto = project.currentDocument
@@ -306,7 +362,11 @@ export function App() {
     if (!dto || project.evaluateStatus !== 'ready' || !history.past.length) return
     const before = history.past[history.past.length - 1]
     publishHistory({ past: history.past.slice(0, -1), future: [...history.future, dto] })
-    runEvaluate(restoreSnapshot(before, dto.document_revision), {
+    const restored = restoreSnapshot(before, dto.document_revision)
+    ++layoutSequence.current
+    setSelectedFamily(currentLayoutFamily(restored))
+    setLayoutDraft(initialLayoutDraft(restored))
+    runEvaluate(restored, {
       rollback: dto, onFailure: () => publishHistory(history),
     })
   }
@@ -316,7 +376,11 @@ export function App() {
     if (!dto || project.evaluateStatus !== 'ready' || !history.future.length) return
     const after = history.future[history.future.length - 1]
     publishHistory({ past: [...history.past, dto], future: history.future.slice(0, -1) })
-    runEvaluate(restoreSnapshot(after, dto.document_revision), {
+    const restored = restoreSnapshot(after, dto.document_revision)
+    ++layoutSequence.current
+    setSelectedFamily(currentLayoutFamily(restored))
+    setLayoutDraft(initialLayoutDraft(restored))
+    runEvaluate(restored, {
       rollback: dto, onFailure: () => publishHistory(history),
     })
   }
@@ -328,9 +392,7 @@ export function App() {
       && element.width > 0 && element.height > 0) && project.finalGeometry.length > 0)
   const modeName = modes.find((mode) => mode.id === browser.activeMode)?.label ?? '设计'
   const scale = project.currentDocument ? millimetresPerUnit(project.currentDocument.document) ?? 1 : 1
-  const activePattern = project.currentDocument?.document.metadata['xiaomang_pattern_lab.parametric']
-  const activeFamily = activePattern && typeof activePattern === 'object' && 'family' in activePattern
-    ? String(activePattern.family) : null
+  const committedFamily = project.currentDocument ? currentLayoutFamily(project.currentDocument) : 'free'
 
   return <div className="app-shell">
     <header className="topbar">
@@ -371,8 +433,7 @@ export function App() {
         <section className="side-group" aria-label="图案结构">
           <div className="group-heading"><span>02</span><h2>图案结构</h2></div>
           <p className="pattern-analysis-status">自动识别仅提供推荐；布局由你选择。</p>
-          <p className="pattern-analysis-status">当前结构：{activeFamily === 'free_parametric' ? '自由参数化'
-            : patternItems.find((item) => item.id === activeFamily)?.label ?? '原始元素'}</p>
+          <p className="pattern-analysis-status">当前结构：{patternItems.find((item) => item.id === committedFamily)?.label}</p>
           <div className="side-items">{patternItems.map((item) => {
             const available = Boolean(project.currentDocument && connected && !applyingPattern
               && (item.id === 'free' || hasEditableGeometry))
@@ -383,7 +444,7 @@ export function App() {
             return <button className={`side-item ${selectedFamily === item.id ? 'selected' : ''}`} key={item.id}
               type="button" disabled={!available} aria-pressed={selectedFamily === item.id}
               title={available ? '仅选择候选结构，不改变元素位置。' : '请先导入有效的二维图案。'}
-              onClick={() => setSelectedFamily(item.id)}>
+              onClick={() => void selectLayout(item.id)}>
               <span className="side-item-mark" aria-hidden="true">{item.mark}</span>
               <span>{item.label}</span>{recommended && <small>推荐 {Math.round((patternAnalysis?.confidence ?? 0) * 100)}%</small>}
               {!available && <span className="soon-dot" aria-hidden="true" />}
@@ -398,18 +459,17 @@ export function App() {
                     : analysisStatus === 'error' ? `分析失败：${analysisError}；结构仍可尝试使用。`
                       : '导入图案后自动分析结构。'}
           </p>
-          {selectedFamily && <p className="pattern-analysis-status">已选候选：{patternItems.find((item) => item.id === selectedFamily)?.label}；不会自动重排。</p>}
+          {analysisStatus === 'ready' && patternAnalysis?.recommended_family &&
+            <button type="button" disabled={!hasEditableGeometry} onClick={() => void selectLayout(patternAnalysis.recommended_family!)}>
+              使用推荐
+            </button>}
+          {selectedFamily && <p className="pattern-analysis-status">已选布局：{patternItems.find((item) => item.id === selectedFamily)?.label}；应用前画布和项目不变。</p>}
           <div className="pattern-actions">
-            <button type="button" disabled={!connected || !hasEditableGeometry || analysisStatus === 'loading'}
-              onClick={() => project.currentDocument && requestPatternAnalysis(project.currentDocument)}>尝试参数化</button>
-            <button type="button" disabled={!connected || !hasEditableGeometry || applyingPattern
-              || analysisStatus !== 'ready' || !patternAnalysis?.recommended_family || patternAnalysis.recommended_family === 'free'}
-              onClick={() => void executePatternAction('convert_recommended')}>转换为推荐结构</button>
-            <button type="button" disabled={!connected || !hasEditableGeometry || applyingPattern}
-              onClick={() => void executePatternAction('enter_free')}>进入自由参数化</button>
-            <button type="button" disabled={!connected || !project.currentDocument || applyingPattern
-              || !project.currentDocument.document.metadata['xiaomang_pattern_lab.parametric']}
-              onClick={() => void executePatternAction('bake')}>烘焙为自由元素</button>
+            <button type="button" disabled={!connected || !hasEditableGeometry || preparingLayout || applyingPattern
+              || !layoutDraft || (selectedFamily === committedFamily && !layoutDraft.changed)}
+              onClick={() => void applyLayout()}>应用布局</button>
+            <button type="button" disabled={!project.currentDocument || preparingLayout || applyingPattern}
+              onClick={cancelLayout}>取消布局</button>
           </div>
         </section>
         <div className="sidebar-footnote"><span className="footnote-icon">i</span><p>拖入 PNG/JPG/SVG 可由 Python 转换为独立元素；制造尚未开放。</p></div>
@@ -489,6 +549,11 @@ export function App() {
         </div> : <div className="inspector-empty"><span className="inspect-glyph" aria-hidden="true">⌗</span><strong>未选择对象</strong><p>No selection</p><small>点击元素可查看其世界毫米信息。</small></div>}
         {project.currentDocument && <InspectorControls key={`${project.currentDocument.document_id}:${project.documentRevision}:${project.evaluateStatus}`}
           dto={project.currentDocument} selected={selected} parameterCatalog={parameterCatalog}
+          layoutSelection={selectedFamily} layoutDraft={layoutDraft} layoutBusy={preparingLayout}
+          onLayoutDraftEdit={(key, value) => {
+            try { setLayoutDraft((draft) => draft ? editLayoutDraft(draft, key, value, parameterCatalog) : draft) }
+            catch (error) { setProjectError(error instanceof Error ? error.message : '布局参数无效。') }
+          }}
           onEdit={editParameter} disabled={project.evaluateStatus !== 'ready'} />}
         <div className={`connection-card ${connection.kind}`}>
           <div className="connection-card-head"><span>连接状态</span><span className="connection-state-text">{connected ? '已连接' : connection.kind === 'checking' ? '检查中' : connection.kind === 'offline' ? '离线' : '协议不兼容'}</span></div>
