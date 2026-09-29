@@ -3,20 +3,12 @@ import type { PatternDocumentDTO } from '../model/types'
 
 export type PatternFamily = 'grid' | 'radial' | 'along_curve' | 'free'
 
-export interface PatternCandidate {
-  id: PatternFamily
-  confidence: number
-  available: boolean
-  parameters: Record<string, unknown>
-  reason: string
-}
-
 export interface PatternAnalysis {
   document_id: string
   document_revision: number
-  recommended: PatternFamily
-  families: PatternCandidate[]
-  warnings: string[]
+  recommended_family: PatternFamily | null
+  confidence: number
+  analysis_status: 'matched' | 'no_match'
 }
 
 async function post<T>(path: string, body: unknown, signal?: AbortSignal): Promise<T> {
@@ -36,7 +28,10 @@ async function post<T>(path: string, body: unknown, signal?: AbortSignal): Promi
 export async function analyzePattern(dto: PatternDocumentDTO, signal?: AbortSignal): Promise<PatternAnalysis> {
   const result = await post<PatternAnalysis>('/api/v1/analyze-pattern', { document: dto }, signal)
   if (result.document_id !== dto.document_id || result.document_revision !== dto.document_revision
-      || !Array.isArray(result.families) || !Array.isArray(result.warnings)) {
+      || !Number.isFinite(result.confidence) || result.confidence < 0 || result.confidence > 1
+      || !['matched', 'no_match'].includes(result.analysis_status)
+      || (result.recommended_family !== null
+        && !['grid', 'radial', 'along_curve', 'free'].includes(result.recommended_family))) {
     throw new Error('图案分析结果与当前项目不匹配。')
   }
   return result

@@ -38,7 +38,8 @@ function backend(fail = false) {
     if (String(url).endsWith('/analyze-pattern')) {
       const dto = JSON.parse(String(init?.body)) as { document: { document_id: string; document_revision: number } }
       return Promise.resolve(reply({ document_id: dto.document.document_id,
-        document_revision: dto.document.document_revision, recommended: 'free', families: [], warnings: [] }))
+        document_revision: dto.document.document_revision, recommended_family: null,
+        confidence: 0, analysis_status: 'no_match' }))
     }
     const payload = JSON.parse(String(init?.body)) as Payload
     return new Promise<Response>((resolve) => pending.push({ payload, resolve }))

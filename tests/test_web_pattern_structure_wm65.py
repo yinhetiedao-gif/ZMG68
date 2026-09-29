@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 from math import cos, pi, sin
+from dataclasses import replace
 import unittest
+from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
@@ -10,6 +12,7 @@ from ppg.foundation import Canvas, CircleElement, PatternDocument, Reference
 from xiaomang_pattern_lab.contracts import PatternDocumentDTO
 from xiaomang_pattern_lab.fixtures import build_fixed_suite
 from xiaomang_pattern_lab.parametric import GridParametricModel
+from xiaomang_pattern_lab.pattern_analyzer import MultiFamilyAnalysis, PatternAnalyzer
 from xiaomang_pattern_lab.web import create_app
 
 
@@ -53,8 +56,8 @@ class WebPatternStructureWM65Tests(unittest.TestCase):
                                  (curve, "along_curve"), (irregular, "free")):
             with self.subTest(family=family):
                 result = self.analyze(document)
-                self.assertEqual(result["recommended"], family)
-                self.assertTrue(next(item for item in result["families"] if item["id"] == family)["available"])
+                self.assertEqual(result["recommended_family"], None if family == "free" else family)
+                self.assertEqual(result["analysis_status"], "no_match" if family == "free" else "matched")
                 response = self.apply(document, family)
                 self.assertEqual(response.status_code, 200, response.text)
                 self.assertNotIn("xiaomang-pattern-", response.text)
@@ -71,7 +74,9 @@ class WebPatternStructureWM65Tests(unittest.TestCase):
 
     def test_unavailable_family_rejected_and_revision_guarded(self):
         document = dto([dot("a", 10, 10), dot("b", 61, 22)])
-        self.assertEqual(self.apply(document, "grid").status_code, 422)
+        response = self.apply(document, "grid")
+        self.assertEqual(response.status_code, 422)
+        self.assertIn("无法应用该图案结构", response.json()["message"])
         self.assertEqual(self.client.post("/api/v1/apply-pattern", json={
             "document": document, "document_revision": 99, "family": "free",
         }).status_code, 409)
@@ -94,9 +99,8 @@ class WebPatternStructureWM65Tests(unittest.TestCase):
                 self.assertGreater(len(document["document"]["elements"]), 0)
                 analysis = self.analyze(document)
                 self.assertEqual(analysis["document_id"], document["document_id"])
-                self.assertTrue(next(item for item in analysis["families"] if item["id"] == "free")["available"])
                 if media_type == "image/png":
-                    self.assertTrue(next(item for item in analysis["families"] if item["id"] == "grid")["available"])
+                    self.assertEqual(analysis["recommended_family"], "grid")
 
     def test_imported_radial_and_curve_svg_enable_matching_family(self):
         for family, centers in (
@@ -117,8 +121,24 @@ class WebPatternStructureWM65Tests(unittest.TestCase):
                 self.assertEqual(imported.status_code, 200, imported.text)
                 document = imported.json()
                 analysis = self.analyze(document)
-                self.assertTrue(next(item for item in analysis["families"] if item["id"] == family)["available"])
+                self.assertEqual(analysis["recommended_family"], family)
                 self.assertEqual(self.apply(document, family).status_code, 200)
+
+    def test_low_confidence_is_not_an_application_gate(self):
+        document = dto(GridParametricModel(rows=6, columns=8, spacing_x=18,
+                                          spacing_y=21, offset_x=70, offset_y=85).generate())
+        actual = PatternAnalyzer().analyze_families(PatternDocument.from_dict(document["document"]).elements)
+        low_grid = replace(actual.candidate("grid"), confidence=0.1)
+        low = MultiFamilyAnalysis((low_grid, *actual.candidates[1:]), None, actual.fallback)
+        with patch("xiaomang_pattern_lab.web.app.PatternAnalyzer") as analyzer:
+            analyzer.return_value.analyze_families.return_value = low
+            response = self.apply(document, "grid")
+        self.assertEqual(response.status_code, 200, response.text)
+
+    def test_free_is_available_for_empty_document(self):
+        document = dto([])
+        response = self.apply(document, "free")
+        self.assertEqual(response.status_code, 200, response.text)
 
 
 if __name__ == "__main__":

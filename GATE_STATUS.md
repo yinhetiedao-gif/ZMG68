@@ -1,5 +1,12 @@
 # Gate 状态（2026-09-19）
 
+## WM6.6 — Web 图案结构可用性与推荐分离（2026-09-29）
+
+- 基线 `8284a5c`，保护引用 `backup/pre-wm6-6-pattern-availability`；仅调整 Web 图案结构桥接和对应测试，不修改 PatternAnalyzer 算法或新增 family。
+- 有有效可编辑几何时 Grid/Radial/Curve 可尝试应用；Free 对已求值的文档始终可用。Analyze 仅返回当前文档身份、推荐 family、置信度和 matched/no_match 状态，不再担任功能解锁器。
+- 导入求值成功后立即分析；编辑提交、Undo/Redo 或结构应用后先标记 stale，再在求值成功后 400ms 防抖分析。过期请求被取消，stale/analyzing 不禁用结构按钮；无法拟合时由 Python apply 返回明确错误。
+- 验证：Web Vitest 62/62 PASS，TypeScript/Vite build PASS；Python 相关定向 16/16 PASS（包括旧导入、多结构分析和新低置信度/空文档回归）；固定图案自检 6/6 PASS。全量 Python 回归曾启动，但在持续输出 Tk 对象清理异常后未能收尾，已中断，不能标记 PASS；未执行人工浏览器操作。
+
 ## WM5.6 — Web 编辑时元素可见性修复（2026-09-29）
 
 - 范围仅 Web 编辑 Bug：直接拖动时由浏览器临时写入 SVG 位移，最终 Evaluate 可能在同一 React 批次返回，React 未观察到临时属性，导致旧位移残留、最终几何被二次平移甚至移出视野。现在在提交后的 layout 阶段显式协调该属性；求值成功/失败后都清理临时位移。

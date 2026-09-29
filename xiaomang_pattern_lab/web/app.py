@@ -91,29 +91,21 @@ def _document_payload(payload: dict[str, Any]) -> dict[str, Any]:
 
 def _pattern_analysis(dto: PatternDocumentDTO):
     analysis = PatternAnalyzer().analyze_families(dto.to_document().elements)
-    families = []
-    for item in (*analysis.candidates, analysis.fallback):
-        available = bool(item.model is not None and
-                         (item.family == "free" or item.confidence >= 0.72) and
-                         dto.document.get("elements"))
-        families.append({"id": item.family, "confidence": item.confidence,
-                         "available": available, "parameters": {
-                             key: value for key, value in item.parameters.items()
-                             if key != "path_points"},
-                         "reason": str(item.diagnostics.get("reason", ""))})
+    recommended = analysis.recommended
     return analysis, {"document_id": dto.document_id,
                       "document_revision": dto.document_revision,
-                      "recommended": analysis.recommended.family if analysis.recommended else "free",
-                      "families": families, "warnings": []}
+                      "recommended_family": recommended.family if recommended else None,
+                      "confidence": recommended.confidence if recommended else 0.0,
+                      "analysis_status": "matched" if recommended else "no_match"}
 
 
 def _apply_pattern(dto: PatternDocumentDTO, family: str) -> dict[str, Any]:
     analysis, _ = _pattern_analysis(dto)
     candidates = {item.family: item for item in (*analysis.candidates, analysis.fallback)}
     candidate = candidates.get(family)
-    if candidate is None or candidate.model is None or not dto.document.get("elements") or (
-            family != "free" and candidate.confidence < 0.72):
-        raise WebError("pattern_family_unavailable", "当前图案没有可靠的该结构识别结果，请重新分析或使用自由布局。")
+    if candidate is None or candidate.model is None or (family != "free" and not dto.document.get("elements")):
+        reason = str(candidate.diagnostics.get("reason", "")) if candidate else "不支持的图案结构。"
+        raise WebError("pattern_family_unavailable", "无法应用该图案结构：%s 可尝试其他结构或自由布局。" % reason)
     with TemporaryDirectory(prefix="xiaomang-pattern-") as temporary:
         session = PatternLabSession(FoundationPipeline(None, None), Path(temporary), document=dto.to_document())
         if family == "grid":
