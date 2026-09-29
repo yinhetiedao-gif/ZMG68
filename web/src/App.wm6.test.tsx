@@ -131,6 +131,9 @@ describe('WM6 Inspector and committed-document boundary', () => {
     const canvas = await open(plain)
     fireEvent.pointerDown(canvas.querySelector('[data-element-id="layer-7"]')!, { button: 0 })
     const width = screen.getByRole('spinbutton', { name: '宽度 mm' })
+    expect(screen.getByRole('slider', { name: '宽度 mm滑杆' })).toHaveAttribute('max', '60')
+    expect(screen.getByRole('slider', { name: '高度 mm滑杆' })).toHaveAttribute('max', '60')
+    expect(width).toHaveAttribute('max', '10000')
     fireEvent.change(width, { target: { value: '30' } })
     fireEvent.blur(width)
     await waitFor(() => expect(evaluations(mock)).toHaveLength(2))
@@ -143,6 +146,23 @@ describe('WM6 Inspector and committed-document boundary', () => {
     await waitFor(() => expect(evaluations(mock)).toHaveLength(3))
     expect(lastDocument(mock).elements[0]).toMatchObject({ x: 10, y: 710, width: 30, height: 25 })
     expect(canvas.querySelector('[data-element-id="layer-7"] path')).toBeInTheDocument()
+  })
+
+  it('keeps the size slider local and commits only after release', async () => {
+    const mock = backend()
+    const plain = documentFixture()
+    plain.fields = []
+    plain.modifiers = []
+    const canvas = await open(plain)
+    fireEvent.pointerDown(canvas.querySelector('[data-element-id="dot-0"]')!, { button: 0 })
+    const slider = screen.getByRole('slider', { name: '高度 mm滑杆' })
+    expect(slider).toHaveAttribute('max', '12')
+    fireEvent.change(slider, { target: { value: '6' } })
+    expect(evaluations(mock)).toHaveLength(1)
+    expect(screen.getByText('revision 0')).toBeInTheDocument()
+    fireEvent.pointerUp(slider)
+    await waitFor(() => expect(evaluations(mock)).toHaveLength(2))
+    expect(lastDocument(mock).elements[0]).toMatchObject({ x: 10, y: 10, width: 4, height: 6 })
   })
 
   it('commits Modifier mapping and enable without changing modifier order', async () => {

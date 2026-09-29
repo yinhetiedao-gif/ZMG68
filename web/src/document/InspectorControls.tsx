@@ -11,7 +11,9 @@ export type EditAction =
   | { kind: 'element' | 'field' | 'scalar' | 'stack' | 'shape'; id: string; key: string; value: number | boolean | string }
   | { kind: 'grid'; key: string; value: number }
 
-function NumericControl({ spec, value, onCommit }: { spec: NumericSpec; value: number; onCommit: (value: number) => void }) {
+function NumericControl({ spec, value, onCommit, sliderMax = spec.max }: {
+  spec: NumericSpec; value: number; onCommit: (value: number) => void; sliderMax?: number
+}) {
   const inputId = useId()
   const [draft, setDraft] = useState(String(value))
   const draftRef = useRef(String(value))
@@ -37,9 +39,9 @@ function NumericControl({ spec, value, onCommit }: { spec: NumericSpec; value: n
   return <div className="parameter-control">
     <label htmlFor={inputId}>{spec.label}</label>
     <div className="parameter-inputs">
-      <input type="range" aria-label={`${spec.label}滑杆`} min={spec.min} max={spec.max} step={spec.integer ? spec.step : 'any'}
+      <input type="range" aria-label={`${spec.label}滑杆`} min={spec.min} max={sliderMax} step={spec.integer ? spec.step : 'any'}
         value={draft.trim() && Number.isFinite(Number(draft))
-          ? Math.min(spec.max, Math.max(spec.min, Number(draft))) : value}
+          ? Math.min(sliderMax, Math.max(spec.min, Number(draft))) : Math.min(sliderMax, value)}
         onChange={(event) => change(event.target.value)} onPointerUp={commit} onKeyUp={commit} onBlur={commit} />
       <input id={inputId} type="number" min={spec.min} max={spec.max} step={spec.step}
         value={draft} onChange={(event) => change(event.target.value)}
@@ -80,7 +82,9 @@ export function InspectorControls({ dto, selected, onEdit, disabled }: {
       {editable ? ELEMENT_SPECS.map((spec) => {
         const sourceValue = editable[spec.key]
         const value = typeof sourceValue === 'number' ? (spec.key === 'rotation' ? sourceValue : sourceValue * scale) : 0
-        return <NumericControl key={spec.key} spec={spec} value={value}
+        const sliderMax = spec.key === 'width' || spec.key === 'height'
+          ? Math.min(spec.max, Math.max(10, value * 3)) : spec.max
+        return <NumericControl key={spec.key} spec={spec} value={value} sliderMax={sliderMax}
           onCommit={(next) => onEdit({ kind: 'element', id: selected.id, key: spec.key, value: next })} />
       }) : <p className="inspector-readonly">派生元素或含效果的源元素仅可查看；不会猜测反向映射。</p>}
       {placement && <div className="shape-replacement">
