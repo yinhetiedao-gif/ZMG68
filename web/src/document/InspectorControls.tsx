@@ -1,10 +1,10 @@
-import { useId, useState } from 'react'
+import { useState } from 'react'
 import type { FinalGeometry, PatternDocumentDTO } from '../model/types'
 import { directSourceElement, millimetresPerUnit } from '../model/project'
 import { ParameterPanel } from './ParameterPanel'
 import { InspectorSection } from './InspectorSection'
-import { ParameterInteraction, useParameterDraft } from './ParameterInteraction'
-import { groupFor, sliderBounds, type ParameterCatalog } from './parameterSchema'
+import { ParameterInteraction } from './ParameterInteraction'
+import { groupFor, type ParameterCatalog } from './parameterSchema'
 import type { LayoutDraft } from './layoutDraft'
 import type { PatternFamily } from '../api/pattern'
 import {
@@ -24,29 +24,18 @@ export type EditAction =
   | { kind: 'modifier_add'; modifierType: 'size' | 'rotation' | 'position' }
   | { kind: 'modifier_remove'; lane: 'scalar' | 'stack'; id: string }
 
-function NumericControl({ spec, value, onCommit, sliderMax = spec.max }: {
-  spec: NumericSpec; value: number; onCommit: (value: number) => void; sliderMax?: number
+function NumericControl({ spec, value, onCommit, unit: explicitUnit }: {
+  spec: NumericSpec; value: number; onCommit: (value: number) => void; unit?: string
 }) {
-  const inputId = useId()
-  const { draft, pending, change, cancel, commitNumber: commit } = useParameterDraft(value,
-    (next) => onCommit(Number(next)), (next) => typeof next === 'number' && Number.isFinite(next)
-      && next >= spec.min && next <= spec.max && (!spec.integer || Number.isInteger(next)))
-  const slider = sliderBounds(spec.min, sliderMax, spec.label.endsWith('mm') ? 'mm' : '')
-  return <div className="parameter-control">
-    <label htmlFor={inputId}>{spec.label}</label>
-    <div className="parameter-inputs">
-      <input type="range" aria-label={`${spec.label}滑杆`} min={slider.min} max={slider.max} step={spec.integer ? spec.step : 'any'}
-        value={draft.trim() && Number.isFinite(Number(draft))
-          ? Math.min(slider.max, Math.max(slider.min, Number(draft)))
-          : Math.min(slider.max, Math.max(slider.min, value))}
-        onChange={(event) => change(event.target.value)} onPointerUp={commit} onKeyUp={commit} onBlur={commit}
-        onPointerCancel={cancel} />
-      <input id={inputId} type="number" min={spec.min} max={spec.max} step={spec.step}
-        value={draft} onChange={(event) => change(event.target.value)}
-        onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur() }} onBlur={commit} />
-    </div>
-    {pending && <small className="parameter-pending">待提交 · 松开滑杆或确认数值</small>}
-  </div>
+  const unit = explicitUnit ?? (spec.label.endsWith('mm') ||
+    (spec.max >= 1000 && spec.key !== 'seed' && spec.key !== 'min_output' && spec.key !== 'max_output')
+    ? 'mm' : spec.label.endsWith('°') || spec.key === 'angle' || spec.key === 'rotation' ? '°' : '')
+  // Compatibility adapter for old API catalogs; the same generic renderer owns
+  // all sliders. Without a schema default, Reset must not invent one.
+  return <ParameterPanel group={{ label: spec.label, parameters: [{
+    id: spec.key, label: spec.label, type: spec.integer ? 'integer' : 'number',
+    default: value, value, min: spec.min, max: spec.max, step: spec.step, unit, options: [],
+  }] }} values={{ [spec.key]: value }} onCommit={(_, next) => onCommit(Number(next))} />
 }
 
 const fieldLabel: Record<string, string> = {
@@ -208,6 +197,7 @@ export function InspectorControls({ dto, selected, onEdit, disabled, parameterCa
                 onCommit={(key, value) => onEdit({ kind: 'scalar', id, key, value })} />
               : (type === 'size' || type === 'rotation') && MAPPING_SPECS.filter((item) => typeof mapping[item.key] === 'number').map((item) =>
               <NumericControl key={item.key} spec={item} value={Number(mapping[item.key])}
+                unit={type === 'rotation' && (item.key === 'min_output' || item.key === 'max_output') ? '°' : ''}
                 onCommit={(next) => onEdit({ kind: 'scalar', id, key: item.key, value: next })} />)}
             {type === 'density' && typeof modifier.threshold === 'number' &&
               <NumericControl spec={{ key: 'threshold', label: '阈值', min: 0, max: 1, step: 0.01 }}
@@ -254,14 +244,19 @@ export function InspectorControls({ dto, selected, onEdit, disabled, parameterCa
             <dt>中心</dt><dd>{selected.x.toFixed(2)}, {selected.y.toFixed(2)} mm</dd>
             <dt>范围</dt><dd>{selected.width.toFixed(2)} × {selected.height.toFixed(2)} mm</dd></dl>
         </div>
-        {editable ? ELEMENT_SPECS.map((spec) => {
-          const sourceValue = editable[spec.key]
-          const value = typeof sourceValue === 'number' ? (spec.key === 'rotation' ? sourceValue : sourceValue * scale) : 0
-          const sliderMax = spec.key === 'width' || spec.key === 'height'
-            ? Math.min(spec.max, Math.max(10, value * 3)) : spec.max
-          return <NumericControl key={`${selected.id}:${spec.key}`} spec={spec} value={value} sliderMax={sliderMax}
-            onCommit={(next) => onEdit({ kind: 'element', id: selected.id, key: spec.key, value: next })} />
-        }) : <p className="inspector-readonly">派生或参数化元素不可直接拖动；可通过上方布局、参数场和效果层调整。</p>}
+        {editable ? (() => {
+          const values = Object.fromEntries(ELEMENT_SPECS.map((spec) => {
+            const sourceValue = editable[spec.key]
+            return [spec.key, typeof sourceValue === 'number'
+              ? (spec.key === 'rotation' ? sourceValue : sourceValue * scale) : 0]
+          }))
+          const group = groupFor(parameterCatalog, 'element', 'transform')
+          return group ? <ParameterPanel key={selected.id} group={group} values={values}
+            onCommit={(key, value) => { if (typeof value === 'number') onEdit({ kind: 'element', id: selected.id, key, value }) }} />
+            : ELEMENT_SPECS.map((spec) => <NumericControl key={`${selected.id}:${spec.key}`} spec={spec}
+              value={Number(values[spec.key])}
+              onCommit={(next) => onEdit({ kind: 'element', id: selected.id, key: spec.key, value: next })} />)
+        })() : <p className="inspector-readonly">派生或参数化元素不可直接拖动；可通过上方布局、参数场和效果层调整。</p>}
       </> : <p className="inspector-readonly">未选择对象 · No selection。点击画布中的元素可查看和编辑。</p>}
     </InspectorSection>
   </fieldset></ParameterInteraction.Provider>

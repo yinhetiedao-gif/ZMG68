@@ -170,6 +170,7 @@ button { font: inherit; }
 .parameter-reset:disabled { opacity: .4; cursor: default; }
 .parameter-boolean { display: flex; align-items: center; justify-content: space-between; }
 .parameter-pending { display: block; color: #896d32; font-size: 10px; margin-top: 4px; }
+.parameter-recommended { display: block; color: #896d32; font-size: 10px; margin-top: 4px; }
 .interaction-status { font-size: 10px; color: #52758a; max-width: 210px; }
 .inspector-id, .inspector-readonly { color: #798c99; font-size: 10px; line-height: 1.55; margin: 3px 0 12px; overflow-wrap: anywhere; }
 .parameter-control { margin: 0 0 12px; }

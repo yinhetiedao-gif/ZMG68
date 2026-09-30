@@ -13,10 +13,39 @@ def _p(id: str, label: str, type: str, default: Any, *, min: float | None = None
        max: float | None = None, step: float | None = None, unit: str = "",
        options: list[dict[str, str]] | None = None, description: str = "",
        advanced: bool = False) -> dict[str, Any]:
+    slider = _slider_range(id, type, min, max, step, unit)
     return {"id": id, "label": label, "type": type, "default": default,
             "value": default, "min": min, "max": max, "step": step,
+            "slider_min": slider[0] if slider else None,
+            "slider_max": slider[1] if slider else None,
+            "slider_step": slider[2] if slider else None,
             "unit": unit, "options": options or [], "description": description,
             "advanced": advanced}
+
+
+def _slider_range(id: str, type: str, lower: float | None, upper: float | None,
+                  step: float | None, unit: str) -> tuple[float, float, float] | None:
+    """Recommended drag range; min/max above remain the Engine's legal bounds."""
+    if type not in ("number", "integer") or lower is None or upper is None or id == "seed":
+        return None  # A huge integer seed is better entered precisely than dragged.
+    if type == "integer":
+        return lower, min(upper, 100 if id in ("rows", "columns") else 200), 1
+    if unit == "mm":
+        return (max(lower, -300) if lower < 0 else max(lower, 1 if lower > 0 else 0),
+                min(upper, 300), step or 0.1)
+    if unit == "°":
+        return (0, 360, 1) if id in ("start_angle", "end_angle") else (-180, 180, 1)
+    if id in ("min_output", "max_output"):
+        return max(lower, 0), min(upper, 3), 0.01
+    if id == "falloff":
+        return lower, min(upper, 1), 0.01
+    if id == "turns":
+        return lower, min(upper, 10), step or 0.1
+    if id == "phase":
+        return max(lower, -10), min(upper, 10), step or 0.1
+    if id == "contrast":
+        return lower, min(upper, 3), 0.01
+    return lower, upper, step or 0.01
 
 
 def _coord(id: str, label: str, default: float = 0.0) -> dict[str, Any]:
@@ -120,6 +149,13 @@ def parameter_definitions() -> dict[str, Any]:
                 _p("phase", "相位", "number", 0, min=-100, max=100, step=0.1),
                 _p("strength", "强度", "number", 1, min=0, max=1, step=0.01),
                 _p("falloff", "衰减", "number", 1, min=0.01, max=20, step=0.1)]},
+        },
+        "element": {
+            "transform": {"label": "元素变换", "parameters": [
+                _coord("x", "位置 X mm"), _coord("y", "位置 Y mm"),
+                _size("width", "宽度 mm", 1), _size("height", "高度 mm", 1),
+                angle("rotation", "旋转 °"),
+            ]},
         },
     }}
 

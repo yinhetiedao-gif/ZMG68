@@ -1,11 +1,12 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { ParameterPanel } from './ParameterPanel'
-import { sliderBounds, validateParameter, type ParameterGroup } from './parameterSchema'
+import { recommendedSlider, validateParameter, type ParameterGroup } from './parameterSchema'
 
 const group: ParameterGroup = { label: '测试', parameters: [
   { id: 'radius', label: '半径', type: 'number', default: 2, value: 2, min: 0, max: 30, step: 1, unit: 'mm', options: [] },
-  { id: 'wavelength', label: '波长', type: 'number', default: 50, value: 50, min: 0.01, max: 10000, step: 0.1, unit: 'mm', options: [] },
+  { id: 'wavelength', label: '波长', type: 'number', default: 50, value: 50, min: 0.01, max: 10000, step: 0.1,
+    slider_min: 1, slider_max: 300, slider_step: 0.1, unit: 'mm', options: [] },
   { id: 'rows', label: '行数', type: 'integer', default: 4, value: 4, min: 1, max: 20, step: 1, unit: '', options: [] },
   { id: 'invert', label: '反转', type: 'boolean', default: false, value: false, min: null, max: null, step: null, unit: '', options: [] },
   { id: 'mode', label: '模式', type: 'select', default: 'a', value: 'a', min: null, max: null, step: null,
@@ -42,6 +43,7 @@ describe('Python-authored generic parameter renderer', () => {
     expect(numeric).toHaveAttribute('min', '0.01')
     expect(numeric).toHaveAttribute('max', '10000')
     expect(numeric).toHaveValue(500)
+    expect(screen.getByText(/超出推荐调节范围/)).toBeVisible()
     fireEvent.pointerUp(slider)
     expect(commit).not.toHaveBeenCalled()
     fireEvent.change(numeric, { target: { value: '750' } })
@@ -50,6 +52,8 @@ describe('Python-authored generic parameter renderer', () => {
     rerender(<ParameterPanel group={group} values={{ wavelength: 750 }} onCommit={commit} />)
     expect(screen.getByLabelText('波长 (mm)')).toHaveValue(750)
     expect(screen.getByLabelText('波长滑杆')).toHaveValue('300')
+    fireEvent.click(screen.getByRole('button', { name: '重置波长' }))
+    expect(commit.mock.calls).toEqual([['wavelength', 750], ['wavelength', 50]])
   })
 
   it('commits a mm slider drag only on release and leaves other units unchanged', () => {
@@ -60,7 +64,8 @@ describe('Python-authored generic parameter renderer', () => {
     expect(commit).not.toHaveBeenCalled()
     fireEvent.pointerUp(slider)
     expect(commit).toHaveBeenCalledExactlyOnceWith('wavelength', 250)
-    expect(sliderBounds(-360, 360, '°')).toEqual({ min: -360, max: 360 })
+    expect(recommendedSlider({ ...group.parameters[1], unit: '°', slider_min: -180, slider_max: 180, slider_step: 1 }))
+      .toEqual({ min: -180, max: 180, step: 1 })
   })
 
   it('rejects invalid intermediate values and illegal choices', () => {

@@ -1,6 +1,6 @@
 import { useId } from 'react'
 import type { ParameterDefinition, ParameterGroup, ParameterValue } from './parameterSchema'
-import { sliderBounds, validateParameter } from './parameterSchema'
+import { recommendedSlider, validateParameter } from './parameterSchema'
 import { useParameterDraft } from './ParameterInteraction'
 
 function ParameterInput({ definition, value, onCommit }: {
@@ -27,13 +27,13 @@ function ParameterInput({ definition, value, onCommit }: {
   const min = definition.min ?? undefined
   const max = definition.max ?? undefined
   const step = definition.step ?? 'any'
-  const slider = min !== undefined && max !== undefined
-    ? sliderBounds(min, max, definition.unit) : null
+  const slider = recommendedSlider(definition)
+  const outOfRange = typeof value === 'number' && slider && (value < slider.min || value > slider.max)
   return <div className="parameter-control" title={definition.description}>
-    <div className="parameter-heading"><label htmlFor={id}>{definition.label}{definition.unit ? ` (${definition.unit})` : ''}</label>{reset}</div>
+    <div className="parameter-heading"><label htmlFor={id}>{definition.label}{definition.unit && !definition.label.endsWith(definition.unit) ? ` (${definition.unit})` : ''}</label>{reset}</div>
     <div className="parameter-inputs">
       {slider && <input type="range" aria-label={`${definition.label}滑杆`}
-        min={slider.min} max={slider.max} step={step} value={draft.trim() && Number.isFinite(Number(draft))
+        min={slider.min} max={slider.max} step={slider.step} value={draft.trim() && Number.isFinite(Number(draft))
           ? Math.min(slider.max, Math.max(slider.min, Number(draft)))
           : Math.min(slider.max, Math.max(slider.min, Number(value)))}
         onChange={(event) => change(event.target.value)} onPointerUp={commit} onKeyUp={commit} onBlur={commit}
@@ -45,6 +45,7 @@ function ParameterInput({ definition, value, onCommit }: {
           if (event.key === 'Escape') cancel()
         }} onBlur={commit} />
     </div>
+    {outOfRange && <small className="parameter-recommended">超出推荐调节范围（{slider.min}–{slider.max}{definition.unit ? ` ${definition.unit}` : ''}）</small>}
     {pending && <small className="parameter-pending">待提交 · 松开滑杆或确认数值</small>}
   </div>
 }

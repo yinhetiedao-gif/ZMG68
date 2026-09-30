@@ -1,5 +1,13 @@
 # Gate 状态（2026-09-30）
 
+## Web 全局 Parameter Range Audit（2026-09-30）
+
+- 状态：PASS。审计当前 Python 参数目录的 Layout（Free/Grid/Radial/Curve）、8 种可编辑 Field、Size/Rotation/Position Modifier 与 Element Transform，共 91 项定义；其中 82 项数值参数，81 项提供推荐滑杆范围。Shape Replacement 为选项控件，无数值滑杆；Image/Composite Field 仍为既有只读类型。
+- Python Schema 为每项增加 `slider_min/slider_max/slider_step`，与原 `min/max/step` 分离；React 通用 ParameterPanel 读取 Schema。旧合同的数值控件改由同一通用渲染器兼容显示，元素变换在新版合同中也直接使用 Python Schema。未修改几何算法、文档格式或合法数值范围。
+- 推荐范围：正向距离/宽度/周期为 0–300 或 1–300 mm，坐标/有向位移为 -300–300 mm；普通角度 -180–180°，放射起止角 0–360°；比例/强度 0–1，衰减 0.01–1；尺寸倍率 0–3；行列 1–100，数量 1–200，螺旋圈数 0–10，相位 -10–10，对比度 0.01–3。保留原有更宽的数字输入合法范围。
+- 特例：随机种子仅显示整数输入，不提供不实用的大范围滑杆。超出推荐范围的旧值继续在数字框显示，滑杆仅停在边界并提示“超出推荐调节范围”；重置仍使用 Schema 默认值。
+- 验证：Web 83/83 PASS；Python 参数合同定向 4/4 PASS；`npm run build` PASS。Web 既有单次提交/Undo 测试保持通过；本轮未运行无关 Python 全量回归。
+
 ## Web 滑杆常用范围调整（2026-09-30）
 
 - 正向毫米参数的常用拖动范围为 1–300 mm；数字输入与 Python Schema 的合法 min/max 保持原值。已有值超出滑杆范围时，只将滑杆手柄显示在边界，数字框和 Document 保留真实值。坐标、角度、比例和计数范围不变。
