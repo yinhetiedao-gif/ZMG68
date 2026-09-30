@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import hashlib
+import io
 import math
+import numpy as np
 import os
 from pathlib import Path
 import subprocess
@@ -13,6 +15,7 @@ import unittest
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
+import trimesh
 
 from ppg.foundation import Canvas, CircleElement, PatternDocument, Reference
 from tests.test_manufacturing_service_wm1 import printed_pattern_document
@@ -126,7 +129,14 @@ class WebServerWM3Tests(unittest.TestCase):
             self.assertIn(".stl", stl.headers["content-disposition"])
             self.assertEqual(hashlib.sha256(stl.content).hexdigest(), body["artifacts"][0]["sha256"])
             self.assertEqual(len(stl.content), body["artifacts"][0]["byte_size"])
+            preview = client.get("/api/v1/manufacturing/%s/preview.glb" % result_id)
+            self.assertEqual(preview.status_code, 200)
+            self.assertEqual(preview.headers["content-type"], "model/gltf-binary")
+            self.assertEqual(preview.content[:4], b"glTF")
+            glb_mesh = trimesh.load(io.BytesIO(preview.content), file_type="glb", force="mesh")
+            self.assertEqual(tuple(round(value, 5) for value in glb_mesh.extents), (10.0, 10.0, 2.0))
             self.assertEqual(client.get("/api/v1/manufacturing/missing/model.stl").status_code, 404)
+            self.assertEqual(client.get("/api/v1/manufacturing/missing/preview.glb").status_code, 404)
         with TemporaryDirectory() as temporary:
             path = Path(temporary) / "model.stl"
             path.write_bytes(stl.content)
@@ -139,7 +149,8 @@ class WebServerWM3Tests(unittest.TestCase):
     def test_printed_pattern_api_preserves_manufacturing_dimensions(self):
         printed, _ = printed_pattern_document()
         dto = PatternDocumentDTO.from_document(printed, "printed", 1)
-        with TestClient(create_app()) as client:
+        store = InMemoryManufacturingResultStore()
+        with TestClient(create_app(result_store=store)) as client:
             start = perf_counter()
             build = client.post("/api/v1/manufacturing/build", json=build_payload(dto))
             print("WM3 printed build latency ms:", round((perf_counter() - start) * 1000, 2))
@@ -153,6 +164,15 @@ class WebServerWM3Tests(unittest.TestCase):
             self.assertTrue(body["mesh_validation_summary"]["is_watertight"])
             stl = client.get("/api/v1/manufacturing/%s/model.stl" % body["manufacturing_result_id"])
             self.assertEqual(stl.status_code, 200)
+            preview = client.get("/api/v1/manufacturing/%s/preview.glb" % body["manufacturing_result_id"])
+            self.assertEqual(preview.status_code, 200)
+            glb_mesh = trimesh.load(io.BytesIO(preview.content), file_type="glb", force="mesh")
+            original = store.get(body["manufacturing_result_id"]).result.mesh_result.mesh
+            self.assertEqual(len(glb_mesh.faces), len(original.faces))
+            self.assertTrue(np.allclose(np.sort(glb_mesh.vertices, axis=0), np.sort(original.vertices, axis=0)))
+            self.assertAlmostEqual(glb_mesh.extents[0], 57.216907, places=3)
+            self.assertAlmostEqual(glb_mesh.extents[1], 19.899187, places=3)
+            self.assertAlmostEqual(glb_mesh.extents[2], 2.0, places=6)
         with TemporaryDirectory() as temporary:
             path = Path(temporary) / "printed.stl"
             path.write_bytes(stl.content)

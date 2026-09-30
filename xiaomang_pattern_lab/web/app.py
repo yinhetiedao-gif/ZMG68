@@ -39,6 +39,7 @@ from .http_errors import (
     WebError, contract_error_handler, internal_error_handler, web_error_handler,
 )
 from .runtime_store import InMemoryManufacturingResultStore, StoredManufacturingResult
+from .preview_artifact import export_preview_glb
 
 
 MAX_REQUEST_BYTES = 2 * 1024 * 1024
@@ -263,8 +264,9 @@ def _build(document, dto: PatternDocumentDTO, height_mm: float):
         byte_size=len(stl_bytes), sha256=hashlib.sha256(stl_bytes).hexdigest(),
     ).to_dict()
     response.artifacts.append(artifact)
+    preview_glb_bytes = export_preview_glb(result.mesh_result)
     encoded = response.to_dict()
-    return result_id, StoredManufacturingResult(result, encoded, stl_bytes)
+    return result_id, StoredManufacturingResult(result, encoded, stl_bytes, preview_glb_bytes)
 
 
 def _import_asset(item) -> dict[str, Any]:
@@ -430,5 +432,13 @@ def create_app(*, asset_resolver: AssetResolver | None = None,
         artifact = stored.response["artifacts"][0]
         return Response(stored.stl_bytes, media_type="model/stl",
                         headers={"Content-Disposition": 'attachment; filename="%s"' % artifact["filename"]})
+
+    @app.get("/api/v1/manufacturing/{manufacturing_result_id}/preview.glb")
+    def download_preview(manufacturing_result_id: str) -> Response:
+        stored = store.get(manufacturing_result_id)
+        if stored is None or stored.preview_glb_bytes is None:
+            raise WebError("artifact_not_found", "三维预览不存在或已经过期，请重新检查并生成。")
+        return Response(stored.preview_glb_bytes, media_type="model/gltf-binary",
+                        headers={"Cache-Control": "no-store"})
 
     return app

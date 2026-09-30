@@ -1,5 +1,15 @@
 # Gate 状态（2026-09-30）
 
+## P3 Web 3D Preview + STL Download（2026-09-30）
+
+- 状态：PASS。基线 `9221754` / `backup/p2-web-manufacturing-final`；开发分支 `feature/p3-web-alpha`，预变更备份 `backup/pre-p3-web-alpha`。本 Gate 不进入 Fabric，也不宣布完成真实 Web 打印验收。
+- `POST /api/v1/manufacturing/build` 从同一份已验证的 `ManufacturingMeshResult` 生成并缓存正式二进制 STL 和只读 GLB 预览。新增 `GET /api/v1/manufacturing/{result_id}/preview.glb`；原 `GET .../model.stl` 保持。GLB 导出不重新 build、不修复或修改正式 Mesh。缓存结果随服务进程重启或 TTL 过期失效，需重新生成。
+- Web 使用 Three.js 仅加载 GLB 进行显示、旋转、缩放、适合窗口、重置视角，Z 轴为制造厚度方向。下载仅从当前 `manufacturing_result_id` 调用 Python STL 路由；项目名被清理为安全的下载文件名。不在 React 生成或编辑制造几何。
+- 文档身份/修订号或厚度变化时预览与下载立即 stale；异步下载在真正触发保存前再次核对当前结果。错误在预览区内联显示，不清空二维设计 Canvas。
+- 实测：真实打印图案约 `57.2169 × 19.8992 × 2.0000 mm`、3 组件、制造验证 watertight；带孔 fixture 为 `20 × 20 × 2 mm`、1 组件，GLB 与重新加载的 STL 均保留孔。浏览器实际执行真实工程和带孔工程的导入、build、预览加载、适合窗口/重置、旋转/缩放、同 ID 下载与厚度 stale；浏览器致命 Console 错误 0。证据脚本及截图位于 `work/p3_browser_smoke.cjs`、`work/p3-real-pattern-preview.png`、`work/p3-hole-preview.png`；该目录为忽略的本机验收产物。
+- 自动化：Python 制造/API/GLB 相关 16/16 PASS；Web 93/93 PASS；TypeScript/Vite build PASS。视觉截图检查的 `vision-skills/glance` CLI 在本机不可用，因此不声称人工像素级视觉验收；GLB/STL 拓扑及实际浏览器行为已有自动验证。真实 Web 下载后的 Bambu Studio 切片与实物打印尚待用户进行，不将 P3 等同于 Web Alpha 物理冻结。
+- 提交后创建 `backup/p3-web-alpha-final`；安全回退点 `backup/p2-web-manufacturing-final`，通过新 worktree 检出，不强制 reset。
+
 ## P2 Web Manufacturing（2026-09-30）
 
 - 状态：PASS。基线 `7778062` / `backup/web-parameter-range-audit-final` 已包含并提交全局滑杆范围优化，工作区开始时干净；本 Gate 独立分支 `feature/p2-web-manufacturing`，预变更备份 `backup/pre-p2-web-manufacturing`。未进入 P3。

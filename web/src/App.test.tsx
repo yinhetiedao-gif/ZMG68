@@ -67,14 +67,16 @@ describe('WM4 application shell', () => {
     expect(screen.getByText(/需要 v1.0 \/ mm/)).toBeInTheDocument()
   })
 
-  it('opens manufacturing while leaving 3D preview unavailable', async () => {
+  it('opens manufacturing and preview while requiring a built result for STL', async () => {
     onlineFetch()
     render(<App />)
     await screen.findByText('Backend Online')
     fireEvent.click(screen.getByRole('button', { name: /制造 Manufacture/ }))
     expect(screen.getByRole('heading', { name: '制造检查' })).toBeInTheDocument()
     expect(screen.queryByText('打开项目查看二维图案')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /三维预览 3D Preview/ })).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: /三维预览 3D Preview/ }))
+    expect(screen.getByRole('heading', { name: '3D 模型' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '下载 STL' })).toBeDisabled()
     fireEvent.click(screen.getByRole('button', { name: /设计 Design/ }))
     expect(screen.getByText('打开项目查看二维图案')).toBeInTheDocument()
   })

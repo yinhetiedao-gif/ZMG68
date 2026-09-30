@@ -133,6 +133,22 @@ button { font: inherit; }
 .manufacturing-report dd { margin: 0; text-align: right; font-weight: 650; }
 .manufacturing-notes { margin-top: 15px; padding: 12px; border-radius: 6px; background: #fff6e8; font-size: 12px; }
 .manufacturing-notes ul { margin: 7px 0 0; padding-left: 18px; }
+.preview-panel { position: relative; z-index: 1; box-sizing: border-box; width: 100%; height: 100%; padding: 18px 22px 12px; display: flex; flex-direction: column; min-height: 0; }
+.preview-header { display: flex; justify-content: space-between; align-items: center; gap: 18px; margin-bottom: 12px; }
+.preview-header h1, .preview-empty h1 { margin: 4px 0; color: #2d4353; font-size: 20px; }
+.preview-header p, .preview-empty p { margin: 0; color: #6d8390; font-size: 12px; }
+.preview-header button, .preview-empty button { padding: 9px 14px; border: 0; border-radius: 6px; background: #386a83; color: white; cursor: pointer; white-space: nowrap; }
+.preview-header button:disabled, .preview-empty button:disabled { opacity: .48; cursor: not-allowed; }
+.preview-empty { position: relative; z-index: 1; padding: 30px; text-align: center; }
+.preview-empty button { margin-top: 18px; }
+.three-preview { display: flex; flex-direction: column; min-height: 0; flex: 1; border: 1px solid #dfe7eb; border-radius: 9px; overflow: hidden; background: #f9fbfc; }
+.three-preview-toolbar { display: flex; gap: 7px; padding: 7px; background: #fff; border-bottom: 1px solid #e5ebef; }
+.three-preview-toolbar button { padding: 6px 10px; background: #f4f8fa; color: #315d76; border: 1px solid #d5e3ea; border-radius: 5px; cursor: pointer; }
+.three-preview-toolbar button:disabled { opacity: .45; cursor: not-allowed; }
+.three-preview-viewport { position: relative; flex: 1; min-height: 120px; }
+.three-preview-viewport canvas { width: 100%; height: 100%; display: block; }
+.three-preview-status, .three-preview-bounds { display: block; padding: 5px 9px; color: #667f8e; font-size: 11px; }
+.three-preview-bounds { padding-top: 0; }
 
 .inspector { border-left: 1px solid #dde4e9; display: flex; flex-direction: column; padding: 25px 17px 20px; }
 .inspector-title { display: flex; align-items: flex-start; justify-content: space-between; border-bottom: 1px solid #e7ebee; padding: 0 5px 18px; }

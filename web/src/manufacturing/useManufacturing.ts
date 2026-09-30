@@ -24,6 +24,11 @@ export function useManufacturing(dto: PatternDocumentDTO | null) {
 
   const status: ManufacturingStatus = buildState.key && buildState.key !== key ? 'stale' : buildState.status
   const result = (status === 'ready' || status === 'warning') && buildState.key === key ? buildState.result : null
+  const activeResultRef = useRef(result)
+  activeResultRef.current = result
+  const isCurrentResult = useCallback((resultId: string) =>
+    activeResultRef.current?.manufacturing_result_id === resultId && keyRef.current === buildState.key,
+  [buildState.key])
   const build = useCallback(async () => {
     if (!dto || !key || !validHeight) {
       setBuildState({ key, status: 'error', result: null, error: '请先打开有效图案，并输入大于 0 mm 的厚度。' })
@@ -47,5 +52,6 @@ export function useManufacturing(dto: PatternDocumentDTO | null) {
     }
   }, [dto, heightMm, key, validHeight])
 
-  return { heightText, setHeightText, validHeight, status, result, error: status === 'stale' ? null : buildState.error, build }
+  return { heightText, setHeightText, validHeight, status, result, isCurrentResult,
+    error: status === 'stale' ? null : buildState.error, build }
 }

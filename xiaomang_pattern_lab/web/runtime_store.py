@@ -17,6 +17,7 @@ class StoredManufacturingResult:
     result: Any
     response: dict[str, Any]
     stl_bytes: bytes
+    preview_glb_bytes: bytes | None = None
 
 
 class InMemoryManufacturingResultStore:

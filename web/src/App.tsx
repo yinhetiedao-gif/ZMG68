@@ -23,6 +23,7 @@ import { initialBrowserState, type WorkspaceMode } from './state/browserState'
 import { initialDocumentState } from './state/documentState'
 import { ManufacturingPanel } from './manufacturing/ManufacturingPanel'
 import { useManufacturing } from './manufacturing/useManufacturing'
+import { PreviewPanel } from './manufacturing/PreviewPanel'
 
 type ConnectionState =
   | { kind: 'checking'; message: string }
@@ -564,13 +565,8 @@ export function App() {
                 && Boolean(project.currentDocument) && manufacturing.validHeight}
               onBuild={() => void manufacturing.build()} status={manufacturing.status}
               result={manufacturing.result} error={manufacturing.error} />
-          ) : (
-            <section className="empty-state future-state" aria-label={`${modeName}即将开放`}>
-              <div className="future-mark" aria-hidden="true">◇</div>
-              <span className="empty-kicker">NEXT WORKSPACE</span><h1>{modeName} · 即将开放</h1>
-              <p>当前暂不展示三维预览。</p>
-            </section>
-          )}
+          ) : <PreviewPanel result={manufacturing.result} status={manufacturing.status}
+            projectName={project.fileName} isCurrentResult={manufacturing.isCurrentResult} />}
           {project.evaluateStatus === 'loading' && <div className="viewer-notice" role="status">Python 正在计算最终二维几何…</div>}
           {importing && <div className="viewer-notice" role="status">Python 正在转换图片为可编辑元素…</div>}
           {project.evaluateError && <div className="viewer-error" role="alert">{project.evaluateError}</div>}
@@ -595,10 +591,8 @@ export function App() {
             <button key={mode.id} type="button" className={`mode-button ${browser.activeMode === mode.id ? 'selected' : ''}`}
               aria-label={`${mode.label} ${mode.secondary}`}
               aria-current={browser.activeMode === mode.id ? 'page' : undefined}
-              disabled={mode.id === 'preview'}
               onClick={() => setBrowser((current) => ({ ...current, activeMode: mode.id }))}>
               <span>{mode.label}</span><small>{mode.secondary}</small>
-              {mode.id === 'preview' && <em>COMING SOON</em>}
             </button>)}
           <span className="mode-bar-spacer" /><span className="interaction-status" role="status" aria-label="编辑状态">{interactionStatus}</span>
         </nav>
