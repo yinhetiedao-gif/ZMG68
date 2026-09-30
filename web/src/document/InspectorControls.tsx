@@ -4,7 +4,7 @@ import { directSourceElement, millimetresPerUnit } from '../model/project'
 import { ParameterPanel } from './ParameterPanel'
 import { InspectorSection } from './InspectorSection'
 import { ParameterInteraction, useParameterDraft } from './ParameterInteraction'
-import { groupFor, type ParameterCatalog } from './parameterSchema'
+import { groupFor, sliderBounds, type ParameterCatalog } from './parameterSchema'
 import type { LayoutDraft } from './layoutDraft'
 import type { PatternFamily } from '../api/pattern'
 import {
@@ -31,12 +31,14 @@ function NumericControl({ spec, value, onCommit, sliderMax = spec.max }: {
   const { draft, pending, change, cancel, commitNumber: commit } = useParameterDraft(value,
     (next) => onCommit(Number(next)), (next) => typeof next === 'number' && Number.isFinite(next)
       && next >= spec.min && next <= spec.max && (!spec.integer || Number.isInteger(next)))
+  const slider = sliderBounds(spec.min, sliderMax, spec.label.endsWith('mm') ? 'mm' : '')
   return <div className="parameter-control">
     <label htmlFor={inputId}>{spec.label}</label>
     <div className="parameter-inputs">
-      <input type="range" aria-label={`${spec.label}滑杆`} min={spec.min} max={sliderMax} step={spec.integer ? spec.step : 'any'}
+      <input type="range" aria-label={`${spec.label}滑杆`} min={slider.min} max={slider.max} step={spec.integer ? spec.step : 'any'}
         value={draft.trim() && Number.isFinite(Number(draft))
-          ? Math.min(sliderMax, Math.max(spec.min, Number(draft))) : Math.min(sliderMax, value)}
+          ? Math.min(slider.max, Math.max(slider.min, Number(draft)))
+          : Math.min(slider.max, Math.max(slider.min, value))}
         onChange={(event) => change(event.target.value)} onPointerUp={commit} onKeyUp={commit} onBlur={commit}
         onPointerCancel={cancel} />
       <input id={inputId} type="number" min={spec.min} max={spec.max} step={spec.step}

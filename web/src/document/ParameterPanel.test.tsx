@@ -1,10 +1,11 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { ParameterPanel } from './ParameterPanel'
-import { validateParameter, type ParameterGroup } from './parameterSchema'
+import { sliderBounds, validateParameter, type ParameterGroup } from './parameterSchema'
 
 const group: ParameterGroup = { label: '测试', parameters: [
   { id: 'radius', label: '半径', type: 'number', default: 2, value: 2, min: 0, max: 30, step: 1, unit: 'mm', options: [] },
+  { id: 'wavelength', label: '波长', type: 'number', default: 50, value: 50, min: 0.01, max: 10000, step: 0.1, unit: 'mm', options: [] },
   { id: 'rows', label: '行数', type: 'integer', default: 4, value: 4, min: 1, max: 20, step: 1, unit: '', options: [] },
   { id: 'invert', label: '反转', type: 'boolean', default: false, value: false, min: null, max: null, step: null, unit: '', options: [] },
   { id: 'mode', label: '模式', type: 'select', default: 'a', value: 'a', min: null, max: null, step: null,
@@ -30,10 +31,42 @@ describe('Python-authored generic parameter renderer', () => {
     expect(commit).toHaveBeenCalledExactlyOnceWith('radius', 12)
   })
 
+  it('limits only the mm slider to 1–300 while retaining a legal value above 300', () => {
+    const commit = vi.fn()
+    const { rerender } = render(<ParameterPanel group={group} values={{ wavelength: 500 }} onCommit={commit} />)
+    const slider = screen.getByLabelText('波长滑杆')
+    const numeric = screen.getByLabelText('波长 (mm)')
+    expect(slider).toHaveAttribute('min', '1')
+    expect(slider).toHaveAttribute('max', '300')
+    expect(slider).toHaveValue('300')
+    expect(numeric).toHaveAttribute('min', '0.01')
+    expect(numeric).toHaveAttribute('max', '10000')
+    expect(numeric).toHaveValue(500)
+    fireEvent.pointerUp(slider)
+    expect(commit).not.toHaveBeenCalled()
+    fireEvent.change(numeric, { target: { value: '750' } })
+    fireEvent.blur(numeric)
+    expect(commit).toHaveBeenCalledExactlyOnceWith('wavelength', 750)
+    rerender(<ParameterPanel group={group} values={{ wavelength: 750 }} onCommit={commit} />)
+    expect(screen.getByLabelText('波长 (mm)')).toHaveValue(750)
+    expect(screen.getByLabelText('波长滑杆')).toHaveValue('300')
+  })
+
+  it('commits a mm slider drag only on release and leaves other units unchanged', () => {
+    const commit = vi.fn()
+    render(<ParameterPanel group={group} values={{ wavelength: 50 }} onCommit={commit} />)
+    const slider = screen.getByLabelText('波长滑杆')
+    fireEvent.change(slider, { target: { value: '250' } })
+    expect(commit).not.toHaveBeenCalled()
+    fireEvent.pointerUp(slider)
+    expect(commit).toHaveBeenCalledExactlyOnceWith('wavelength', 250)
+    expect(sliderBounds(-360, 360, '°')).toEqual({ min: -360, max: 360 })
+  })
+
   it('rejects invalid intermediate values and illegal choices', () => {
-    expect(validateParameter(group.parameters[1], 2.5)).toBe(false)
+    expect(validateParameter(group.parameters[2], 2.5)).toBe(false)
     expect(validateParameter(group.parameters[0], Infinity)).toBe(false)
-    expect(validateParameter(group.parameters[3], 'c')).toBe(false)
+    expect(validateParameter(group.parameters[4], 'c')).toBe(false)
   })
 
   it('commits a checked boolean and an allowed select value', () => {

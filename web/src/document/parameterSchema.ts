@@ -35,3 +35,9 @@ export function validateParameter(definition: ParameterDefinition, value: Parame
   if (definition.max !== null && value > definition.max) return false
   return true
 }
+
+// Limit only the convenient drag range. The schema min/max remain the authority
+// for typed values and document validation.
+export function sliderBounds(min: number, max: number, unit: string): { min: number; max: number } {
+  return unit === 'mm' && min >= 0 && max > 300 ? { min: 1, max: 300 } : { min, max }
+}

@@ -1,6 +1,6 @@
 import { useId } from 'react'
 import type { ParameterDefinition, ParameterGroup, ParameterValue } from './parameterSchema'
-import { validateParameter } from './parameterSchema'
+import { sliderBounds, validateParameter } from './parameterSchema'
 import { useParameterDraft } from './ParameterInteraction'
 
 function ParameterInput({ definition, value, onCommit }: {
@@ -27,12 +27,15 @@ function ParameterInput({ definition, value, onCommit }: {
   const min = definition.min ?? undefined
   const max = definition.max ?? undefined
   const step = definition.step ?? 'any'
+  const slider = min !== undefined && max !== undefined
+    ? sliderBounds(min, max, definition.unit) : null
   return <div className="parameter-control" title={definition.description}>
     <div className="parameter-heading"><label htmlFor={id}>{definition.label}{definition.unit ? ` (${definition.unit})` : ''}</label>{reset}</div>
     <div className="parameter-inputs">
-      {min !== undefined && max !== undefined && <input type="range" aria-label={`${definition.label}滑杆`}
-        min={min} max={max} step={step} value={draft.trim() && Number.isFinite(Number(draft))
-          ? Math.min(max, Math.max(min, Number(draft))) : Number(value)}
+      {slider && <input type="range" aria-label={`${definition.label}滑杆`}
+        min={slider.min} max={slider.max} step={step} value={draft.trim() && Number.isFinite(Number(draft))
+          ? Math.min(slider.max, Math.max(slider.min, Number(draft)))
+          : Math.min(slider.max, Math.max(slider.min, Number(value)))}
         onChange={(event) => change(event.target.value)} onPointerUp={commit} onKeyUp={commit} onBlur={commit}
         onPointerCancel={cancel} />}
       <input id={id} type="number" min={min} max={max} step={step} value={draft}

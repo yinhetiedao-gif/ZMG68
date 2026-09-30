@@ -1,5 +1,10 @@
 # Gate 状态（2026-09-30）
 
+## Web 滑杆常用范围调整（2026-09-30）
+
+- 正向毫米参数的常用拖动范围为 1–300 mm；数字输入与 Python Schema 的合法 min/max 保持原值。已有值超出滑杆范围时，只将滑杆手柄显示在边界，数字框和 Document 保留真实值。坐标、角度、比例和计数范围不变。
+- 滑杆移动仅改浏览器暂存值，释放时沿用原单次提交；定向参数控件测试 7/7 PASS，`npm run build` PASS。未修改 Field 算法或 Python 代码。
+
 ## Web P1-E — 参数化交互打磨（2026-09-30）
 
 - 状态：PASS；基线 `e5c906c` / `backup/p1d-modifier-stack-final`，开发分支 `feature/p1e-parametric-interaction`。仅调整 Web 交互，Python 算法、合同和项目数据模型未修改；停止在 P1-E。
