@@ -6,6 +6,7 @@ from unittest.mock import patch
 import unittest
 
 from xiaomang_pattern_lab.ui_harness import PatternLabApp
+from tests.tk_lifecycle import collect_tk_variables as tearDownModule
 
 
 class GateZeroTkSmokeTests(unittest.TestCase):

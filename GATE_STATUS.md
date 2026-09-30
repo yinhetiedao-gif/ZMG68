@@ -1,7 +1,16 @@
 # Gate 状态（2026-09-19）
 
+## Tk Variable 测试清理修复 / P1-C 最终验收（2026-09-30）
+
+- 状态：PASS。P1-B 与 P1-C 在相同 Python、依赖、测试资产及完整命令下都可复现 Tk 销毁后的 `main thread is not in main loop` / `Tcl_AsyncDelete`，因此不是 P1-C Field 功能引入。
+- 根因：若干 Tk 测试虽已销毁窗口，但 `tkinter.Variable` 仍留在循环引用中；后续 FastAPI `TestClient` 的工作线程触发垃圾回收时，变量析构错误地在非 Tk 主线程执行。
+- 修复只涉及测试生命周期：Gate0、Modifier Scope、Multi-selection、Noise 四个 Tk 测试模块在 `tearDownModule` 阶段调用共用 `tests/tk_lifecycle.py`，明确只在主线程执行 `gc.collect()`。没有跳过测试、关闭 GC、吞掉 Tk 异常，也没有改产品 UI、参数化、PatternDocument 或 Web Field 代码。
+- 已知五模块触发组合在最终代码上连续 3 次通过（各 20/20，退出码 0，两个致命错误均 0）；P1-C Field + 参数合同定向 6/6 PASS；完整 Python unittest 359/359 PASS，退出码 0、致命错误 0；固定图自检 6/6 PASS；Tk smoke 2/2 PASS。证据保存在 `work/tk_lifecycle_final_combo_{1,2,3}.log`、`work/tk_lifecycle_p1c_targeted.log`、`work/tk_lifecycle_full_final.log`、`work/tk_lifecycle_self_test.log`、`work/tk_lifecycle_tk_smoke.log`。
+- P1-C 原功能提交为 `732c9ad`；本次独立提交后建立 `backup/p1c-field-system-final` 指向最终验收提交。完成后停止，不进入 P1-D。
+
 ## Web P1-C — 参数场编辑与现有效果层绑定（2026-09-30）
 
+- 最终状态：PASS。下方 Tk 致命退出描述为修复前的历史阻塞记录；上方独立测试生命周期修复与完整回归已解除该阻塞。
 - 范围：Web 复用 Python Parameter Definition Schema 展示、新建、编辑、启停和删除现有 SharedField；在已有尺寸/旋转效果层中可选择驱动场。React 不计算 Field，Canvas 使用 Python Evaluate 返回的几何。Composite 和 Image 保持只读且文档数据不丢；没有新增效果层或布局/Field 算法。
 - 当前可新建：Constant、Linear（角度 0°/90° 对应 X/Y）、Ring、Wave、Stripe、Checker、Spiral、Noise。旧版 Radial/Attractor 仅属于遗留尺寸效果模式，不是独立 SharedField，故本轮未虚构该类型。未配置尺寸/旋转效果层的导入工程中，新建 Field 本身不会改变几何；效果层新增属于后续阶段。
 - 验证：Web Vitest 74/74 PASS，TypeScript/Vite build PASS，Python 相关定向 78/78 PASS，固定六图 6/6 PASS。实际 Edge 浏览器加载 `work/physical-validation-02/physical_validation_02_real_pattern.pattern.json`：新增 Noise 场提交一次，滑杆移动零次请求、释放一次提交；将既有 Size 效果层从 Wave 绑定到 Noise 后，三元素宽度由 `[10,16,22]` 改为约 `[14.93,13.65,13.66]`；停用 Noise 后均恢复 16；浏览器致命错误 0。测试使用独立 8766 新源码后端，不停止现有 8765 服务。

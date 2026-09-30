@@ -12,6 +12,7 @@ from xiaomang_pattern_lab.parametric import GridParametricModel
 from xiaomang_pattern_lab.placement_assignment import PlacementAssignmentState
 from xiaomang_pattern_lab.session import PatternLabSession
 from xiaomang_pattern_lab.ui_harness import PatternLabApp
+from tests.tk_lifecycle import collect_tk_variables as tearDownModule
 
 
 def make_document() -> PatternDocument:

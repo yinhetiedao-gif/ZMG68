@@ -16,6 +16,7 @@ from xiaomang_pattern_lab.shared_modifiers import (
     SharedModifierStack,
 )
 from xiaomang_pattern_lab.ui_harness import PatternLabApp, SCOPE_MODE_FIELDS
+from tests.tk_lifecycle import collect_tk_variables as tearDownModule
 
 
 def make_document():

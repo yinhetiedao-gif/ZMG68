@@ -24,6 +24,7 @@ from xiaomang_pattern_lab.shared_fields import (
     SizeModifier,
 )
 from xiaomang_pattern_lab.shared_modifiers import SharedModifierStack
+from tests.tk_lifecycle import collect_tk_variables as tearDownModule
 
 
 def dots() -> list[CircleElement]:
