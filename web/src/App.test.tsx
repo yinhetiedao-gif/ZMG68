@@ -76,7 +76,7 @@ describe('WM4 application shell', () => {
     expect(screen.queryByText('打开项目查看二维图案')).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /三维预览 3D Preview/ }))
     expect(screen.getByRole('heading', { name: '3D 模型' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '下载 STL' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: '导出 STL' })).toBeDisabled()
     fireEvent.click(screen.getByRole('button', { name: /设计 Design/ }))
     expect(screen.getByText('打开项目查看二维图案')).toBeInTheDocument()
   })

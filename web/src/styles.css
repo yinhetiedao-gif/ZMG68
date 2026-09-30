@@ -133,6 +133,12 @@ button { font: inherit; }
 .manufacturing-report dd { margin: 0; text-align: right; font-weight: 650; }
 .manufacturing-notes { margin-top: 15px; padding: 12px; border-radius: 6px; background: #fff6e8; font-size: 12px; }
 .manufacturing-notes ul { margin: 7px 0 0; padding-left: 18px; }
+.manufacturing-output-actions { display: flex; align-items: flex-start; flex-wrap: wrap; gap: 10px; margin-top: 18px; padding-top: 14px; border-top: 1px solid #dfe8ed; }
+.manufacturing-output-actions > button, .stl-export-action > button { padding: 9px 16px; border: 0; border-radius: 6px; background: #386a83; color: #fff; cursor: pointer; }
+.manufacturing-output-actions button:disabled, .stl-export-action button:disabled { opacity: .48; cursor: not-allowed; }
+.stl-export-action { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.stl-export-reason { color: #788d9a; font-size: 11px; }
+.stl-export-action .manufacturing-error { margin: 0; }
 .preview-panel { position: relative; z-index: 1; box-sizing: border-box; width: 100%; height: 100%; padding: 18px 22px 12px; display: flex; flex-direction: column; min-height: 0; }
 .preview-header { display: flex; justify-content: space-between; align-items: center; gap: 18px; margin-bottom: 12px; }
 .preview-header h1, .preview-empty h1 { margin: 4px 0; color: #2d4353; font-size: 20px; }

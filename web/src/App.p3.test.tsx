@@ -57,6 +57,23 @@ async function openAndBuild() {
 }
 
 describe('P3 preview and STL remain tied to the current build', () => {
+  it('offers visible preview and STL export below the manufacturing summary', async () => {
+    const api = mockApi()
+    const createUrl = vi.fn(() => 'blob:stl')
+    vi.stubGlobal('URL', { ...URL, createObjectURL: createUrl, revokeObjectURL: vi.fn() })
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+    await openAndBuild()
+    fireEvent.click(screen.getByRole('button', { name: /制造 Manufacture/ }))
+    const report = screen.getByText('Mesh 状态').closest('.manufacturing-report')
+    expect(report).not.toBeNull()
+    expect(screen.getByRole('button', { name: '3D 预览' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: '导出 STL' })).toBeEnabled()
+    fireEvent.click(screen.getByRole('button', { name: '导出 STL' }))
+    await waitFor(() => expect(click).toHaveBeenCalledOnce())
+    expect(api.calls.filter((url) => url.endsWith('/mesh-1/model.stl'))).toHaveLength(1)
+    click.mockRestore()
+  })
+
   it('enables preview/download after build without touching revision, then disables both when stale', async () => {
     const api = mockApi()
     const createUrl = vi.fn(() => 'blob:stl')
@@ -66,14 +83,14 @@ describe('P3 preview and STL remain tied to the current build', () => {
     expect(screen.getByLabelText('三维模型预览')).toHaveTextContent('mesh-1')
     expect(screen.getByText(/10.00 × 10.00 × 2.00 mm/)).toBeInTheDocument()
     expect(screen.getByText('revision 0')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: '下载 STL' }))
+    fireEvent.click(screen.getByRole('button', { name: '导出 STL' }))
     await waitFor(() => expect(click).toHaveBeenCalledOnce())
     expect(createUrl).toHaveBeenCalledOnce()
     expect(api.calls.filter((url) => url.endsWith('/mesh-1/model.stl'))).toHaveLength(1)
     fireEvent.click(screen.getByRole('button', { name: /制造 Manufacture/ }))
     fireEvent.change(screen.getByLabelText('厚度 mm'), { target: { value: '3' } })
     fireEvent.click(screen.getByRole('button', { name: /三维预览 3D Preview/ }))
-    expect(screen.getByRole('button', { name: '下载 STL' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: '导出 STL' })).toBeDisabled()
     expect(screen.queryByLabelText('三维模型预览')).toBeNull()
     expect(screen.getByText(/旧预览与 STL 已失效/)).toBeInTheDocument()
     click.mockRestore()
@@ -82,7 +99,7 @@ describe('P3 preview and STL remain tied to the current build', () => {
   it('shows download failure inline without clearing the design', async () => {
     mockApi(404)
     await openAndBuild()
-    fireEvent.click(screen.getByRole('button', { name: '下载 STL' }))
+    fireEvent.click(screen.getByRole('button', { name: '导出 STL' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('制造结果已过期')
     fireEvent.click(screen.getByRole('button', { name: /设计 Design/ }))
     expect(await screen.findByRole('img', { name: '最终二维几何，单位毫米' })).toBeInTheDocument()
@@ -99,7 +116,7 @@ describe('P3 preview and STL remain tied to the current build', () => {
     await screen.findByText('revision 1')
     fireEvent.click(screen.getByRole('button', { name: /三维预览 3D Preview/ }))
     expect(screen.queryByLabelText('三维模型预览')).toBeNull()
-    expect(screen.getByRole('button', { name: '下载 STL' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: '导出 STL' })).toBeDisabled()
     expect(api.calls.filter((url) => url.endsWith('/mesh-1/model.stl'))).toHaveLength(0)
   })
 })

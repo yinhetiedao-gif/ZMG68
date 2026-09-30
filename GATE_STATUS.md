@@ -1,5 +1,13 @@
 # Gate 状态（2026-09-30）
 
+## Web STL 导出入口补全（2026-09-30）
+
+- 状态：PASS。基线 `b663866` / `backup/p3-web-alpha-final`，预变更快照 `backup/pre-web-stl-entry`。本轮仅调整 Web UI 入口和共用下载控件，Python 制造算法、API、STL 文件内容均未修改。
+- 制造报告下方现在明确显示“3D 预览”与“导出 STL”；3D 预览页保留“导出 STL”。两个页面共用同一个下载控件，继续调用既有 `/api/v1/manufacturing/{result_id}/model.stl`。项目名作为下载文件名，不泄露服务器路径。
+- 只有当前结果存在、状态为 ready/warning、未过期且 Mesh 检查无错误时可导出。无结果、生成中、失败、stale 或 Mesh 检查错误时按钮禁用并显示简短原因；下载期间结果变旧则不会触发浏览器保存。
+- 定向 Web 101/101 PASS、TypeScript/Vite build PASS；既有 Python GLB/STL 读回 3/3 PASS。真实浏览器：已打印三星项目在制造页直接导出、带孔工程在 3D 预览页导出，均只有一次 STL 请求、浏览器错误 0；三星下载 STL 读回约 `57.2169 × 19.8992 × 2.0000 mm`、3 组件、封闭且有效。证据位于忽略的 `work/p3_browser_smoke.cjs`、`work/p3-real-pattern.stl`；未运行无关完整 Python 回归。
+- 完成后独立提交并建立新保护分支，不覆盖 `backup/p3-web-alpha-final`。安全回退点仍为 `backup/p3-web-alpha-final`，优先用新 worktree 检出。
+
 ## P3 Web 3D Preview + STL Download（2026-09-30）
 
 - 状态：PASS。基线 `9221754` / `backup/p2-web-manufacturing-final`；开发分支 `feature/p3-web-alpha`，预变更备份 `backup/pre-p3-web-alpha`。本 Gate 不进入 Fabric，也不宣布完成真实 Web 打印验收。

@@ -564,7 +564,9 @@ export function App() {
               validHeight={manufacturing.validHeight} canBuild={connected && project.evaluateStatus === 'ready'
                 && Boolean(project.currentDocument) && manufacturing.validHeight}
               onBuild={() => void manufacturing.build()} status={manufacturing.status}
-              result={manufacturing.result} error={manufacturing.error} />
+              result={manufacturing.result} error={manufacturing.error} projectName={project.fileName}
+              isCurrentResult={manufacturing.isCurrentResult}
+              onPreview={() => setBrowser((current) => ({ ...current, activeMode: 'preview' }))} />
           ) : <PreviewPanel result={manufacturing.result} status={manufacturing.status}
             projectName={project.fileName} isCurrentResult={manufacturing.isCurrentResult} />}
           {project.evaluateStatus === 'loading' && <div className="viewer-notice" role="status">Python 正在计算最终二维几何…</div>}

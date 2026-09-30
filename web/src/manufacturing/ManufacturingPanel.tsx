@@ -1,5 +1,6 @@
 import type { ManufacturingBuildResult } from '../api/manufacturing'
 import type { ManufacturingStatus } from './useManufacturing'
+import { StlExportButton } from './StlExportButton'
 
 interface Props {
   heightText: string
@@ -10,6 +11,9 @@ interface Props {
   status: ManufacturingStatus
   result: ManufacturingBuildResult | null
   error: string | null
+  projectName: string | null
+  isCurrentResult: (resultId: string) => boolean
+  onPreview: () => void
 }
 
 const labels: Record<ManufacturingStatus, string> = {
@@ -55,5 +59,9 @@ export function ManufacturingPanel(props: Props) {
       </dl>
       {notes.length > 0 && <div className="manufacturing-notes"><strong>提醒 / 检查信息</strong><ul>{[...new Set(notes)].map((note) => <li key={note}>{note}</li>)}</ul></div>}
     </div>}
+    <div className="manufacturing-output-actions">
+      <button type="button" onClick={props.onPreview} disabled={!result || !props.isCurrentResult(result.manufacturing_result_id)}>3D 预览</button>
+      <StlExportButton result={result} status={status} projectName={props.projectName} isCurrentResult={props.isCurrentResult} />
+    </div>
   </section>
 }
