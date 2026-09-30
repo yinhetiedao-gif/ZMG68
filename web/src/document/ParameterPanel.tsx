@@ -51,8 +51,9 @@ export function ParameterPanel({ group, values, onCommit }: {
   onCommit: (key: string, value: ParameterValue) => void
 }) {
   return <>{group.parameters.filter((definition) => definition.id in values &&
-    validateParameter(definition, values[definition.id] as ParameterValue)).map((definition) =>
+    validateParameter(definition, definition.type === 'select'
+      ? String(values[definition.id]) : values[definition.id] as ParameterValue)).map((definition) =>
     <ParameterInput key={definition.id} definition={definition}
-      value={values[definition.id] as ParameterValue}
+      value={definition.type === 'select' ? String(values[definition.id]) : values[definition.id] as ParameterValue}
       onCommit={(value) => onCommit(definition.id, value)} />)}</>
 }

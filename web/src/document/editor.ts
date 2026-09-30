@@ -76,11 +76,63 @@ export function updateField(dto: PatternDocumentDTO, id: string, key: string, va
         if (typeof start !== 'number' || typeof end !== 'number' || start >= end) throw new DocumentEditError('线性场终点必须大于起点。')
       }
     }
-    return { ...field, parameters: { ...parameters, [key]: value } }
+    // Python's SpiralField stores direction as ±1; its UI schema presents
+    // these as two choices without changing the persisted numeric model.
+    const stored = type === 'spiral' && key === 'direction' ? Number(value) : value
+    return { ...field, parameters: { ...parameters, [key]: stored } }
   })
   if (!found) throw new DocumentEditError('参数场不存在。')
   if (fields.every((field, index) => field === dto.document.fields[index])) return dto
   return changed(dto, { ...dto.document, fields })
+}
+
+export function addField(dto: PatternDocumentDTO, type: string, catalog: ParameterCatalog | null): {
+  dto: PatternDocumentDTO; id: string
+} {
+  const group = groupFor(catalog, 'field', type)
+  if (!group || type === 'image' || type === 'composite') throw new DocumentEditError('此参数场暂不能从网页创建。')
+  const parameters: Record<string, number | boolean> = {}
+  for (const definition of group.parameters) {
+    if (!validateParameter(definition, definition.default)) throw new DocumentEditError('Python 参数场默认值无效。')
+    const value = definition.default
+    parameters[definition.id] = type === 'spiral' && definition.id === 'direction'
+      ? Number(value) : value as number | boolean
+  }
+  const existing = new Set(dto.document.fields.map((field) => String(field.id)))
+  let index = 1
+  while (existing.has(`field-${index}`)) index++
+  const id = `field-${index}`
+  return { id, dto: changed(dto, { ...dto.document,
+    fields: [...dto.document.fields, { id, type, parameters, enabled: true }],
+  }) }
+}
+
+export function setFieldEnabled(dto: PatternDocumentDTO, id: string, enabled: boolean): PatternDocumentDTO {
+  const field = dto.document.fields.find((item) => item.id === id)
+  if (!field) throw new DocumentEditError('参数场不存在。')
+  if ((field.enabled !== false) === enabled) return dto
+  return changed(dto, { ...dto.document, fields: dto.document.fields.map((item) =>
+    item.id === id ? { ...item, enabled } : item) })
+}
+
+export function removeField(dto: PatternDocumentDTO, id: string): PatternDocumentDTO {
+  if (!dto.document.fields.some((item) => item.id === id)) throw new DocumentEditError('参数场不存在。')
+  if (dto.document.modifiers.some((item) => item.field_id === id))
+    throw new DocumentEditError('该参数场仍被效果层引用，请先更换效果层的参数场。')
+  if (dto.document.fields.some((item) => item.type === 'composite' &&
+      Object.values(asRecord(item.parameters) ?? {}).some((value) => value === id)))
+    throw new DocumentEditError('该参数场仍被组合场引用，不能删除。')
+  return changed(dto, { ...dto.document, fields: dto.document.fields.filter((item) => item.id !== id) })
+}
+
+export function bindScalarModifierField(dto: PatternDocumentDTO, modifierId: string, fieldId: string): PatternDocumentDTO {
+  if (!dto.document.fields.some((item) => item.id === fieldId)) throw new DocumentEditError('目标参数场不存在。')
+  const modifier = dto.document.modifiers.find((item) => item.id === modifierId)
+  if (!modifier || !['size', 'rotation'].includes(String(modifier.type)))
+    throw new DocumentEditError('该效果层暂不支持参数场绑定。')
+  if (modifier.field_id === fieldId) return dto
+  return changed(dto, { ...dto.document, modifiers: dto.document.modifiers.map((item) =>
+    item.id === modifierId ? { ...item, field_id: fieldId } : item) })
 }
 
 export function updateScalarModifier(dto: PatternDocumentDTO, id: string, key: string, value: number | boolean,

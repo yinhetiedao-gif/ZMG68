@@ -1,5 +1,12 @@
 # Gate 状态（2026-09-19）
 
+## Web P1-C — 参数场编辑与现有效果层绑定（2026-09-30）
+
+- 范围：Web 复用 Python Parameter Definition Schema 展示、新建、编辑、启停和删除现有 SharedField；在已有尺寸/旋转效果层中可选择驱动场。React 不计算 Field，Canvas 使用 Python Evaluate 返回的几何。Composite 和 Image 保持只读且文档数据不丢；没有新增效果层或布局/Field 算法。
+- 当前可新建：Constant、Linear（角度 0°/90° 对应 X/Y）、Ring、Wave、Stripe、Checker、Spiral、Noise。旧版 Radial/Attractor 仅属于遗留尺寸效果模式，不是独立 SharedField，故本轮未虚构该类型。未配置尺寸/旋转效果层的导入工程中，新建 Field 本身不会改变几何；效果层新增属于后续阶段。
+- 验证：Web Vitest 74/74 PASS，TypeScript/Vite build PASS，Python 相关定向 78/78 PASS，固定六图 6/6 PASS。实际 Edge 浏览器加载 `work/physical-validation-02/physical_validation_02_real_pattern.pattern.json`：新增 Noise 场提交一次，滑杆移动零次请求、释放一次提交；将既有 Size 效果层从 Wave 绑定到 Noise 后，三元素宽度由 `[10,16,22]` 改为约 `[14.93,13.65,13.66]`；停用 Noise 后均恢复 16；浏览器致命错误 0。测试使用独立 8766 新源码后端，不停止现有 8765 服务。
+- Python 完整 `unittest discover` 已尝试，但既有 Tk 对象销毁时持续报告 `main thread is not in main loop`，最终 `Tcl_AsyncDelete: async handler deleted by the wrong thread`，进程退出码 1。此问题在 P1-C 前的 P0/WM6.7 等记录中已有，不得将完整 Python 回归记为 PASS；本轮只确认受影响的 Field/Evaluate/Web 服务测试通过。停止在 P1-C，不进入 P1-D。
+
 ## Web P1-B — 非破坏性布局工作流（2026-09-29）
 
 - 状态：PASS。P1-A 的真实浏览器 Schema 验收先通过；随后仅调整 Web 布局交互，Python PatternAnalyzer 和 Grid/Radial/Curve 算法未修改。

@@ -66,13 +66,34 @@ def field_engine_from_document(document: PatternDocument) -> SharedFieldEngine |
     # time.  A preset/project may omit its path or point to an old source; the
     # document reference is the canonical, current image association.
     fields = deepcopy(document.fields)
+    modifiers = deepcopy(document.modifiers)
+    disabled = {raw.get("id") for raw in fields
+                if isinstance(raw, dict) and raw.get("enabled") is False}
+    # A disabled field stays in the graph for save/load and composite references.
+    # Its direct consumers are suspended without changing the persisted modifiers.
+    # Composite descendants are also suspended so disabling an input cannot
+    # silently keep driving geometry through another field ID.
+    changed = True
+    while changed:
+        changed = False
+        for raw in fields:
+            if not isinstance(raw, dict) or raw.get("type") != "composite" or raw.get("id") in disabled:
+                continue
+            parameters = raw.get("parameters", {})
+            if isinstance(parameters, dict) and ({parameters.get("input_a_field_id"),
+                                                 parameters.get("input_b_field_id")} & disabled):
+                disabled.add(raw.get("id"))
+                changed = True
+    for raw in modifiers:
+        if isinstance(raw, dict) and raw.get("field_id") in disabled:
+            raw["enabled"] = False
     for raw in fields:
         if isinstance(raw, dict) and raw.get("type") == "image":
             parameters = raw.setdefault("parameters", {})
             if not parameters.get("image_path"):
                 parameters["image_path"] = document.reference.source_path
     return SharedFieldEngine.from_dict({"version": 1, "fields": fields,
-                                        "modifiers": deepcopy(document.modifiers)})
+                                        "modifiers": modifiers})
 
 
 def _evaluate_shared_layers(document: PatternDocument, source: Iterable[Element],

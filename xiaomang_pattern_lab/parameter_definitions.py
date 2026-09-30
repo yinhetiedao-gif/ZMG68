@@ -57,6 +57,8 @@ def parameter_definitions() -> dict[str, Any]:
             ]},
         },
         "field": {
+            "constant": {"label": "固定场", "parameters": [
+                _p("value", "固定值", "number", .5, min=0, max=1, step=.01)]},
             "linear": {"label": "线性场", "parameters": [angle("angle", "方向角度"),
                 _coord("start", "起点"), _coord("end", "终点", 100)]},
             "wave": {"label": "波浪场", "parameters": [angle("angle", "角度"),
@@ -68,6 +70,29 @@ def parameter_definitions() -> dict[str, Any]:
                 _p("radius", "半径", "number", 50, min=0, max=10000, step=0.1, unit="mm"),
                 _size("ring_width", "环宽", 10),
                 _p("falloff", "衰减", "number", 1, min=0.01, max=20, step=0.1), invert]},
+            "stripe": {"label": "条纹场", "parameters": [angle("angle", "角度"),
+                _size("period", "周期", 50),
+                _p("phase", "相位", "number", 0, min=-100, max=100, step=.1),
+                _p("duty_cycle", "占空比", "number", .5, min=0, max=1, step=.01),
+                _p("smoothness", "柔化", "number", 0, min=0, max=.5, step=.01), invert]},
+            "checker": {"label": "棋盘场", "parameters": [
+                _size("cell_width", "格宽", 20), _size("cell_height", "格高", 20),
+                angle("angle", "角度"), _coord("offset_x", "偏移 X"),
+                _coord("offset_y", "偏移 Y"), invert]},
+            "spiral": {"label": "螺旋场", "parameters": [
+                _coord("center_x", "中心 X"), _coord("center_y", "中心 Y"),
+                _p("turns", "圈数", "number", 3, min=0, max=100, step=.1),
+                _p("phase", "相位", "number", 0, min=-100, max=100, step=.1),
+                _p("direction", "方向", "select", "1", options=[
+                    {"value": "1", "label": "顺向"}, {"value": "-1", "label": "逆向"}]),
+                _p("falloff", "衰减", "number", 1, min=.01, max=20, step=.1), invert]},
+            "noise": {"label": "有机噪声", "parameters": [
+                _size("scale", "尺度", 50),
+                _p("strength", "强度", "number", 1, min=0, max=1, step=.01),
+                _p("seed", "随机种子", "integer", 1, min=-1000000000, max=1000000000, step=1),
+                _coord("offset_x", "偏移 X"), _coord("offset_y", "偏移 Y"),
+                _p("octaves", "层数", "integer", 3, min=1, max=8, step=1),
+                _p("contrast", "对比度", "number", 1, min=.01, max=20, step=.1), invert]},
         },
         "modifier": {
             "size": {"label": "尺寸", "parameters": [

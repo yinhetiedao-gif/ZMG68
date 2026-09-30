@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import type { PatternDocumentDTO } from '../model/types'
 import {
-  restoreSnapshot, updateElement, updateField, updateGrid, updateLayout, updateReplacement,
+  addField, bindScalarModifierField, removeField, restoreSnapshot, setFieldEnabled,
+  updateElement, updateField, updateGrid, updateLayout, updateReplacement,
   updateScalarModifier, updateStackModifier,
 } from './editor'
 import type { ParameterCatalog } from './parameterSchema'
@@ -36,6 +37,32 @@ function fixture(): PatternDocumentDTO {
 }
 
 describe('WM6 centralized immutable document edits', () => {
+  it('adds and removes schema-defined fields without changing layout, modifiers or source', () => {
+    const initial = fixture()
+    const catalog: ParameterCatalog = { schema_version: '1.0', units: 'mm', definitions: {
+      layout: {}, modifier: {}, field: { noise: { label: '噪声', parameters: [
+        { id: 'scale', label: '尺度', type: 'number', default: 50, value: 50, min: .01, max: 100,
+          step: .1, unit: 'mm', options: [] },
+      ] } },
+    } }
+    const added = addField(initial, 'noise', catalog)
+    expect(added.id).toBe('field-1')
+    expect(added.dto.document.fields.at(-1)).toMatchObject({ id: 'field-1', type: 'noise', parameters: { scale: 50 } })
+    expect(added.dto.document.elements).toBe(initial.document.elements)
+    expect(added.dto.document.metadata).toBe(initial.document.metadata)
+    expect(added.dto.document.modifiers).toBe(initial.document.modifiers)
+    const disabled = setFieldEnabled(added.dto, added.id, false)
+    expect(disabled.document.fields.at(-1)?.enabled).toBe(false)
+    const rebound = bindScalarModifierField(disabled, 'size-1', added.id)
+    expect(rebound.document.modifiers[0].field_id).toBe(added.id)
+    expect(() => removeField(rebound, added.id)).toThrow(/引用/)
+    const restored = bindScalarModifierField(rebound, 'size-1', 'wave-1')
+    const removed = removeField(restored, added.id)
+    expect(removed.document.fields).toHaveLength(2)
+    expect(removed.document.modifiers).toBe(restored.document.modifiers)
+    expect(() => removeField(initial, 'wave-1')).toThrow(/引用/)
+    expect(() => addField(initial, 'unknown', catalog)).toThrow()
+  })
   it('edits Python-defined radial layout once without changing its source elements', () => {
     const initial = fixture()
     initial.document.metadata['xiaomang_pattern_lab.parametric'] = {

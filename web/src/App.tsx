@@ -10,7 +10,8 @@ import { InspectorControls, type EditAction } from './document/InspectorControls
 import type { ParameterCatalog } from './document/parameterSchema'
 import { currentLayoutFamily, editLayoutDraft, initialLayoutDraft, layoutCommitDocument, type LayoutDraft } from './document/layoutDraft'
 import {
-  restoreSnapshot, updateElement, updateField, updateGrid, updateLayout, updateReplacement,
+  addField, bindScalarModifierField, removeField, restoreSnapshot, setFieldEnabled,
+  updateElement, updateField, updateGrid, updateLayout, updateReplacement,
   updateScalarModifier, updateStackModifier,
 } from './document/editor'
 import type { FinalGeometry, PatternDocumentDTO } from './model/types'
@@ -67,6 +68,7 @@ export function App() {
   const [applyingPattern, setApplyingPattern] = useState(false)
   const applyingPatternRef = useRef(false)
   const [selectedFamily, setSelectedFamily] = useState<PatternFamily | null>(null)
+  const [selectedFieldId, setSelectedFieldId] = useState('')
   const [layoutDraft, setLayoutDraft] = useState<LayoutDraft | null>(null)
   const [preparingLayout, setPreparingLayout] = useState(false)
   const layoutSequence = useRef(0)
@@ -182,6 +184,7 @@ export function App() {
     setProjectError(null)
     ++layoutSequence.current
     setSelectedFamily(currentLayoutFamily(dto))
+    setSelectedFieldId('')
     setLayoutDraft(initialLayoutDraft(dto))
     setPreparingLayout(false)
     setMapping(null)
@@ -336,7 +339,16 @@ export function App() {
     if (!dto || project.evaluateStatus !== 'ready') return
     try {
       let next: PatternDocumentDTO
-      if (action.kind === 'grid') next = updateGrid(dto, action.key, action.value, parameterCatalog)
+      if (action.kind === 'field_add') {
+        const added = addField(dto, action.fieldType, parameterCatalog)
+        next = added.dto
+        setSelectedFieldId(added.id)
+      } else if (action.kind === 'field_remove') {
+        next = removeField(dto, action.id)
+        setSelectedFieldId('')
+      } else if (action.kind === 'field_enabled') next = setFieldEnabled(dto, action.id, action.enabled)
+      else if (action.kind === 'field_binding') next = bindScalarModifierField(dto, action.id, action.fieldId)
+      else if (action.kind === 'grid') next = updateGrid(dto, action.key, action.value, parameterCatalog)
       else if (action.kind === 'layout') next = updateLayout(dto, action.key, action.value, parameterCatalog)
       else if (action.kind === 'element' && typeof action.value === 'number') {
         const final = project.finalGeometry.find((item) => item.id === action.id)
@@ -549,6 +561,7 @@ export function App() {
         </div> : <div className="inspector-empty"><span className="inspect-glyph" aria-hidden="true">⌗</span><strong>未选择对象</strong><p>No selection</p><small>点击元素可查看其世界毫米信息。</small></div>}
         {project.currentDocument && <InspectorControls key={`${project.currentDocument.document_id}:${project.documentRevision}:${project.evaluateStatus}`}
           dto={project.currentDocument} selected={selected} parameterCatalog={parameterCatalog}
+          selectedFieldId={selectedFieldId} onSelectField={setSelectedFieldId}
           layoutSelection={selectedFamily} layoutDraft={layoutDraft} layoutBusy={preparingLayout}
           onLayoutDraftEdit={(key, value) => {
             try { setLayoutDraft((draft) => draft ? editLayoutDraft(draft, key, value, parameterCatalog) : draft) }

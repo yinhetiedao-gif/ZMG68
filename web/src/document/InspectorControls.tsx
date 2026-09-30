@@ -15,6 +15,10 @@ export type EditAction =
   | { kind: 'element' | 'field' | 'scalar' | 'stack' | 'shape'; id: string; key: string; value: number | boolean | string }
   | { kind: 'grid'; key: string; value: number }
   | { kind: 'layout'; key: string; value: number | boolean }
+  | { kind: 'field_add'; fieldType: string }
+  | { kind: 'field_remove'; id: string }
+  | { kind: 'field_enabled'; id: string; enabled: boolean }
+  | { kind: 'field_binding'; id: string; fieldId: string }
 
 function NumericControl({ spec, value, onCommit, sliderMax = spec.max }: {
   spec: NumericSpec; value: number; onCommit: (value: number) => void; sliderMax?: number
@@ -65,7 +69,8 @@ const modifierLabel: Record<string, string> = {
 }
 
 export function InspectorControls({ dto, selected, onEdit, disabled, parameterCatalog = null,
-  layoutSelection = null, layoutDraft = null, layoutBusy = false, onLayoutDraftEdit }: {
+  layoutSelection = null, layoutDraft = null, layoutBusy = false, onLayoutDraftEdit,
+  selectedFieldId = '', onSelectField }: {
   dto: PatternDocumentDTO
   selected: FinalGeometry | null
   onEdit: (action: EditAction) => void
@@ -75,10 +80,15 @@ export function InspectorControls({ dto, selected, onEdit, disabled, parameterCa
   layoutDraft?: LayoutDraft | null
   layoutBusy?: boolean
   onLayoutDraftEdit?: (key: string, value: number | boolean) => void
+  selectedFieldId?: string
+  onSelectField?: (id: string) => void
 }) {
-  const [fieldId, setFieldId] = useState<string>('')
+  const [newFieldType, setNewFieldType] = useState('')
   const fields = fieldRecords(dto)
-  const activeField = fields.find((field) => field.id === fieldId) ?? fields[0]
+  const activeField = fields.find((field) => field.id === selectedFieldId) ?? fields[0]
+  const creatableTypes = Object.keys(parameterCatalog?.definitions.field ?? {})
+    .filter((type) => type !== 'image' && type !== 'composite')
+  const chosenType = creatableTypes.includes(newFieldType) ? newFieldType : creatableTypes[0] ?? ''
   const grid = gridModel(dto)
   const layout = layoutModel(dto)
   const stagedValues = layoutDraft?.proposal ? layoutSelection === 'grid'
@@ -142,34 +152,51 @@ export function InspectorControls({ dto, selected, onEdit, disabled, parameterCa
           onCommit={(key, value) => { if (typeof value !== 'string') onEdit({ kind: 'layout', key, value }) }} />
       </section>}
 
-    {fields.length > 0 && <section className="inspector-section" aria-label="参数场">
+    <section className="inspector-section" aria-label="参数场">
       <h3>FIELD / 参数场</h3>
-      <label className="field-picker">选择已有参数场
-        <select value={String(activeField?.id ?? '')} onChange={(event) => setFieldId(event.target.value)}>
+      <div className="field-create">
+        <label htmlFor="field-type">参数场类型</label>
+        <select id="field-type" value={chosenType} disabled={!chosenType}
+          onChange={(event) => setNewFieldType(event.target.value)}>
+          {creatableTypes.map((type) => <option key={type} value={type}>
+            {parameterCatalog?.definitions.field[type]?.label ?? fieldLabel[type] ?? type}
+          </option>)}
+        </select>
+        <button type="button" disabled={!chosenType}
+          onClick={() => onEdit({ kind: 'field_add', fieldType: chosenType })}>＋ 添加参数场</button>
+      </div>
+      <p className="inspector-readonly">参数场须由已有尺寸或旋转效果层引用才会改变图案；本阶段不新增效果层。</p>
+      {fields.length > 0 && <label className="field-picker">选择已有参数场
+        <select value={String(activeField?.id ?? '')} onChange={(event) => onSelectField?.(event.target.value)}>
           {fields.map((field) => <option key={String(field.id)} value={String(field.id)}>
             {fieldLabel[String(field.type)] ?? String(field.type)} · {String(field.id)}
           </option>)}
         </select>
-      </label>
+      </label>}
       {activeField && (() => {
         const type = String(activeField.type)
         const parameters = asRecord(activeField.parameters) ?? {}
-        if (type === 'composite') return <p className="inspector-readonly">组合场只读：A={String(parameters.input_a_field_id ?? '—')}，B={String(parameters.input_b_field_id ?? '—')}，运算={String(parameters.operator ?? '—')}。原始引用完整保留。</p>
+        const controls = type === 'composite'
+          ? <p className="inspector-readonly">组合场只读：A={String(parameters.input_a_field_id ?? '—')}，B={String(parameters.input_b_field_id ?? '—')}，运算={String(parameters.operator ?? '—')}。原始引用完整保留。</p>
+          : null
         const group = groupFor(parameterCatalog, 'field', type)
-        if (group) return <ParameterPanel group={group} values={parameters}
-          onCommit={(key, value) => onEdit({ kind: 'field', id: String(activeField.id), key, value })} />
-        if (type === 'image' || !FIELD_SPECS[type]) return <p className="inspector-readonly">该参数场当前只读；图片资产尚未接入网页。</p>
         return <>
-          {FIELD_SPECS[type].filter((item) => typeof parameters[item.key] === 'number').map((item) =>
+          <label className="parameter-toggle"><input type="checkbox" checked={activeField.enabled !== false}
+            onChange={(event) => onEdit({ kind: 'field_enabled', id: String(activeField.id), enabled: event.target.checked })} />启用参数场</label>
+          <button type="button" onClick={() => onEdit({ kind: 'field_remove', id: String(activeField.id) })}>删除参数场</button>
+          {controls ?? (group ? <ParameterPanel group={group} values={parameters}
+          onCommit={(key, value) => onEdit({ kind: 'field', id: String(activeField.id), key, value })} />
+            : type === 'image' || !FIELD_SPECS[type] ? <p className="inspector-readonly">该参数场当前只读；图片资产尚未接入网页。</p>
+              : <>{FIELD_SPECS[type].filter((item) => typeof parameters[item.key] === 'number').map((item) =>
             <NumericControl key={`${activeField.id}-${item.key}`} spec={item} value={Number(parameters[item.key])}
               onCommit={(next) => onEdit({ kind: 'field', id: String(activeField.id), key: item.key, value: next })} />)}
           {typeof parameters.invert === 'boolean' && <label className="parameter-toggle">
             <input type="checkbox" checked={parameters.invert} onChange={(event) =>
               onEdit({ kind: 'field', id: String(activeField.id), key: 'invert', value: event.target.checked })} />反转
-          </label>}
+          </label>}</>)}
         </>
       })()}
-    </section>}
+    </section>
 
     {(scalarModifiers(dto).length > 0 || stackModifiers(dto).length > 0) &&
       <section className="inspector-section" aria-label="效果堆栈">
@@ -182,7 +209,16 @@ export function InspectorControls({ dto, selected, onEdit, disabled, parameterCa
             <label className="parameter-toggle"><input type="checkbox" checked={modifier.enabled !== false}
               onChange={(event) => onEdit({ kind: 'scalar', id, key: 'enabled', value: event.target.checked })} />
               {modifierLabel[type] ?? type} · {id}</label>
-            <small>Field: {String(modifier.field_id ?? '—')}</small>
+            {(type === 'size' || type === 'rotation') && <label className="field-picker">驱动参数场
+              <select value={String(modifier.field_id ?? '')} onChange={(event) =>
+                onEdit({ kind: 'field_binding', id, fieldId: event.target.value })}>
+                {!fields.some((field) => field.id === modifier.field_id) &&
+                  <option value={String(modifier.field_id ?? '')}>缺失：{String(modifier.field_id ?? '—')}</option>}
+                {fields.map((field) => <option key={String(field.id)} value={String(field.id)}>
+                  {fieldLabel[String(field.type)] ?? String(field.type)} · {String(field.id)}
+                </option>)}
+              </select>
+            </label>}
             {(type === 'size' || type === 'rotation') && groupFor(parameterCatalog, 'modifier', type)
               ? <ParameterPanel group={groupFor(parameterCatalog, 'modifier', type)!} values={mapping}
                 onCommit={(key, value) => onEdit({ kind: 'scalar', id, key, value })} />

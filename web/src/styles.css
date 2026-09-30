@@ -171,6 +171,11 @@ button { font: inherit; }
 .parameter-inputs input[type=range] { min-width: 0; flex: 1; accent-color: #4685a0; }
 .parameter-inputs input[type=number] { width: 64px; border: 1px solid #d0dce3; border-radius: 5px; padding: 4px 5px; color: #35576d; background: #fff; font-size: 11px; }
 .field-picker select, .shape-replacement select { display: block; width: 100%; margin: 6px 0 13px; padding: 6px; border: 1px solid #d0dce3; border-radius: 5px; color: #36596d; background: #fff; font-size: 11px; }
+.field-create { display: grid; gap: 6px; margin-bottom: 12px; }
+.field-create label { font-size: 10px; color: #536d7e; }
+.field-create select { width: 100%; padding: 6px; border: 1px solid #d0dce3; border-radius: 5px; background: #fff; color: #36596d; font-size: 11px; }
+.field-create button, .inspector-section > button { border: 1px solid #c9d9e1; border-radius: 5px; padding: 6px 8px; color: #31566c; background: #f2f7f9; font-size: 11px; cursor: pointer; }
+.field-create button:disabled { opacity: .55; cursor: default; }
 .parameter-toggle { display: flex; align-items: center; gap: 6px; color: #4b6c80; font-size: 11px; line-height: 1.4; }
 .parameter-toggle input { accent-color: #4685a0; }
 .modifier-card { margin-bottom: 12px; padding: 9px; border: 1px solid #dce7ec; border-radius: 7px; background: #fff; }
