@@ -1,5 +1,17 @@
 # Gate 状态（2026-09-30）
 
+## Web P1-E — 参数化交互打磨（2026-09-30）
+
+- 状态：PASS；基线 `e5c906c` / `backup/p1d-modifier-stack-final`，开发分支 `feature/p1e-parametric-interaction`。仅调整 Web 交互，Python 算法、合同和项目数据模型未修改；停止在 P1-E。
+- Inspector 固定为 Layout → Field → Modifiers → Element，四区可折叠。移除 revision/evaluateStatus 作为整个 Inspector 的 React key，保留展开状态、控件实例和滚动位置；切换选中元素时展开 Element。
+- 通用参数控件读取 Python Schema.default 提供数值/布尔/选项重置，不为各效果写默认值表。已应用参数重置、滑杆释放各走原单条 Undo / revision+1 / 单次 Evaluate；暂存布局仍遵守 P1-B 的“应用布局”边界，草稿恢复默认不会自行重新排列图案。原始元素尺寸/位置没有 Schema 默认值，故不伪造 Element Reset。
+- `ParameterInteraction` 只保存浏览器数值草稿和 pending 状态，提交前不修改文档、不调用 Python。错误回滚或本地校验失败时在绘制前同步有效值；失败后可再次修改、重置、撤销，同值重试不会被旧 committedRef 忽略。底部显示 Ready / Editing / Evaluating / Error，旧几何在求值及失败期间保留。
+- Ctrl+Z、Ctrl+Y、Ctrl+Shift+Z 复用原会话历史；不截获输入框或可编辑文本内的快捷键。求值成功后按 final ID 保留选择，已消失元素清除选择；窗口尺寸和 Evaluate 变化不会自动 Fit，导入或显式 Fit 才调整视角。
+- 验证：Web 81/81 PASS；TypeScript/Vite build PASS；Python Schema/Field/Modifier 相关 8/8 PASS。按本轮限定范围未重复无关 Python 全量、固定图或 Tk 回归。
+- 浏览器：独立 Edge 会话在 `http://127.0.0.1:5174` 加载真实 144 元素矩阵工程及实物打印三星工程；Field/Modifier 参数、真实鼠标滑杆（按下/移动零 Evaluate，松开一次）、Reset/Undo/Redo、启停、折叠、Zoom/Pan、选择保持和注入 422 后重试均 PASS；无非预期 Console error、无 favicon 404。截图及可复现脚本：`work/p1e-matrix-144.png`、`work/p1e-printed-pattern.png`、`work/p1e_browser_smoke.cjs`。模拟的 422 为错误恢复测试，不是产品失败。
+- 性能观察：滑动阶段无后端请求、没有明显拖动停顿；单次 Evaluate 往返最大约 0.69～1.05 秒（144 元素）及 0.05～0.23 秒（三星），较慢一次与 build/test 同时运行。此为本机观测，不承诺固定 FPS 或服务延迟。
+- 修改：App、InspectorControls、ParameterPanel、Workspace2D、样式、index.html 和对应测试；新增 InspectorSection、ParameterInteraction、favicon.svg、App.p1e.test.tsx。无文件删除、无新参数化算法。提交后建立 `backup/p1e-parametric-interaction-final`；安全回退参考 `git worktree add --detach ../PatternLab-P1D-Recovery backup/p1d-modifier-stack-final`（目标须不存在，运行环境另配）。
+
 ## Web P1-D — 效果堆栈接入（2026-09-30）
 
 - 状态：PASS；仅接入现有 Python 效果算法，未进入 P1-E。Web 可在现有场图中新增、删除、启停尺寸/旋转效果层，绑定任一已有场，并通过 Python 参数 Schema 编辑其参数；现有有序堆栈增加位置/变形层及模式相关参数编辑。已有选中元素的形状替换入口归入效果区，仍使用原 Placement 替换数据，不伪装为新的有序算法层。

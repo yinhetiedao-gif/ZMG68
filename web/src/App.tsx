@@ -73,6 +73,16 @@ export function App() {
   const [preparingLayout, setPreparingLayout] = useState(false)
   const layoutSequence = useRef(0)
   const activeDocumentRef = useRef<PatternDocumentDTO | null>(null)
+  const lastValidDocumentRef = useRef<PatternDocumentDTO | null>(null)
+  const pendingControls = useRef(new Set<string>())
+  const [parameterPending, setParameterPending] = useState(false)
+  const [parameterSyncVersion, setParameterSyncVersion] = useState(0)
+  const [canvasEditing, setCanvasEditing] = useState(false)
+  const onParameterPending = useCallback((id: string, pending: boolean) => {
+    if (pending) pendingControls.current.add(id)
+    else pendingControls.current.delete(id)
+    setParameterPending(pendingControls.current.size > 0)
+  }, [])
 
   const reconnect = useCallback(() => setRetry((value) => value + 1), [])
   const publishHistory = (next: { past: PatternDocumentDTO[]; future: PatternDocumentDTO[] }) => {
@@ -156,12 +166,17 @@ export function App() {
     }))
     void evaluateDocument(dto, controller.signal).then((result) => {
       if (sequence !== evaluateSequence.current) return
+      lastValidDocumentRef.current = dto
       setProject((current) => ({
         ...current, finalGeometry: result.geometry, bounds: result.bounds_mm,
         evaluateStatus: 'ready', evaluateError: null,
         warnings: [...new Set([...current.warnings, ...result.warnings])],
       }))
       setPendingPreview(null)
+      setBrowser((current) => {
+        const remaining = current.selectedElementIds.filter((id) => result.geometry.some((item) => item.id === id))
+        return remaining.length === current.selectedElementIds.length ? current : { ...current, selectedElementIds: remaining }
+      })
       if (options.fitOnSuccess) setFitToken((value) => value + 1)
       requestPatternAnalysis(dto, options.analyzeDelayMs ?? 400)
     }).catch((error: unknown) => {
@@ -181,6 +196,7 @@ export function App() {
   }, [invalidatePatternAnalysis, requestPatternAnalysis])
 
   const acceptProject = (dto: PatternDocumentDTO, fileName: string, warnings: string[]) => {
+    lastValidDocumentRef.current = null
     setProjectError(null)
     ++layoutSequence.current
     setSelectedFamily(currentLayoutFamily(dto))
@@ -242,10 +258,12 @@ export function App() {
   }
   const selectedId = browser.selectedElementIds[0] ?? null
   const selected = project.finalGeometry.find((item) => item.id === selectedId) ?? null
+  const canEditDocument = project.evaluateStatus === 'ready' || (project.evaluateStatus === 'error'
+    && lastValidDocumentRef.current?.document_id === project.currentDocument?.document_id)
   const sourceCanDrag = (item: FinalGeometry) => {
     const dto = project.currentDocument
     const source = dto && directSourceElement(dto, item.id, item.x, item.y)
-    return project.evaluateStatus === 'ready' && Boolean(source && source.type === item.type)
+    return canEditDocument && Boolean(source && source.type === item.type)
   }
   const commitDocument = (next: PatternDocumentDTO, before: PatternDocumentDTO) => {
     if (next === before || project.evaluateStatus === 'idle') return
@@ -293,7 +311,7 @@ export function App() {
   }
   const applyLayout = async () => {
     const dto = project.currentDocument
-    if (!dto || !layoutDraft || applyingPatternRef.current || project.evaluateStatus !== 'ready') return
+    if (!dto || !layoutDraft || applyingPatternRef.current || !canEditDocument) return
     applyingPatternRef.current = true
     setApplyingPattern(true)
     try {
@@ -336,7 +354,7 @@ export function App() {
   }
   const editParameter = (action: EditAction) => {
     const dto = project.currentDocument
-    if (!dto || project.evaluateStatus !== 'ready') return
+    if (!dto || !canEditDocument) return
     try {
       let next: PatternDocumentDTO
       if (action.kind === 'field_add') {
@@ -369,12 +387,14 @@ export function App() {
       commitDocument(next, dto)
     } catch (error) {
       setProjectError(error instanceof Error ? error.message : '参数修改失败。')
+      setParameterSyncVersion((version) => version + 1)
     }
   }
   const undo = () => {
     const dto = project.currentDocument
     const history = historyRef.current
-    if (!dto || project.evaluateStatus !== 'ready' || !history.past.length) return
+    if (!dto || !canEditDocument || !history.past.length) return
+    setProjectError(null)
     const before = history.past[history.past.length - 1]
     publishHistory({ past: history.past.slice(0, -1), future: [...history.future, dto] })
     const restored = restoreSnapshot(before, dto.document_revision)
@@ -388,7 +408,8 @@ export function App() {
   const redo = () => {
     const dto = project.currentDocument
     const history = historyRef.current
-    if (!dto || project.evaluateStatus !== 'ready' || !history.future.length) return
+    if (!dto || !canEditDocument || !history.future.length) return
+    setProjectError(null)
     const after = history.future[history.future.length - 1]
     publishHistory({ past: [...history.past, dto], future: history.future.slice(0, -1) })
     const restored = restoreSnapshot(after, dto.document_revision)
@@ -408,6 +429,25 @@ export function App() {
   const modeName = modes.find((mode) => mode.id === browser.activeMode)?.label ?? '设计'
   const scale = project.currentDocument ? millimetresPerUnit(project.currentDocument.document) ?? 1 : 1
   const committedFamily = project.currentDocument ? currentLayoutFamily(project.currentDocument) : 'free'
+  const interactionStatus = project.evaluateStatus === 'loading' ? 'Evaluating · 正在计算'
+    : parameterPending || canvasEditing || layoutDraft?.changed ? 'Editing · 待提交'
+      : project.evaluateError || projectError ? 'Error · 修改未完成，可重试或撤销'
+        : 'Ready · 就绪'
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || event.altKey || event.isComposing || event.repeat) return
+      const target = event.target
+      if (target instanceof HTMLElement && target.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"])')) return
+      const key = event.key.toLowerCase()
+      if (key !== 'z' && key !== 'y') return
+      event.preventDefault()
+      if (key === 'y' || event.shiftKey) redo()
+      else undo()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  })
 
   return <div className="app-shell">
     <header className="topbar">
@@ -494,8 +534,8 @@ export function App() {
         <div className="workspace-toolbar">
           <div className="breadcrumb"><span>工作区</span><span className="crumb-divider">/</span><strong>{modeName}</strong></div>
           <div className="workspace-scale">{project.currentDocument ? `CANVAS · ${project.finalGeometry.length} ELEMENTS · mm` : 'CANVAS · 暂无文档'}</div>
-          <div className="history-actions"><button type="button" onClick={undo} disabled={!historyCount.past || project.evaluateStatus !== 'ready'}>撤销</button>
-            <button type="button" onClick={redo} disabled={!historyCount.future || project.evaluateStatus !== 'ready'}>重做</button></div>
+          <div className="history-actions"><button type="button" onClick={undo} title="Ctrl+Z" disabled={!historyCount.past || !canEditDocument}>撤销</button>
+            <button type="button" onClick={redo} title="Ctrl+Y / Ctrl+Shift+Z" disabled={!historyCount.future || !canEditDocument}>重做</button></div>
         </div>
         <div className="canvas-stage" onDragOver={(event) => event.preventDefault()} onDrop={onDrop}>
           {browser.activeMode === 'design' && project.currentDocument && project.evaluateStatus !== 'idle' ? (
@@ -504,7 +544,8 @@ export function App() {
               onViewChange={(viewTransform) => setBrowser((current) => ({ ...current, viewTransform }))}
               selectedId={selectedId}
               onSelect={(id) => setBrowser((current) => ({ ...current, selectedElementIds: id ? [id] : [] }))}
-              canDrag={sourceCanDrag} onDragCommit={commitDrag} pendingPreview={pendingPreview} fitToken={fitToken} />
+              canDrag={sourceCanDrag} onDragCommit={commitDrag} pendingPreview={pendingPreview} fitToken={fitToken}
+              onEditingChange={setCanvasEditing} />
           ) : browser.activeMode === 'design' ? (
             <section className="empty-state" aria-label="空白设计工作区">
               <div className="orbit-art" aria-hidden="true"><div className="orbit-ring ring-one" /><div className="orbit-ring ring-two" /><div className="orbit-ring ring-three" /><span className="orbit-core" /><i className="orbit-dot dot-one" /><i className="orbit-dot dot-two" /><i className="orbit-dot dot-three" /></div>
@@ -549,28 +590,26 @@ export function App() {
               <span>{mode.label}</span><small>{mode.secondary}</small>
               {mode.id !== 'design' && <em>COMING SOON</em>}
             </button>)}
-          <span className="mode-bar-spacer" /><span className="mode-version">WM6 / 2D</span>
+          <span className="mode-bar-spacer" /><span className="interaction-status" role="status" aria-label="编辑状态">{interactionStatus}</span>
         </nav>
       </main>
 
       <aside className="inspector" aria-label="右侧检查器">
         <div className="inspector-title"><div><span className="eyebrow">PROPERTIES</span><h2>检查器</h2></div><span className="inspector-dots" aria-hidden="true">•••</span></div>
-        {selected ? <div className="inspector-selection">
-          <strong>已选元素</strong>
-          <dl><dt>ID</dt><dd>{selected.id}</dd><dt>类型</dt><dd>{selected.type}</dd>
-            <dt>中心</dt><dd>{selected.x.toFixed(2)}, {selected.y.toFixed(2)} mm</dd>
-            <dt>范围</dt><dd>{selected.width.toFixed(2)} × {selected.height.toFixed(2)} mm</dd></dl>
-          <p>{sourceCanDrag(selected) ? '可直接拖动；释放鼠标后提交一次。' : '派生或参数化元素不可直接拖动；可编辑其文档规则。'}</p>
-        </div> : <div className="inspector-empty"><span className="inspect-glyph" aria-hidden="true">⌗</span><strong>未选择对象</strong><p>No selection</p><small>点击元素可查看其世界毫米信息。</small></div>}
-        {project.currentDocument && <InspectorControls key={`${project.currentDocument.document_id}:${project.documentRevision}:${project.evaluateStatus}`}
+        {!project.currentDocument && <div className="inspector-empty"><span className="inspect-glyph" aria-hidden="true">⌗</span><strong>未选择对象</strong><p>No selection</p><small>点击元素可查看其世界毫米信息。</small></div>}
+        {project.currentDocument && <InspectorControls key={project.currentDocument.document_id}
+          syncToken={`${project.documentRevision}:${project.evaluateStatus}:${parameterSyncVersion}`} onPending={onParameterPending}
           dto={project.currentDocument} selected={selected} parameterCatalog={parameterCatalog}
           selectedFieldId={selectedFieldId} onSelectField={setSelectedFieldId}
           layoutSelection={selectedFamily} layoutDraft={layoutDraft} layoutBusy={preparingLayout}
           onLayoutDraftEdit={(key, value) => {
             try { setLayoutDraft((draft) => draft ? editLayoutDraft(draft, key, value, parameterCatalog) : draft) }
-            catch (error) { setProjectError(error instanceof Error ? error.message : '布局参数无效。') }
+            catch (error) {
+              setProjectError(error instanceof Error ? error.message : '布局参数无效。')
+              setParameterSyncVersion((version) => version + 1)
+            }
           }}
-          onEdit={editParameter} disabled={project.evaluateStatus !== 'ready'} />}
+          onEdit={editParameter} disabled={!canEditDocument} />}
         <div className={`connection-card ${connection.kind}`}>
           <div className="connection-card-head"><span>连接状态</span><span className="connection-state-text">{connected ? '已连接' : connection.kind === 'checking' ? '检查中' : connection.kind === 'offline' ? '离线' : '协议不兼容'}</span></div>
           <p>{connected ? 'Python Engine 已就绪，合同 v1.0 · mm 验证通过。' : connection.message}</p>

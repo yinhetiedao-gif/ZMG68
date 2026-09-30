@@ -43,4 +43,16 @@ describe('Python-authored generic parameter renderer', () => {
     fireEvent.change(screen.getByLabelText('模式'), { target: { value: 'b' } })
     expect(commit.mock.calls).toEqual([['invert', true], ['mode', 'b']])
   })
+
+  it('resets numeric, boolean and select values from the schema without committing a pending draft first', () => {
+    const commit = vi.fn()
+    render(<ParameterPanel group={group} values={{ radius: 12, invert: true, mode: 'b' }} onCommit={commit} />)
+    fireEvent.change(screen.getByLabelText('半径 (mm)'), { target: { value: '16' } })
+    fireEvent.pointerDown(screen.getByRole('button', { name: '重置半径' }))
+    fireEvent.click(screen.getByRole('button', { name: '重置半径' }))
+    fireEvent.blur(screen.getByLabelText('半径 (mm)'))
+    fireEvent.click(screen.getByRole('button', { name: '重置反转' }))
+    fireEvent.click(screen.getByRole('button', { name: '重置模式' }))
+    expect(commit.mock.calls).toEqual([['radius', 2], ['invert', false], ['mode', 'a']])
+  })
 })

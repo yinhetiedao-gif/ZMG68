@@ -15,6 +15,7 @@ interface Props {
   onDragCommit: (id: string, dxMm: number, dyMm: number) => void
   pendingPreview: { id: string; dx: number; dy: number } | null
   fitToken: number
+  onEditingChange?: (editing: boolean) => void
 }
 
 type Interaction =
@@ -23,7 +24,7 @@ type Interaction =
 
 export function Workspace2D({
   geometry, bounds, mmPerUnit, view, onViewChange, selectedId, onSelect,
-  canDrag, onDragCommit, pendingPreview, fitToken,
+  canDrag, onDragCommit, pendingPreview, fitToken, onEditingChange,
 }: Props) {
   const stage = useRef<HTMLDivElement>(null)
   const svg = useRef<SVGSVGElement>(null)
@@ -33,6 +34,7 @@ export function Workspace2D({
   const lastDragNode = useRef<SVGGElement | null>(null)
   const frame = useRef<number | null>(null)
   const lastCursorUpdate = useRef(0)
+  const lastFitToken = useRef<number | null>(null)
   const [viewport, setViewport] = useState<Viewport>({ width: 800, height: 600 })
   const [cursor, setCursor] = useState<Point | null>(null)
 
@@ -51,7 +53,10 @@ export function Workspace2D({
   }, [])
 
   useEffect(() => {
-    if (bounds) onViewChange(fitView(bounds, viewport))
+    if (bounds && lastFitToken.current !== fitToken) {
+      lastFitToken.current = fitToken
+      onViewChange(fitView(bounds, viewport))
+    }
     // A new Evaluate response after a drag must NOT re-fit the user's view.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fitToken, viewport.width, viewport.height])
@@ -86,6 +91,7 @@ export function Workspace2D({
     event.stopPropagation()
     onSelect(item.id)
     if (!canDrag(item)) return
+    onEditingChange?.(true)
     interaction.current = {
       kind: 'drag', id: item.id, start: screenToWorld(screenPoint(event), view),
       node: event.currentTarget, next: { x: 0, y: 0 },
@@ -137,6 +143,7 @@ export function Workspace2D({
       frame.current = null
     }
     interaction.current = null
+    onEditingChange?.(false)
     if (active.kind === 'pan') {
       onViewChange(panBy(active.view, event.clientX - active.x, event.clientY - active.y))
       return
@@ -159,6 +166,7 @@ export function Workspace2D({
     }
     const active = interaction.current
     interaction.current = null
+    onEditingChange?.(false)
     if (active?.kind === 'drag') {
       active.node.removeAttribute('transform')
       lastDragNode.current = null

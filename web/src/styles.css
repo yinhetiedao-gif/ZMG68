@@ -164,6 +164,13 @@ button { font: inherit; }
 .inspector-controls.controls-busy { opacity: .7; }
 .inspector-section { border-top: 1px solid #e3e9ed; padding: 17px 5px 10px; }
 .inspector-section h3 { margin: 0 0 13px; color: #355a72; font-size: 11px; letter-spacing: .045em; }
+.section-toggle { display: flex; align-items: center; gap: 6px; width: 100%; border: 0; padding: 3px 0; color: inherit; font: inherit; background: transparent; text-align: left; cursor: pointer; }
+.parameter-heading { display: flex; align-items: center; justify-content: space-between; gap: 4px; margin-bottom: 5px; font-size: 10px; color: #536d7e; }
+.parameter-reset, .modifier-card .parameter-reset { border: 0; padding: 2px 4px; font-size: 10px; color: #52758a; background: transparent; cursor: pointer; }
+.parameter-reset:disabled { opacity: .4; cursor: default; }
+.parameter-boolean { display: flex; align-items: center; justify-content: space-between; }
+.parameter-pending { display: block; color: #896d32; font-size: 10px; margin-top: 4px; }
+.interaction-status { font-size: 10px; color: #52758a; max-width: 210px; }
 .inspector-id, .inspector-readonly { color: #798c99; font-size: 10px; line-height: 1.55; margin: 3px 0 12px; overflow-wrap: anywhere; }
 .parameter-control { margin: 0 0 12px; }
 .parameter-control > label, .field-picker, .shape-replacement > label { display: block; font-size: 10px; color: #536d7e; margin-bottom: 5px; }

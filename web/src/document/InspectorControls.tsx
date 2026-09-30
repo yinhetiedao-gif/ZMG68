@@ -1,7 +1,9 @@
-import { useEffect, useId, useRef, useState } from 'react'
+import { useId, useState } from 'react'
 import type { FinalGeometry, PatternDocumentDTO } from '../model/types'
 import { directSourceElement, millimetresPerUnit } from '../model/project'
 import { ParameterPanel } from './ParameterPanel'
+import { InspectorSection } from './InspectorSection'
+import { ParameterInteraction, useParameterDraft } from './ParameterInteraction'
 import { groupFor, type ParameterCatalog } from './parameterSchema'
 import type { LayoutDraft } from './layoutDraft'
 import type { PatternFamily } from '../api/pattern'
@@ -26,38 +28,22 @@ function NumericControl({ spec, value, onCommit, sliderMax = spec.max }: {
   spec: NumericSpec; value: number; onCommit: (value: number) => void; sliderMax?: number
 }) {
   const inputId = useId()
-  const [draft, setDraft] = useState(String(value))
-  const draftRef = useRef(String(value))
-  const committedRef = useRef(value)
-  useEffect(() => {
-    setDraft(String(value))
-    draftRef.current = String(value)
-    committedRef.current = value
-  }, [value])
-  const change = (next: string) => { draftRef.current = next; setDraft(next) }
-  const commit = () => {
-    const next = Number(draftRef.current)
-    if (!draftRef.current.trim() || !Number.isFinite(next) || next < spec.min || next > spec.max
-        || (spec.integer && !Number.isInteger(next))) {
-      change(String(value))
-      return
-    }
-    if (next !== committedRef.current) {
-      committedRef.current = next
-      onCommit(next)
-    }
-  }
+  const { draft, pending, change, cancel, commitNumber: commit } = useParameterDraft(value,
+    (next) => onCommit(Number(next)), (next) => typeof next === 'number' && Number.isFinite(next)
+      && next >= spec.min && next <= spec.max && (!spec.integer || Number.isInteger(next)))
   return <div className="parameter-control">
     <label htmlFor={inputId}>{spec.label}</label>
     <div className="parameter-inputs">
       <input type="range" aria-label={`${spec.label}滑杆`} min={spec.min} max={sliderMax} step={spec.integer ? spec.step : 'any'}
         value={draft.trim() && Number.isFinite(Number(draft))
           ? Math.min(sliderMax, Math.max(spec.min, Number(draft))) : Math.min(sliderMax, value)}
-        onChange={(event) => change(event.target.value)} onPointerUp={commit} onKeyUp={commit} onBlur={commit} />
+        onChange={(event) => change(event.target.value)} onPointerUp={commit} onKeyUp={commit} onBlur={commit}
+        onPointerCancel={cancel} />
       <input id={inputId} type="number" min={spec.min} max={spec.max} step={spec.step}
         value={draft} onChange={(event) => change(event.target.value)}
         onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur() }} onBlur={commit} />
     </div>
+    {pending && <small className="parameter-pending">待提交 · 松开滑杆或确认数值</small>}
   </div>
 }
 
@@ -80,7 +66,7 @@ const positionParameterKeys: Record<string, string[]> = {
 
 export function InspectorControls({ dto, selected, onEdit, disabled, parameterCatalog = null,
   layoutSelection = null, layoutDraft = null, layoutBusy = false, onLayoutDraftEdit,
-  selectedFieldId = '', onSelectField }: {
+  selectedFieldId = '', onSelectField, syncToken = '', onPending }: {
   dto: PatternDocumentDTO
   selected: FinalGeometry | null
   onEdit: (action: EditAction) => void
@@ -92,6 +78,8 @@ export function InspectorControls({ dto, selected, onEdit, disabled, parameterCa
   onLayoutDraftEdit?: (key: string, value: number | boolean) => void
   selectedFieldId?: string
   onSelectField?: (id: string) => void
+  syncToken?: string
+  onPending?: (id: string, pending: boolean) => void
 }) {
   const [newFieldType, setNewFieldType] = useState('')
   const fields = fieldRecords(dto)
@@ -110,22 +98,9 @@ export function InspectorControls({ dto, selected, onEdit, disabled, parameterCa
   const replacements = asRecord(placement?.replacement_map) ?? {}
   const prototypes = asRecord(placement?.shape_prototypes) ?? {}
 
-  return <fieldset disabled={disabled} className={`inspector-controls ${disabled ? 'controls-busy' : ''}`} aria-label="参数检查器">
-    {selected && <section className="inspector-section" aria-label="元素变换">
-      <h3>TRANSFORM / 元素变换</h3>
-      <p className="inspector-id">{selected.id} · {selected.type}</p>
-      {editable ? ELEMENT_SPECS.map((spec) => {
-        const sourceValue = editable[spec.key]
-        const value = typeof sourceValue === 'number' ? (spec.key === 'rotation' ? sourceValue : sourceValue * scale) : 0
-        const sliderMax = spec.key === 'width' || spec.key === 'height'
-          ? Math.min(spec.max, Math.max(10, value * 3)) : spec.max
-        return <NumericControl key={spec.key} spec={spec} value={value} sliderMax={sliderMax}
-          onCommit={(next) => onEdit({ kind: 'element', id: selected.id, key: spec.key, value: next })} />
-      }) : <p className="inspector-readonly">派生元素或含效果的源元素仅可查看；不会猜测反向映射。</p>}
-    </section>}
-
-    {layoutSelection && <section className="inspector-section" aria-label="布局参数">
-      <h3>LAYOUT / {stagedGroup?.label ?? '自由布局'}</h3>
+  return <ParameterInteraction.Provider value={{ syncToken, onPending }}>
+    <fieldset disabled={disabled} className={`inspector-controls ${disabled ? 'controls-busy' : ''}`} aria-label="参数检查器">
+    {layoutSelection && <InspectorSection label="布局参数" title={`LAYOUT / ${stagedGroup?.label ?? '自由布局'}`} activeKey={layoutSelection}>
       {layoutBusy ? <p className="inspector-readonly">正在由 Python 准备布局参数…</p>
         : layoutSelection === 'free' ? <p className="inspector-readonly">自由布局保留当前元素位置；点击“应用布局”才会确认。</p>
           : stagedGroup && stagedValues && layoutDraft?.family === layoutSelection
@@ -134,28 +109,25 @@ export function InspectorControls({ dto, selected, onEdit, disabled, parameterCa
                 if (typeof value !== 'string') onLayoutDraftEdit?.(key, value)
               }} />
             : <p className="inspector-readonly">布局参数暂不可用，请重新选择布局。</p>}
-    </section>}
+    </InspectorSection>}
 
-    {!layoutSelection && grid && <section className="inspector-section" aria-label="矩阵结构参数">
-      <h3>PARAMETRIC / 矩阵结构</h3>
+    {!layoutSelection && grid && <InspectorSection label="矩阵结构参数" title="LAYOUT / 矩阵结构">
       {groupFor(parameterCatalog, 'layout', 'grid') ? <ParameterPanel group={groupFor(parameterCatalog, 'layout', 'grid')!}
         values={grid} onCommit={(key, value) => { if (typeof value === 'number') onEdit({ kind: 'grid', key, value }) }} />
         : GRID_SPECS.filter((item) => typeof grid[item.key] === 'number').map((item) =>
         <NumericControl key={item.key} spec={item} value={Number(grid[item.key])}
           onCommit={(next) => onEdit({ kind: 'grid', key: item.key, value: next })} />)}
       {Array.isArray(grid.basis_u_vector) && <p className="inspector-readonly">当前含斜向基向量；间距和旋转会同步调整基向量。</p>}
-    </section>}
+    </InspectorSection>}
 
     {!layoutSelection && layout && (layout.mode === 'radial' || layout.mode === 'along_curve') &&
       groupFor(parameterCatalog, 'layout', layout.mode) &&
-      <section className="inspector-section" aria-label="布局结构参数">
-        <h3>LAYOUT / {groupFor(parameterCatalog, 'layout', layout.mode)!.label}</h3>
+      <InspectorSection label="布局结构参数" title={`LAYOUT / ${groupFor(parameterCatalog, 'layout', layout.mode)!.label}`}>
         <ParameterPanel group={groupFor(parameterCatalog, 'layout', layout.mode)!} values={layout.model}
           onCommit={(key, value) => { if (typeof value !== 'string') onEdit({ kind: 'layout', key, value }) }} />
-      </section>}
+      </InspectorSection>}
 
-    <section className="inspector-section" aria-label="参数场">
-      <h3>FIELD / 参数场</h3>
+    <InspectorSection label="参数场" title="FIELD / 参数场" activeKey={String(activeField?.id ?? '')}>
       <div className="field-create">
         <label htmlFor="field-type">参数场类型</label>
         <select id="field-type" value={chosenType} disabled={!chosenType}
@@ -186,7 +158,7 @@ export function InspectorControls({ dto, selected, onEdit, disabled, parameterCa
           <label className="parameter-toggle"><input type="checkbox" checked={activeField.enabled !== false}
             onChange={(event) => onEdit({ kind: 'field_enabled', id: String(activeField.id), enabled: event.target.checked })} />启用参数场</label>
           <button type="button" onClick={() => onEdit({ kind: 'field_remove', id: String(activeField.id) })}>删除参数场</button>
-          {controls ?? (group ? <ParameterPanel group={group} values={parameters}
+          {controls ?? (group ? <ParameterPanel key={String(activeField.id)} group={group} values={parameters}
           onCommit={(key, value) => onEdit({ kind: 'field', id: String(activeField.id), key, value })} />
             : type === 'image' || !FIELD_SPECS[type] ? <p className="inspector-readonly">该参数场当前只读；图片资产尚未接入网页。</p>
               : <>{FIELD_SPECS[type].filter((item) => typeof parameters[item.key] === 'number').map((item) =>
@@ -198,10 +170,9 @@ export function InspectorControls({ dto, selected, onEdit, disabled, parameterCa
           </label>}</>)}
         </>
       })()}
-    </section>
+    </InspectorSection>
 
-    <section className="inspector-section" aria-label="效果堆栈">
-        <h3>MODIFIERS / 效果堆栈</h3>
+    <InspectorSection label="效果堆栈" title="MODIFIERS / 效果堆栈">
         <div className="modifier-actions">
           <button type="button" disabled={!fields.length || !groupFor(parameterCatalog, 'modifier', 'size')}
             onClick={() => onEdit({ kind: 'modifier_add', modifierType: 'size' })}>＋ 尺寸</button>
@@ -272,6 +243,24 @@ export function InspectorControls({ dto, selected, onEdit, disabled, parameterCa
           </select>
           <small>形状分配在效果层前执行，仅替换当前选中元素，不修改原始元素。</small>
         </div>}
-    </section>
-  </fieldset>
+    </InspectorSection>
+    <InspectorSection label="元素变换" title="ELEMENT / 元素" activeKey={selected?.id}>
+      {selected ? <>
+        <div className="inspector-selection">
+          <strong>已选元素</strong>
+          <dl><dt>ID</dt><dd>{selected.id}</dd><dt>类型</dt><dd>{selected.type}</dd>
+            <dt>中心</dt><dd>{selected.x.toFixed(2)}, {selected.y.toFixed(2)} mm</dd>
+            <dt>范围</dt><dd>{selected.width.toFixed(2)} × {selected.height.toFixed(2)} mm</dd></dl>
+        </div>
+        {editable ? ELEMENT_SPECS.map((spec) => {
+          const sourceValue = editable[spec.key]
+          const value = typeof sourceValue === 'number' ? (spec.key === 'rotation' ? sourceValue : sourceValue * scale) : 0
+          const sliderMax = spec.key === 'width' || spec.key === 'height'
+            ? Math.min(spec.max, Math.max(10, value * 3)) : spec.max
+          return <NumericControl key={`${selected.id}:${spec.key}`} spec={spec} value={value} sliderMax={sliderMax}
+            onCommit={(next) => onEdit({ kind: 'element', id: selected.id, key: spec.key, value: next })} />
+        }) : <p className="inspector-readonly">派生或参数化元素不可直接拖动；可通过上方布局、参数场和效果层调整。</p>}
+      </> : <p className="inspector-readonly">未选择对象 · No selection。点击画布中的元素可查看和编辑。</p>}
+    </InspectorSection>
+  </fieldset></ParameterInteraction.Provider>
 }
