@@ -162,6 +162,16 @@ class WebServerWM3Tests(unittest.TestCase):
             self.assertEqual(report.component_count, 3)
             self.assertAlmostEqual(reloaded.bounds[1][0] - reloaded.bounds[0][0], 57.216907, places=3)
 
+    def test_empty_design_reports_specific_manufacturing_error(self):
+        document = circle_document()
+        document.elements = []
+        dto = PatternDocumentDTO.from_document(document, "empty-design", 0)
+        with TestClient(create_app()) as client:
+            response = client.post("/api/v1/manufacturing/build", json=build_payload(dto))
+        self.assertEqual(response.status_code, 422)
+        self.assertEqual(response.json()["code"], "manufacturing_validation_failed")
+        self.assertIn("没有可制造的二维元素", response.json()["message"])
+
     def test_store_is_bounded_and_ttl_expires(self):
         store = InMemoryManufacturingResultStore(max_entries=2, ttl_seconds=30)
         item = StoredManufacturingResult(None, {}, b"stl")

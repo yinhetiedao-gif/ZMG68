@@ -21,6 +21,8 @@ import {
 } from './model/project'
 import { initialBrowserState, type WorkspaceMode } from './state/browserState'
 import { initialDocumentState } from './state/documentState'
+import { ManufacturingPanel } from './manufacturing/ManufacturingPanel'
+import { useManufacturing } from './manufacturing/useManufacturing'
 
 type ConnectionState =
   | { kind: 'checking'; message: string }
@@ -46,6 +48,7 @@ export function App() {
   const [retry, setRetry] = useState(0)
   const [browser, setBrowser] = useState(initialBrowserState)
   const [project, setProject] = useState(initialDocumentState)
+  const manufacturing = useManufacturing(project.currentDocument)
   const [projectError, setProjectError] = useState<string | null>(null)
   const [mapping, setMapping] = useState<{ dto: PatternDocumentDTO; fileName: string; warnings: string[] } | null>(null)
   const [mappingValue, setMappingValue] = useState('')
@@ -527,7 +530,7 @@ export function App() {
               onClick={cancelLayout}>取消布局</button>
           </div>
         </section>
-        <div className="sidebar-footnote"><span className="footnote-icon">i</span><p>拖入 PNG/JPG/SVG 可由 Python 转换为独立元素；制造尚未开放。</p></div>
+        <div className="sidebar-footnote"><span className="footnote-icon">i</span><p>拖入 PNG/JPG/SVG 可由 Python 转换为独立元素；制造模式可检查并生成最终网格。</p></div>
       </aside>
 
       <main className="workspace" aria-label="中央工作区">
@@ -555,11 +558,17 @@ export function App() {
               <button type="button" className="primary-action" onClick={() => inputRef.current?.click()}>打开项目</button>
               <span className="empty-hint">WM6 · Parametric Controls MVP</span>
             </section>
+          ) : browser.activeMode === 'manufacture' ? (
+            <ManufacturingPanel heightText={manufacturing.heightText} onHeightChange={manufacturing.setHeightText}
+              validHeight={manufacturing.validHeight} canBuild={connected && project.evaluateStatus === 'ready'
+                && Boolean(project.currentDocument) && manufacturing.validHeight}
+              onBuild={() => void manufacturing.build()} status={manufacturing.status}
+              result={manufacturing.result} error={manufacturing.error} />
           ) : (
             <section className="empty-state future-state" aria-label={`${modeName}即将开放`}>
-              <div className="future-mark" aria-hidden="true">{browser.activeMode === 'manufacture' ? '▤' : '◇'}</div>
+              <div className="future-mark" aria-hidden="true">◇</div>
               <span className="empty-kicker">NEXT WORKSPACE</span><h1>{modeName} · 即将开放</h1>
-              <p>当前仅提供模式导航；没有启动制造、生成模型或展示三维预览。</p>
+              <p>当前暂不展示三维预览。</p>
             </section>
           )}
           {project.evaluateStatus === 'loading' && <div className="viewer-notice" role="status">Python 正在计算最终二维几何…</div>}
@@ -586,9 +595,10 @@ export function App() {
             <button key={mode.id} type="button" className={`mode-button ${browser.activeMode === mode.id ? 'selected' : ''}`}
               aria-label={`${mode.label} ${mode.secondary}`}
               aria-current={browser.activeMode === mode.id ? 'page' : undefined}
+              disabled={mode.id === 'preview'}
               onClick={() => setBrowser((current) => ({ ...current, activeMode: mode.id }))}>
               <span>{mode.label}</span><small>{mode.secondary}</small>
-              {mode.id !== 'design' && <em>COMING SOON</em>}
+              {mode.id === 'preview' && <em>COMING SOON</em>}
             </button>)}
           <span className="mode-bar-spacer" /><span className="interaction-status" role="status" aria-label="编辑状态">{interactionStatus}</span>
         </nav>

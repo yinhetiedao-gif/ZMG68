@@ -107,10 +107,32 @@ button { font: inherit; }
 .mode-button small { font-size: 9px; color: #a3b0b9; }
 .mode-button em { position: absolute; top: 8px; right: 6px; font-size: 6px; font-style: normal; letter-spacing: .04em; color: #9aafbb; }
 .mode-button:hover { background: #f5f8fa; }
+.mode-button:disabled { cursor: not-allowed; opacity: .52; }
 .mode-button.selected { background: #e9f3f7; border-color: #d5e6ed; color: #315d76; }
 .mode-button.selected small { color: #658b9d; }
 .mode-bar-spacer { flex: 1; }
 .mode-version { font-size: 9px; letter-spacing: .1em; color: #aebdc6; white-space: nowrap; }
+
+.manufacturing-panel { position: relative; z-index: 1; box-sizing: border-box; width: min(720px, 100%); max-height: 100%; overflow: auto; padding: 28px; background: #fff; border: 1px solid #dfe8ed; border-radius: 12px; box-shadow: 0 10px 35px #28495c12; color: #2d4353; }
+.manufacturing-heading h1 { margin: 8px 0; font-size: 22px; }
+.manufacturing-heading p { margin: 0 0 22px; color: #718592; font-size: 12px; }
+.manufacturing-settings { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.manufacturing-settings label { font-size: 13px; font-weight: 650; }
+.manufacturing-settings label span { color: #8ba0ac; }
+.manufacturing-settings input { width: 105px; padding: 8px; border: 1px solid #cbdbe3; border-radius: 6px; }
+.manufacturing-settings button { padding: 9px 16px; border: 0; border-radius: 6px; background: #386a83; color: #fff; cursor: pointer; }
+.manufacturing-settings button:disabled { opacity: .5; cursor: not-allowed; }
+.manufacturing-status { margin: 18px 0; padding: 10px 12px; background: #eef5f8; border-radius: 6px; font-size: 12px; }
+.manufacturing-status.warning, .manufacturing-status.stale { background: #fff3df; }
+.manufacturing-status.error, .manufacturing-error { color: #9d3934; background: #ffefed; }
+.manufacturing-error { padding: 9px 12px; border-radius: 6px; font-size: 12px; }
+.manufacturing-report dl { display: grid; gap: 0; margin: 0; }
+.manufacturing-result-id { display: block; margin-bottom: 8px; color: #8496a1; font-size: 10px; overflow-wrap: anywhere; }
+.manufacturing-report dl div { display: flex; justify-content: space-between; gap: 12px; border-bottom: 1px solid #ecf1f3; padding: 10px 2px; font-size: 12px; }
+.manufacturing-report dt { color: #788d9a; }
+.manufacturing-report dd { margin: 0; text-align: right; font-weight: 650; }
+.manufacturing-notes { margin-top: 15px; padding: 12px; border-radius: 6px; background: #fff6e8; font-size: 12px; }
+.manufacturing-notes ul { margin: 7px 0 0; padding-left: 18px; }
 
 .inspector { border-left: 1px solid #dde4e9; display: flex; flex-direction: column; padding: 25px 17px 20px; }
 .inspector-title { display: flex; align-items: flex-start; justify-content: space-between; border-bottom: 1px solid #e7ebee; padding: 0 5px 18px; }

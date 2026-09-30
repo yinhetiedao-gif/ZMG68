@@ -242,7 +242,17 @@ def _build(document, dto: PatternDocumentDTO, height_mm: float):
         result = ManufacturingService().build(session, height_mm)
     response = ManufacturingBuildResponseDTO.from_service_result(result, dto)
     if not result.ready or result.mesh_result is None:
-        raise WebError("manufacturing_validation_failed", "制造检查未通过，请检查二维几何与网格报告。")
+        summaries = (response.geometry_validation_summary, response.mesh_validation_summary or {})
+        details = [issue.get("message") or issue.get("code") for summary in summaries
+                   for issue in summary.get("issues", []) if issue.get("severity") == "error"]
+        details.extend(item.get("message") or item.get("code")
+                       for item in response.conversion_summary.get("skipped", []))
+        if response.conversion_summary.get("input_count", 0) == 0:
+            details.insert(0, "当前没有可制造的二维元素。")
+        elif response.conversion_summary.get("converted_count", 0) == 0:
+            details.append("没有可转换为制造网格的闭合二维几何。")
+        reason = next((str(item) for item in details if item), None)
+        raise WebError("manufacturing_validation_failed", reason or "制造检查未通过，请检查二维几何与网格报告。")
     # Gate X validates the exact retained manufacturing mesh and emits the
     # bytes once. The download route only serves these same bytes.
     stl_bytes = STLExporter().export_bytes(result.mesh_result)

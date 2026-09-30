@@ -1,5 +1,13 @@
 # Gate 状态（2026-09-30）
 
+## P2 Web Manufacturing（2026-09-30）
+
+- 状态：PASS。基线 `7778062` / `backup/web-parameter-range-audit-final` 已包含并提交全局滑杆范围优化，工作区开始时干净；本 Gate 独立分支 `feature/p2-web-manufacturing`，预变更备份 `backup/pre-p2-web-manufacturing`。未进入 P3。
+- Web 制造模式复用既有 `POST /api/v1/manufacturing/build` 与 Python `ManufacturingService`；React 仅提交当前 PatternDocumentDTO、revision、厚度，展示几何检查、连通性、转换、Mesh 封闭性、组件、XYZ 尺寸及警告。3D Preview 仍禁用，没有 STL 下载按钮或新制造算法。
+- 制造结果为浏览器派生状态，不写回 PatternDocument、revision、Undo 或 Canvas。构建中可显示状态；文档身份/修订号或厚度变化立即将旧结果标为 stale，不再展示其 result ID 和报告；晚到响应被取消/忽略。非法厚度在前端阻止；后端验证失败时展示具体问题，设计画布保持可用。
+- 真实浏览器：独立新版后端 `127.0.0.1:8766`、Vite `127.0.0.1:5174`，通过文件输入载入已实际打印的 `work/physical-validation-02/physical_validation_02_real_pattern.pattern.json`。一次制造请求，结果尺寸约 `57.22 × 19.90 × 2.00 mm`、独立组件 3、Mesh watertight；修改厚度后旧结果显示 stale，设计 revision 保持 0、返回设计仍显示 3 个元素，浏览器致命错误 0。证据：`work/p2_browser_smoke.cjs` 与 `work/p2-manufacturing-real-pattern.png`。
+- 验证：Web 88/88 PASS、TypeScript/Vite build PASS、Python WM3/WM1 制造相关 13/13 PASS；无关 Python 全量回归未运行。提交后建立 `backup/p2-web-manufacturing-final`。安全回退点：`backup/web-parameter-range-audit-final`；通过新 worktree 检出，不执行强制 reset。
+
 ## Web 全局 Parameter Range Audit（2026-09-30）
 
 - 状态：PASS。审计当前 Python 参数目录的 Layout（Free/Grid/Radial/Curve）、8 种可编辑 Field、Size/Rotation/Position Modifier 与 Element Transform，共 91 项定义；其中 82 项数值参数，81 项提供推荐滑杆范围。Shape Replacement 为选项控件，无数值滑杆；Image/Composite Field 仍为既有只读类型。
