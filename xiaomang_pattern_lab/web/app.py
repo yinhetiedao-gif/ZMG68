@@ -1,7 +1,6 @@
 """WM3: thin HTTP adapter; geometry and STL remain in the existing engine."""
 from __future__ import annotations
 
-import hashlib
 import logging
 import math
 from copy import deepcopy
@@ -25,7 +24,7 @@ from xiaomang_pattern_lab.faithful_mapping import FaithfulMappingAdapter
 from xiaomang_pattern_lab.contracts import (
     ArtifactDTO, ContractError, CURRENT_WEB_SCHEMA_VERSION, EvaluateRequestDTO,
     EvaluateResponseDTO, ManufacturingBuildRequestDTO,
-    ManufacturingBuildResponseDTO, PatternDocumentDTO, parse_json,
+    ManufacturingBuildResponseDTO, PatternDocumentDTO, manufacturing_result_id, parse_json,
 )
 from xiaomang_pattern_lab.manufacturing_service import ManufacturingService
 from xiaomang_pattern_lab.pattern_analyzer import PatternAnalyzer
@@ -254,19 +253,13 @@ def _build(document, dto: PatternDocumentDTO, height_mm: float):
             details.append("没有可转换为制造网格的闭合二维几何。")
         reason = next((str(item) for item in details if item), None)
         raise WebError("manufacturing_validation_failed", reason or "制造检查未通过，请检查二维几何与网格报告。")
-    # Gate X validates the exact retained manufacturing mesh and emits the
-    # bytes once. The download route only serves these same bytes.
-    stl_bytes = STLExporter().export_bytes(result.mesh_result)
     result_id = response.manufacturing_result_id
     artifact = ArtifactDTO(
         artifact_id=result_id + "-stl", manufacturing_result_id=result_id,
         kind="stl", media_type="model/stl", filename=result_id + ".stl",
-        byte_size=len(stl_bytes), sha256=hashlib.sha256(stl_bytes).hexdigest(),
     ).to_dict()
     response.artifacts.append(artifact)
-    preview_glb_bytes = export_preview_glb(result.mesh_result)
-    encoded = response.to_dict()
-    return result_id, StoredManufacturingResult(result, encoded, stl_bytes, preview_glb_bytes)
+    return result_id, StoredManufacturingResult(result, response.to_dict())
 
 
 def _import_asset(item) -> dict[str, Any]:
@@ -419,7 +412,11 @@ def create_app(*, asset_resolver: AssetResolver | None = None,
         if (dto.document_id != parameters.document_id
                 or dto.document_revision != parameters.document_revision):
             raise ContractError("invalid_document", "制造参数与文档身份不一致。")
-        document = _resolve_document(dto, resolver)
+        result_id = manufacturing_result_id(dto, parameters.height_mm)
+        cached = store.get(result_id)
+        if cached is not None:
+            return JSONResponse(cached.response)
+        document = await run_in_threadpool(_resolve_document, dto, resolver)
         result_id, stored = await run_in_threadpool(_build, document, dto, parameters.height_mm)
         store.put(result_id, stored)
         return JSONResponse(stored.response)
@@ -429,6 +426,9 @@ def create_app(*, asset_resolver: AssetResolver | None = None,
         stored = store.get(manufacturing_result_id)
         if stored is None:
             raise WebError("artifact_not_found", "制造结果不存在或已经过期。")
+        with stored.artifact_lock:
+            if stored.stl_bytes is None:
+                stored.stl_bytes = STLExporter().export_bytes(stored.result.mesh_result)
         artifact = stored.response["artifacts"][0]
         return Response(stored.stl_bytes, media_type="model/stl",
                         headers={"Content-Disposition": 'attachment; filename="%s"' % artifact["filename"]})
@@ -436,8 +436,11 @@ def create_app(*, asset_resolver: AssetResolver | None = None,
     @app.get("/api/v1/manufacturing/{manufacturing_result_id}/preview.glb")
     def download_preview(manufacturing_result_id: str) -> Response:
         stored = store.get(manufacturing_result_id)
-        if stored is None or stored.preview_glb_bytes is None:
+        if stored is None:
             raise WebError("artifact_not_found", "三维预览不存在或已经过期，请重新检查并生成。")
+        with stored.artifact_lock:
+            if stored.preview_glb_bytes is None:
+                stored.preview_glb_bytes = export_preview_glb(stored.result.mesh_result)
         return Response(stored.preview_glb_bytes, media_type="model/gltf-binary",
                         headers={"Cache-Control": "no-store"})
 

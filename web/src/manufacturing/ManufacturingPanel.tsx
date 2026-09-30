@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import type { ManufacturingBuildResult } from '../api/manufacturing'
 import type { ManufacturingStatus } from './useManufacturing'
 import { StlExportButton } from './StlExportButton'
@@ -23,6 +24,14 @@ const labels: Record<ManufacturingStatus, string> = {
 
 export function ManufacturingPanel(props: Props) {
   const { result, status } = props
+  const [elapsedSeconds, setElapsedSeconds] = useState(0)
+  useEffect(() => {
+    if (status !== 'building') return
+    const started = performance.now()
+    setElapsedSeconds(0)
+    const timer = window.setInterval(() => setElapsedSeconds((performance.now() - started) / 1000), 100)
+    return () => window.clearInterval(timer)
+  }, [status])
   const geometry = result?.geometry_validation_summary
   const mesh = result?.mesh_validation_summary
   const conversion = result?.conversion_summary
@@ -44,6 +53,9 @@ export function ManufacturingPanel(props: Props) {
     </div>
     {!props.validHeight && <p className="manufacturing-error" role="alert">厚度必须大于 0 mm。</p>}
     <div className={`manufacturing-status ${status}`} role="status">{labels[status]}</div>
+    {status === 'building' && <p className="manufacturing-progress">
+      处理流程：二维几何检查 → 制造几何转换 → 3D 模型生成 → Mesh 检查 · 已用 {elapsedSeconds.toFixed(1)} 秒
+    </p>}
     {props.error && <p className="manufacturing-error" role="alert">{props.error}</p>}
     {result && <div className="manufacturing-report">
       <small className="manufacturing-result-id">结果编号：{result.manufacturing_result_id}</small>

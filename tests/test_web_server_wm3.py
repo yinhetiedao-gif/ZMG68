@@ -1,7 +1,6 @@
 """WM3 HTTP boundary tests; no browser, database, or Tk application."""
 from __future__ import annotations
 
-import hashlib
 import io
 import math
 import numpy as np
@@ -127,8 +126,9 @@ class WebServerWM3Tests(unittest.TestCase):
             self.assertEqual(stl.status_code, 200)
             self.assertEqual(stl.headers["content-type"], "model/stl")
             self.assertIn(".stl", stl.headers["content-disposition"])
-            self.assertEqual(hashlib.sha256(stl.content).hexdigest(), body["artifacts"][0]["sha256"])
-            self.assertEqual(len(stl.content), body["artifacts"][0]["byte_size"])
+            self.assertIsNone(body["artifacts"][0]["sha256"])
+            self.assertIsNone(body["artifacts"][0]["byte_size"])
+            self.assertEqual(stl.content, client.get("/api/v1/manufacturing/%s/model.stl" % result_id).content)
             preview = client.get("/api/v1/manufacturing/%s/preview.glb" % result_id)
             self.assertEqual(preview.status_code, 200)
             self.assertEqual(preview.headers["content-type"], "model/gltf-binary")

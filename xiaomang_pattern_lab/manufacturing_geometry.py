@@ -17,7 +17,7 @@ from ppg.foundation.region_geometry import filled_region_polygons
 
 from .connectivity import final_material_polygons, polygons_touch_or_overlap
 from .evaluation import evaluate_pattern_document
-from .geometry_validation import GeometryValidator
+from .geometry_validation import GeometryValidationReport, GeometryValidator
 
 
 Point = tuple[float, float]
@@ -87,8 +87,16 @@ class ManufacturingGeometryAdapter:
     def adapt_document(self, document: PatternDocument) -> ManufacturingConversionResult:
         """Evaluate once, then adapt only the transient final result to millimetres."""
 
+        return self.adapt_evaluated_document(document, evaluate_pattern_document(document))
+
+    def adapt_evaluated_document(
+        self, document: PatternDocument, final_elements: Iterable[Element],
+        *, validation_report: GeometryValidationReport | None = None,
+    ) -> ManufacturingConversionResult:
+        """Reuse a caller's final geometry while preserving document scale/missing-mm semantics."""
+
+        final_elements = tuple(final_elements)
         scale = _mm_per_world_unit(document)
-        final_elements = evaluate_pattern_document(document)
         if scale is None:
             skips = tuple(
                 ManufacturingSkip(element.id, "missing_mm_mapping", "画布没有毫米映射，不能生成制造几何。")
@@ -100,10 +108,14 @@ class ManufacturingGeometryAdapter:
                 warnings=("当前 Canvas 未声明 mm 或 mm_per_unit；未猜测制造尺寸。",),
             )
             return ManufacturingConversionResult(Manufacturing2DGeometry((), "mm", None), report)
-        return self.adapt_elements(final_elements, mm_per_world_unit=scale)
+        # Gate T can be reused only when its world-space epsilon is identical.
+        same_epsilon = math.isclose(self.epsilon_mm / scale, 1e-6, rel_tol=0.0, abs_tol=1e-15)
+        return self.adapt_elements(final_elements, mm_per_world_unit=scale,
+                                   validation_report=validation_report if same_epsilon else None)
 
     def adapt_elements(
         self, final_elements: Iterable[Element], *, mm_per_world_unit: float = 1.0,
+        validation_report: GeometryValidationReport | None = None,
     ) -> ManufacturingConversionResult:
         """Adapt an already-evaluated final element sequence without mutating it."""
 
@@ -113,7 +125,7 @@ class ManufacturingGeometryAdapter:
         visible = [element for element in final_elements if element.visible]
         epsilon_world = self.epsilon_mm / scale
         tolerance_world = self.curve_tolerance_mm / scale
-        validation = GeometryValidator(epsilon=epsilon_world).validate_elements(visible)
+        validation = validation_report or GeometryValidator(epsilon=epsilon_world).validate_elements(visible)
         invalid_ids = {issue.element_id for issue in validation.issues if issue.severity == "error"}
         output: list[ManufacturingPolygon] = []
         converted_ids: list[str] = []

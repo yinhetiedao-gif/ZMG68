@@ -82,6 +82,7 @@ describe('P2 web manufacturing derived workflow', () => {
     expect(api.builds).toHaveLength(0)
     fireEvent.change(screen.getByLabelText('厚度 mm'), { target: { value: '2' } })
     fireEvent.click(screen.getByRole('button', { name: '检查并生成' }))
+    expect(screen.getByText(/处理流程：二维几何检查.*已用/)).toBeInTheDocument()
     api.finish(0)
     expect(await screen.findByText('模型已生成')).toBeInTheDocument()
     fireEvent.change(screen.getByLabelText('厚度 mm'), { target: { value: '3' } })

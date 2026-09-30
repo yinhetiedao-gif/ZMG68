@@ -17,8 +17,11 @@ from pathlib import Path
 from typing import Any
 
 from .manufacturing_backend import ManufacturingBuildResult, ManufacturingMeshResult
-from .manufacturing_geometry import ManufacturingConversionResult
+from .manufacturing_backend import TrimeshBackend
+from .manufacturing_geometry import ManufacturingConversionResult, ManufacturingGeometryAdapter
 from .mesh_validation import MeshValidationReport
+from .geometry_validation import GeometryValidator
+from .connectivity import ConnectivityAnalyzer
 
 
 def parse_height_mm(value: str | float) -> float:
@@ -80,13 +83,16 @@ class ManufacturingService:
         height = parse_height_mm(height_mm)
         before = self._state(session)
         try:
-            geometry = session.validate_final_geometry()
-            connectivity = session.analyze_connectivity()
-            conversion = session.adapt_manufacturing_geometry()
+            document = session.require_document()
+            final_elements = session.evaluate_elements()
+            geometry = GeometryValidator().validate_elements(final_elements)
+            connectivity = ConnectivityAnalyzer().analyze_elements(final_elements, validation_report=geometry)
+            conversion = ManufacturingGeometryAdapter().adapt_evaluated_document(
+                document, final_elements, validation_report=geometry)
             build = None
             mesh = None
             if geometry.error_count == 0 and conversion.report.converted_count and not conversion.report.skipped_invalid_count:
-                build = session.build_manufacturing_mesh(height_mm=height)
+                build = ManufacturingBuildResult(conversion, TrimeshBackend().extrude(conversion.geometry, height))
                 mesh = session.validate_manufacturing_mesh(build.mesh_result)
         finally:
             self._assert_read_only(session, before)

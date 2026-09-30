@@ -1,5 +1,14 @@
 # Gate 状态（2026-09-30）
 
+## PERF-1 — Web「检查并生成」耗时优化（2026-09-30）
+
+- 状态：PASS。基线 `847a911`，保护分支 `backup/pre-perf1-manufacturing`。本轮不改变制造几何或验证门槛，不进入 Fabric。
+- 真实阶段测量显示：169 元素图案旧版暖机 build/store 约 522–540 ms，其中 Mesh Validation 约 195–227 ms，提前 STL 导出约 190–197 ms（包含重复 Mesh Validation）。优化后首次约 281–333 ms；阶段约为 evaluate 1 ms、二维验证 0.2 ms、连通性 5–7 ms、adapter 7–10 ms、extrusion 57–67 ms、Mesh Validation 199–227 ms，STL/GLB 准备均为 0。Mesh Validation 是剩余最大必要耗时，未跳过。简单矩形暖机由约 4.7 ms 降至约 2.9–3.8 ms；实物打印图案由约 13–14 ms 降至约 7.8–10.5 ms。首次简单模型可能因三角剖分依赖首次加载额外耗时，未将其算作算法退化。
+- 一次 build 只求值、Gate T 验证、连通性分析、制造几何适配、extrusion、Gate W 验证各一次。`/manufacturing/build` 不再预制 STL、GLB、哈希或重复验证；下载 STL / 请求 GLB 时才从同一已缓存且验证过的 Mesh 懒生成，各 artifact 单次缓存。
+- 相同完整 Document DTO + revision + thickness 命中进程内带 TTL 的结果缓存，直接复用 `manufacturing_result_id`；以完整 DTO 参与键值，避免 revision 不变但内容不同误命中。169 元素 HTTP 实测首请求 395.57 ms、同请求再次 17.16 ms。进程重启/TTL/容量淘汰后重新生成；并发的首次相同请求尚未做 single-flight 合并。
+- Web 构建期间显示阶段说明与实际已耗时间；不伪造后端实时阶段进度。CPU 密集文档解析与 build 在 FastAPI threadpool，artifact 路由为同步 threadpool，不阻塞事件循环。
+- 真实打印图案导出的新 STL 与既有物理验证样本字节一致（5484 B，SHA-256 `1d846c4bf8f8086862ae1efce578ef60fba5582043fbbea6ec84496ef062f7e3`）；bounds/组件/封闭性不变。Web 101/101 PASS、build PASS、Python full regression 368/368 PASS（exit 0）、固定图案 6/6 PASS。既有 Tk `ThemeChanged` 清理提示仍可出现，但不导致测试失败。
+
 ## Web STL 导出入口补全（2026-09-30）
 
 - 状态：PASS。基线 `b663866` / `backup/p3-web-alpha-final`，预变更快照 `backup/pre-web-stl-entry`。本轮仅调整 Web UI 入口和共用下载控件，Python 制造算法、API、STL 文件内容均未修改。

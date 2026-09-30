@@ -16,7 +16,7 @@ from ppg.foundation.models import Element, FilledRegionElement, PathElement, Pat
 from ppg.foundation.region_geometry import element_polygons, filled_region_polygons
 
 from .evaluation import evaluate_pattern_document
-from .geometry_validation import GeometryValidator
+from .geometry_validation import GeometryValidationReport, GeometryValidator
 
 
 Point = tuple[float, float]
@@ -63,9 +63,11 @@ class ConnectivityAnalyzer:
 
         return self.analyze_elements(evaluate_pattern_document(document))
 
-    def analyze_elements(self, elements: Iterable[Element]) -> ConnectivityReport:
+    def analyze_elements(
+        self, elements: Iterable[Element], *, validation_report: GeometryValidationReport | None = None,
+    ) -> ConnectivityReport:
         final_elements = [element for element in elements if element.visible]
-        validation = GeometryValidator(epsilon=self.epsilon).validate_elements(final_elements)
+        validation = validation_report or GeometryValidator(epsilon=self.epsilon).validate_elements(final_elements)
         invalid_ids = {issue.element_id for issue in validation.issues if issue.severity == "error"}
         units: list[_GeometryUnit] = []
         skipped = 0

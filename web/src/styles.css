@@ -125,6 +125,7 @@ button { font: inherit; }
 .manufacturing-status { margin: 18px 0; padding: 10px 12px; background: #eef5f8; border-radius: 6px; font-size: 12px; }
 .manufacturing-status.warning, .manufacturing-status.stale { background: #fff3df; }
 .manufacturing-status.error, .manufacturing-error { color: #9d3934; background: #ffefed; }
+.manufacturing-progress { margin: -9px 0 13px; color: #617888; font-size: 12px; }
 .manufacturing-error { padding: 9px 12px; border-radius: 6px; font-size: 12px; }
 .manufacturing-report dl { display: grid; gap: 0; margin: 0; }
 .manufacturing-result-id { display: block; margin-bottom: 8px; color: #8496a1; font-size: 10px; overflow-wrap: anywhere; }

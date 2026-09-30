@@ -2,8 +2,8 @@
 from __future__ import annotations
 
 from collections import OrderedDict
-from dataclasses import dataclass
-from threading import RLock
+from dataclasses import dataclass, field
+from threading import Lock, RLock
 from time import monotonic
 from typing import Any
 
@@ -12,12 +12,13 @@ MAX_MANUFACTURING_RESULTS = 32
 MANUFACTURING_RESULT_TTL_SECONDS = 30 * 60
 
 
-@dataclass(frozen=True)
+@dataclass
 class StoredManufacturingResult:
     result: Any
     response: dict[str, Any]
-    stl_bytes: bytes
+    stl_bytes: bytes | None = None
     preview_glb_bytes: bytes | None = None
+    artifact_lock: Any = field(default_factory=Lock, repr=False, compare=False)
 
 
 class InMemoryManufacturingResultStore:
