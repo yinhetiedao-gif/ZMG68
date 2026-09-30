@@ -1,4 +1,16 @@
-# Gate 状态（2026-09-19）
+# Gate 状态（2026-09-30）
+
+## Web P1-D — 效果堆栈接入（2026-09-30）
+
+- 状态：PASS；仅接入现有 Python 效果算法，未进入 P1-E。Web 可在现有场图中新增、删除、启停尺寸/旋转效果层，绑定任一已有场，并通过 Python 参数 Schema 编辑其参数；现有有序堆栈增加位置/变形层及模式相关参数编辑。已有选中元素的形状替换入口归入效果区，仍使用原 Placement 替换数据，不伪装为新的有序算法层。
+- 求值边界：场驱动尺寸/旋转层依 `PatternDocument.modifiers` 顺序执行，位置层依已有 `SharedModifierStack` 执行；两个既有阶段之间不支持跨组拖拽排序。React 只修改 DTO，最终几何由 Python Evaluate 生成；同一 Wave 场可同时绑定尺寸和旋转层。随机/占用未扩展。
+- 编辑边界：新增、删除、启停、字段绑定、参数修改各提交一次，产生一条 Undo；滑杆移动只更新暂态值，松开才提交一次、修订号加一、Evaluate 一次。位置层首次启用保存原始元素快照，后续编辑不覆盖源数据。
+- 验证：Web Vitest 77/77 PASS，TypeScript/Vite build PASS，Python 新增及 Schema 定向 5/5 PASS，完整 Python unittest 361/361 PASS（退出码 0），固定图 6/6 PASS，Tk smoke 2/2 PASS。真实 Edge 浏览器加载实物验证工程（3 元素），新增旋转/位置层、位置 X 滑杆 +10 mm、Undo 恢复均通过；滑动阶段零次 Evaluate，松开一次；致命浏览器错误 0。
+- 已知非阻塞项：Vite 开发服务器请求缺失 `favicon.ico` 返回 404；完整 Python 回归仍可能打印 Tk `ThemeChanged` 销毁警告，但没有 `main thread is not in main loop` 或 `Tcl_AsyncDelete`，进程正常退出。详细入口与源码回退点以本 Gate 提交及 `backup/p1d-modifier-stack-final` 为准。
+
+## P1-C 冻结复验（2026-09-30）
+
+- 在进入 P1-D 前重新执行：Field/Schema 定向 6/6、Web 74/74、前端 build、完整 Python 359/359，均 PASS 且完整回归退出码 0；既有 `backup/p1c-field-system-final` 指向已修复 Tk 测试清理的稳定提交。未修改 P1-C Field 算法。
 
 ## Tk Variable 测试清理修复 / P1-C 最终验收（2026-09-30）
 

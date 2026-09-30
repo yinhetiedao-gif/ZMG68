@@ -19,6 +19,8 @@ export type EditAction =
   | { kind: 'field_remove'; id: string }
   | { kind: 'field_enabled'; id: string; enabled: boolean }
   | { kind: 'field_binding'; id: string; fieldId: string }
+  | { kind: 'modifier_add'; modifierType: 'size' | 'rotation' | 'position' }
+  | { kind: 'modifier_remove'; lane: 'scalar' | 'stack'; id: string }
 
 function NumericControl({ spec, value, onCommit, sliderMax = spec.max }: {
   spec: NumericSpec; value: number; onCommit: (value: number) => void; sliderMax?: number
@@ -67,6 +69,14 @@ const fieldLabel: Record<string, string> = {
 const modifierLabel: Record<string, string> = {
   size: '尺寸', rotation: '旋转', position: '位置/变形', field_position: '场位移', density: '密度',
 }
+const positionParameterKeys: Record<string, string[]> = {
+  offset: ['mode', 'offset_x', 'offset_y', 'strength'],
+  attractor: ['mode', 'center_x', 'center_y', 'amount', 'radius', 'strength', 'falloff'],
+  repeller: ['mode', 'center_x', 'center_y', 'amount', 'radius', 'strength', 'falloff'],
+  radial_push: ['mode', 'center_x', 'center_y', 'amount', 'radius', 'strength', 'falloff'],
+  twist: ['mode', 'center_x', 'center_y', 'angle', 'radius', 'strength', 'falloff'],
+  wave: ['mode', 'center_x', 'center_y', 'angle', 'amount', 'wavelength', 'phase', 'radius', 'strength', 'falloff'],
+}
 
 export function InspectorControls({ dto, selected, onEdit, disabled, parameterCatalog = null,
   layoutSelection = null, layoutDraft = null, layoutBusy = false, onLayoutDraftEdit,
@@ -112,14 +122,6 @@ export function InspectorControls({ dto, selected, onEdit, disabled, parameterCa
         return <NumericControl key={spec.key} spec={spec} value={value} sliderMax={sliderMax}
           onCommit={(next) => onEdit({ kind: 'element', id: selected.id, key: spec.key, value: next })} />
       }) : <p className="inspector-readonly">派生元素或含效果的源元素仅可查看；不会猜测反向映射。</p>}
-      {placement && <div className="shape-replacement">
-        <label htmlFor="shape-replacement">形状替换</label>
-        <select id="shape-replacement" value={String(replacements[selected.id] ?? '')}
-          onChange={(event) => onEdit({ kind: 'shape', id: selected.id, key: 'prototype', value: event.target.value })}>
-          <option value="">保持原形</option>
-          {Object.keys(prototypes).map((id) => <option key={id} value={id}>{id}</option>)}
-        </select>
-      </div>}
     </section>}
 
     {layoutSelection && <section className="inspector-section" aria-label="布局参数">
@@ -165,7 +167,7 @@ export function InspectorControls({ dto, selected, onEdit, disabled, parameterCa
         <button type="button" disabled={!chosenType}
           onClick={() => onEdit({ kind: 'field_add', fieldType: chosenType })}>＋ 添加参数场</button>
       </div>
-      <p className="inspector-readonly">参数场须由已有尺寸或旋转效果层引用才会改变图案；本阶段不新增效果层。</p>
+      <p className="inspector-readonly">参数场由下方效果层引用后才会改变图案；同一参数场可驱动多个效果层。</p>
       {fields.length > 0 && <label className="field-picker">选择已有参数场
         <select value={String(activeField?.id ?? '')} onChange={(event) => onSelectField?.(event.target.value)}>
           {fields.map((field) => <option key={String(field.id)} value={String(field.id)}>
@@ -198,9 +200,18 @@ export function InspectorControls({ dto, selected, onEdit, disabled, parameterCa
       })()}
     </section>
 
-    {(scalarModifiers(dto).length > 0 || stackModifiers(dto).length > 0) &&
-      <section className="inspector-section" aria-label="效果堆栈">
+    <section className="inspector-section" aria-label="效果堆栈">
         <h3>MODIFIERS / 效果堆栈</h3>
+        <div className="modifier-actions">
+          <button type="button" disabled={!fields.length || !groupFor(parameterCatalog, 'modifier', 'size')}
+            onClick={() => onEdit({ kind: 'modifier_add', modifierType: 'size' })}>＋ 尺寸</button>
+          <button type="button" disabled={!fields.length || !groupFor(parameterCatalog, 'modifier', 'rotation')}
+            onClick={() => onEdit({ kind: 'modifier_add', modifierType: 'rotation' })}>＋ 旋转</button>
+          <button type="button" disabled={!groupFor(parameterCatalog, 'modifier', 'position')}
+            onClick={() => onEdit({ kind: 'modifier_add', modifierType: 'position' })}>＋ 位置/变形</button>
+        </div>
+        {!fields.length && <p className="inspector-readonly">先添加参数场，即可新增尺寸或旋转效果层。</p>}
+        <p className="inspector-readonly">求值顺序：场驱动层 → 有序变形层。当前引擎不支持跨组拖动排序。</p>
         {scalarModifiers(dto).map((modifier) => {
           const id = String(modifier.id)
           const type = String(modifier.type)
@@ -228,6 +239,7 @@ export function InspectorControls({ dto, selected, onEdit, disabled, parameterCa
             {type === 'density' && typeof modifier.threshold === 'number' &&
               <NumericControl spec={{ key: 'threshold', label: '阈值', min: 0, max: 1, step: 0.01 }}
                 value={modifier.threshold} onCommit={(next) => onEdit({ kind: 'scalar', id, key: 'threshold', value: next })} />}
+            <button type="button" onClick={() => onEdit({ kind: 'modifier_remove', lane: 'scalar', id })}>删除效果层</button>
           </div>
         })}
         {stackModifiers(dto).map((modifier) => {
@@ -238,12 +250,28 @@ export function InspectorControls({ dto, selected, onEdit, disabled, parameterCa
             <label className="parameter-toggle"><input type="checkbox" checked={modifier.enabled !== false}
               onChange={(event) => onEdit({ kind: 'stack', id, key: 'enabled', value: event.target.checked })} />
               {modifierLabel[type] ?? type} · {id}</label>
-            {type === 'position' ? POSITION_SPECS.filter((item) => typeof parameters[item.key] === 'number').map((item) =>
-              <NumericControl key={item.key} spec={item} value={Number(parameters[item.key])}
-                onCommit={(next) => onEdit({ kind: 'stack', id, key: item.key, value: next })} />)
+            {type === 'position' && groupFor(parameterCatalog, 'modifier', 'position')
+              ? <ParameterPanel group={{ ...groupFor(parameterCatalog, 'modifier', 'position')!,
+                parameters: groupFor(parameterCatalog, 'modifier', 'position')!.parameters.filter((item) =>
+                  (positionParameterKeys[String(parameters.mode ?? 'offset')] ?? positionParameterKeys.offset).includes(item.id)) }}
+                values={parameters} onCommit={(key, value) =>
+                  onEdit({ kind: 'stack', id, key, value })} />
+              : type === 'position' ? POSITION_SPECS.filter((item) => typeof parameters[item.key] === 'number').map((item) =>
+                <NumericControl key={item.key} spec={item} value={Number(parameters[item.key])}
+                  onCommit={(next) => onEdit({ kind: 'stack', id, key: item.key, value: next })} />)
               : <small>此有序层可启用/停用；详细参数暂由桌面版编辑。</small>}
+            <button type="button" onClick={() => onEdit({ kind: 'modifier_remove', lane: 'stack', id })}>删除效果层</button>
           </div>
         })}
-      </section>}
+        {placement && selected && <div className="modifier-card shape-replacement">
+          <label htmlFor="shape-replacement">形状替换 · {selected.id}</label>
+          <select id="shape-replacement" value={String(replacements[selected.id] ?? '')}
+            onChange={(event) => onEdit({ kind: 'shape', id: selected.id, key: 'prototype', value: event.target.value })}>
+            <option value="">保持原形</option>
+            {Object.keys(prototypes).map((id) => <option key={id} value={id}>{id}</option>)}
+          </select>
+          <small>形状分配在效果层前执行，仅替换当前选中元素，不修改原始元素。</small>
+        </div>}
+    </section>
   </fieldset>
 }

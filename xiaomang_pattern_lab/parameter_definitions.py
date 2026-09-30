@@ -105,6 +105,21 @@ def parameter_definitions() -> dict[str, Any]:
                 _p("max_output", "最大输出", "number", 1, min=-10000, max=10000, step=0.1, unit="°"),
                 _p("strength", "作用强度", "number", 1, min=0, max=1, step=0.01),
                 _p("falloff", "衰减", "number", 1, min=0.01, max=20, step=0.1)]},
+            "position": {"label": "位置／变形", "parameters": [
+                _p("mode", "变形方式", "select", "offset", options=[
+                    {"value": "offset", "label": "整体偏移"},
+                    {"value": "attractor", "label": "吸引"},
+                    {"value": "repeller", "label": "排斥"},
+                    {"value": "radial_push", "label": "径向推开"},
+                    {"value": "twist", "label": "扭曲"},
+                    {"value": "wave", "label": "波浪位移"}]),
+                _coord("offset_x", "偏移 X"), _coord("offset_y", "偏移 Y"),
+                _coord("center_x", "中心 X"), _coord("center_y", "中心 Y"),
+                _coord("amount", "幅度／距离", 10), _size("radius", "作用半径", 100),
+                angle("angle", "角度", 30), _size("wavelength", "波长", 50),
+                _p("phase", "相位", "number", 0, min=-100, max=100, step=0.1),
+                _p("strength", "强度", "number", 1, min=0, max=1, step=0.01),
+                _p("falloff", "衰减", "number", 1, min=0.01, max=20, step=0.1)]},
         },
     }}
 

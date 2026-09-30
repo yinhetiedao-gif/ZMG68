@@ -10,7 +10,7 @@ import { InspectorControls, type EditAction } from './document/InspectorControls
 import type { ParameterCatalog } from './document/parameterSchema'
 import { currentLayoutFamily, editLayoutDraft, initialLayoutDraft, layoutCommitDocument, type LayoutDraft } from './document/layoutDraft'
 import {
-  addField, bindScalarModifierField, removeField, restoreSnapshot, setFieldEnabled,
+  addField, addModifier, bindScalarModifierField, removeField, removeModifier, restoreSnapshot, setFieldEnabled,
   updateElement, updateField, updateGrid, updateLayout, updateReplacement,
   updateScalarModifier, updateStackModifier,
 } from './document/editor'
@@ -343,7 +343,9 @@ export function App() {
         const added = addField(dto, action.fieldType, parameterCatalog)
         next = added.dto
         setSelectedFieldId(added.id)
-      } else if (action.kind === 'field_remove') {
+      } else if (action.kind === 'modifier_add') next = addModifier(dto, action.modifierType, parameterCatalog)
+      else if (action.kind === 'modifier_remove') next = removeModifier(dto, action.lane, action.id)
+      else if (action.kind === 'field_remove') {
         next = removeField(dto, action.id)
         setSelectedFieldId('')
       } else if (action.kind === 'field_enabled') next = setFieldEnabled(dto, action.id, action.enabled)
@@ -358,8 +360,9 @@ export function App() {
         next = updateField(dto, action.id, action.key, action.value, parameterCatalog)
       } else if (action.kind === 'scalar' && (typeof action.value === 'number' || typeof action.value === 'boolean')) {
         next = updateScalarModifier(dto, action.id, action.key, action.value, parameterCatalog)
-      } else if (action.kind === 'stack' && (typeof action.value === 'number' || typeof action.value === 'boolean')) {
-        next = updateStackModifier(dto, action.id, action.key, action.value)
+      } else if (action.kind === 'stack' &&
+        (typeof action.value === 'number' || typeof action.value === 'boolean' || typeof action.value === 'string')) {
+        next = updateStackModifier(dto, action.id, action.key, action.value, parameterCatalog)
       } else if (action.kind === 'shape' && typeof action.value === 'string') {
         next = updateReplacement(dto, action.id, action.value)
       } else throw new Error('不支持的编辑操作。')

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { PatternDocumentDTO } from '../model/types'
 import {
-  addField, bindScalarModifierField, removeField, restoreSnapshot, setFieldEnabled,
+  addField, addModifier, bindScalarModifierField, removeField, removeModifier, restoreSnapshot, setFieldEnabled,
   updateElement, updateField, updateGrid, updateLayout, updateReplacement,
   updateScalarModifier, updateStackModifier,
 } from './editor'
@@ -113,6 +113,45 @@ describe('WM6 centralized immutable document edits', () => {
     expect(stack.modifiers.map((item) => item.id)).toEqual(['position-1', 'rotation-2'])
     expect(stack.modifiers[0].parameters.offset_x).toBe(8)
     expect(initial.document.modifiers[0].enabled).toBe(true)
+  })
+
+  it('adds and removes existing modifier payloads without mutating source or unrelated layers', () => {
+    const initial = fixture()
+    const definition = (id: string, value: number | string, type: 'number' | 'select' = 'number') => ({
+      id, label: id, type, default: value, value, min: type === 'number' ? -100 : null,
+      max: type === 'number' ? 100 : null, step: type === 'number' ? 1 : null,
+      unit: '', options: type === 'select' ? [{ value: 'offset', label: '整体偏移' }] : [],
+    })
+    const catalog: ParameterCatalog = { schema_version: '1.0', units: 'mm', definitions: {
+      layout: {}, field: {}, modifier: {
+        size: { label: '尺寸', parameters: [definition('min_output', .5), definition('max_output', 1.5)] },
+        rotation: { label: '旋转', parameters: [definition('min_output', -30), definition('max_output', 30)] },
+        position: { label: '位置', parameters: [definition('mode', 'offset', 'select'), definition('offset_x', 0), definition('offset_y', 0)] },
+      },
+    } }
+    const size = addModifier(initial, 'size', catalog)
+    const rotation = addModifier(size, 'rotation', catalog)
+    const positioned = addModifier(rotation, 'position', catalog)
+    expect(positioned.document.modifiers.map((item) => item.id)).toEqual(['size-1', 'rotate-1', 'size-2', 'rotation-1'])
+    expect(positioned.document.modifiers.at(-2)).toMatchObject({ type: 'size', field_id: 'wave-1', mapping: { min_output: .5 } })
+    expect(positioned.document.modifiers.at(-1)).toMatchObject({ type: 'rotation', field_id: 'wave-1' })
+    const stack = positioned.document.metadata['xiaomang_pattern_lab.shared_modifiers'] as {
+      source_elements: unknown[]; modifiers: Array<{ id: string; type: string; parameters: { mode: string; offset_x: number } }>
+    }
+    expect(stack.modifiers.map((item) => item.id)).toEqual(['position-1', 'rotation-2', 'position-2'])
+    expect(stack.source_elements).toEqual(initial.document.elements)
+    expect(stack.source_elements).not.toBe(initial.document.elements)
+    expect(initial.document.metadata['xiaomang_pattern_lab.shared_modifiers']).toBeDefined()
+    const moved = updateStackModifier(positioned, 'position-2', 'offset_x', 5, catalog)
+    expect((moved.document.metadata['xiaomang_pattern_lab.shared_modifiers'] as typeof stack).modifiers.at(-1)?.parameters.offset_x).toBe(5)
+    expect(() => updateStackModifier(positioned, 'position-2', 'mode', 'invalid', catalog)).toThrow()
+    const withoutSize = removeModifier(moved, 'scalar', 'size-2')
+    expect(withoutSize.document.modifiers.map((item) => item.id)).toEqual(['size-1', 'rotate-1', 'rotation-1'])
+    const withoutPosition = removeModifier(withoutSize, 'stack', 'position-2')
+    expect((withoutPosition.document.metadata['xiaomang_pattern_lab.shared_modifiers'] as typeof stack).modifiers.map((item) => item.id))
+      .toEqual(['position-1', 'rotation-2'])
+    expect(withoutPosition.document.elements).toBe(initial.document.elements)
+    expect(initial.document.modifiers).toHaveLength(2)
   })
 
   it('keeps both persisted grid aliases synchronized and protects custom basis length', () => {

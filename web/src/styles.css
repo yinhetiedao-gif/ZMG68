@@ -179,6 +179,9 @@ button { font: inherit; }
 .parameter-toggle { display: flex; align-items: center; gap: 6px; color: #4b6c80; font-size: 11px; line-height: 1.4; }
 .parameter-toggle input { accent-color: #4685a0; }
 .modifier-card { margin-bottom: 12px; padding: 9px; border: 1px solid #dce7ec; border-radius: 7px; background: #fff; }
+.modifier-actions { display: flex; flex-wrap: wrap; gap: 5px; margin: 8px 0 10px; }
+.modifier-actions button, .modifier-card button { border: 1px solid #c9d9e1; border-radius: 5px; padding: 6px 8px; color: #31566c; background: #f2f7f9; font-size: 11px; cursor: pointer; }
+.modifier-actions button:disabled { opacity: .55; cursor: default; }
 .modifier-card small { display: block; margin: 5px 0 9px; color: #8297a3; overflow-wrap: anywhere; }
 .modifier-card .parameter-control:first-of-type { margin-top: 11px; }
 .shape-replacement { margin: 14px 0 2px; }

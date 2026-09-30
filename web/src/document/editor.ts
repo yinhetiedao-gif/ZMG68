@@ -135,6 +135,70 @@ export function bindScalarModifierField(dto: PatternDocumentDTO, modifierId: str
     item.id === modifierId ? { ...item, field_id: fieldId } : item) })
 }
 
+function nextModifierId(dto: PatternDocumentDTO, type: string): string {
+  const stack = asRecord(dto.document.metadata[STACK_KEY])
+  const used = new Set([...dto.document.modifiers, ...(Array.isArray(stack?.modifiers) ? stack.modifiers : [])]
+    .map((item) => String(asRecord(item)?.id ?? '')))
+  let index = 1
+  while (used.has(`${type}-${index}`)) index++
+  return `${type}-${index}`
+}
+
+function modifierDefaults(catalog: ParameterCatalog | null, type: 'size' | 'rotation' | 'position'):
+    Record<string, number | boolean | string> {
+  const group = groupFor(catalog, 'modifier', type)
+  if (!group) throw new DocumentEditError('缺少 Python 效果层参数定义。')
+  const defaults: Record<string, number | boolean | string> = {}
+  for (const definition of group.parameters) {
+    if (!validateParameter(definition, definition.default)) throw new DocumentEditError('Python 效果层默认值无效。')
+    defaults[definition.id] = definition.default
+  }
+  return defaults
+}
+
+export function addModifier(dto: PatternDocumentDTO, type: 'size' | 'rotation' | 'position',
+  catalog: ParameterCatalog | null): PatternDocumentDTO {
+  const parameters = modifierDefaults(catalog, type)
+  const id = nextModifierId(dto, type)
+  if (type === 'size' || type === 'rotation') {
+    const fieldId = String(dto.document.fields[0]?.id ?? '')
+    if (!fieldId) throw new DocumentEditError('请先添加参数场，再添加尺寸或旋转效果层。')
+    return changed(dto, { ...dto.document, modifiers: [...dto.document.modifiers,
+      { id, type, field_id: fieldId, enabled: true, mapping: parameters }] })
+  }
+  const current = asRecord(dto.document.metadata[STACK_KEY])
+  const layers = Array.isArray(current?.modifiers) ? current.modifiers : []
+  // Match the existing Python SharedModifierStack payload; the source snapshot
+  // is captured only on first activation, never regenerated from final geometry.
+  const stack = current ? { ...current,
+    source_elements: Array.isArray(current.source_elements) && current.source_elements.length
+      ? current.source_elements : structuredClone(dto.document.elements),
+  } : {
+    version: 1, enabled: true, source_kind: 'imported_elements',
+    source_elements: structuredClone(dto.document.elements),
+  }
+  return changed(dto, { ...dto.document, metadata: { ...dto.document.metadata,
+    [STACK_KEY]: { ...stack, enabled: true, modifiers: [...layers,
+      { id, type: 'position', enabled: true, parameters,
+        scope: { mode: 'all', invert: false, selected_element_ids: [], center_x: 0,
+          center_y: 0, radius: 50, width: 100, height: 100 } }] },
+  } })
+}
+
+export function removeModifier(dto: PatternDocumentDTO, lane: 'scalar' | 'stack', id: string): PatternDocumentDTO {
+  if (lane === 'scalar') {
+    if (!dto.document.modifiers.some((item) => item.id === id)) throw new DocumentEditError('效果层不存在。')
+    return changed(dto, { ...dto.document,
+      modifiers: dto.document.modifiers.filter((item) => item.id !== id) })
+  }
+  const stack = asRecord(dto.document.metadata[STACK_KEY])
+  const layers = Array.isArray(stack?.modifiers) ? stack.modifiers : []
+  if (!layers.some((item) => asRecord(item)?.id === id)) throw new DocumentEditError('有序效果层不存在。')
+  return changed(dto, { ...dto.document, metadata: { ...dto.document.metadata,
+    [STACK_KEY]: { ...stack, modifiers: layers.filter((item) => asRecord(item)?.id !== id) },
+  } })
+}
+
 export function updateScalarModifier(dto: PatternDocumentDTO, id: string, key: string, value: number | boolean,
   catalog: ParameterCatalog | null = null): PatternDocumentDTO {
   let found = false
@@ -165,7 +229,8 @@ export function updateScalarModifier(dto: PatternDocumentDTO, id: string, key: s
   return changed(dto, { ...dto.document, modifiers })
 }
 
-export function updateStackModifier(dto: PatternDocumentDTO, id: string, key: string, value: number | boolean): PatternDocumentDTO {
+export function updateStackModifier(dto: PatternDocumentDTO, id: string, key: string,
+  value: number | boolean | string, catalog: ParameterCatalog | null = null): PatternDocumentDTO {
   const stack = asRecord(dto.document.metadata[STACK_KEY])
   if (!stack || !Array.isArray(stack.modifiers)) throw new DocumentEditError('有序效果堆栈不存在。')
   let found = false
@@ -178,8 +243,11 @@ export function updateStackModifier(dto: PatternDocumentDTO, id: string, key: st
       if (typeof value !== 'boolean') throw new DocumentEditError('启用状态无效。')
       return { ...layer, enabled: value }
     }
-    if (layer.type !== 'position' || typeof value !== 'number') throw new DocumentEditError('该有序层目前只支持启用状态。')
-    numeric(value, key, POSITION_SPECS)
+    if (layer.type !== 'position') throw new DocumentEditError('该有序层目前只支持启用状态。')
+    if (!catalogValue(catalog, 'modifier', 'position', key, value)) {
+      if (typeof value !== 'number') throw new DocumentEditError('该位置参数需要数字。')
+      numeric(value, key, POSITION_SPECS)
+    }
     return { ...layer, parameters: { ...(asRecord(layer.parameters) ?? {}), [key]: value } }
   })
   if (!found) throw new DocumentEditError('有序效果层不存在。')
