@@ -1,5 +1,12 @@
 # Gate 状态（2026-10-01）
 
+## 169 方块图片的 Shared Field 制造对照（2026-10-01）
+
+- 状态：**已建立真实 JPG 回归并完成安全参数对照；用户遇到的退化面失败尚未复现，根因未确认**。本轮不进入 F3/F4，不修改任何 Field、Manufacturing Adapter、挤出算法或 MeshValidator 阈值。
+- 用户提供的 343×344 JPG 固定为 `tests/fixtures/field_manufacturing_matrix_169.jpg`（SHA-256 `941D82D277E16F6BD2D123339DFEF1181CA8DB64C281D3C0A8273ABF7F2A8F3F`）。现有 Raster → SVG → Faithful Mapping 导入产生 169 个独立 `filled_region`；Web 导入会给此类图片设置尚未确认的临时 `1 mm / SVG unit` 映射，本回归使用相同映射。
+- 同一份导入文档依次测试无 Field、Constant、Linear、Wave、Ring、Stripe、Checker、Spiral、Noise；有 Field 时统一使用 Size Modifier `min_output=0.8, max_output=1.0, strength=1`，厚度 2 mm。9/9 均通过 Evaluate、Gate T、Connectivity、Adapter、Extrusion、Mesh Validation；每项均为 169 个可转换元素、0 跳过、0 退化三角面、0 Mesh 错误。最小三角面面积在 0.116–0.182 mm²。原始轮廓中的方块由闭合曲线表达，单个区域预览采样含大量共线点，但在此安全参数范围内未造成制造失败。新回归连同现有 U.5/V/W 制造测试为 31/31 PASS；未因仅增加测试/记录再运行受既有 Tk teardown 问题影响的全量套件。
+- 这只能否定“该图片配任一 Shared Field 必然失败”，**不能证明用户会话里的参数组合、其他 Modifier、Fabric 配置或原失败 Mesh 没有问题**。仍需当次 `failure_id`/快照（包括 active Fields/Modifiers、manufacturing parameters 和 validation summary）才能定位第一个失败阶段与对应元素/三角面。未据此猜测根因或进行轮廓清理。
+
 ## Web 项目文件入口收敛与制造失败编号（2026-10-01）
 
 - 状态：**定向功能验证通过；完整 Python 回归未验证 PASS**。起点 `bd7f8ab`，预变更保护引用 `backup/pre-web-session-only`。不更新 Last Known Good，不进入新 Fabric Gate。
