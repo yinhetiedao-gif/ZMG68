@@ -4,6 +4,8 @@ import { StlExportButton } from './StlExportButton'
 import { ThreePreview } from './ThreePreview'
 import { fabricUnitCell } from '../document/fabricCell'
 import type { PatternDocumentDTO } from '../model/types'
+import type { FabricDesignPreview } from '../api/fabricPreview'
+import { FabricThreePreview } from './FabricThreePreview'
 
 interface Props {
   result: ManufacturingBuildResult | null
@@ -11,11 +13,19 @@ interface Props {
   projectName: string | null
   isCurrentResult: (resultId: string) => boolean
   document?: PatternDocumentDTO | null
+  fabricPreview?: FabricDesignPreview | null
 }
 
-export function PreviewPanel({ result, status, projectName, isCurrentResult, document }: Props) {
+export function PreviewPanel({ result, status, projectName, isCurrentResult, document, fabricPreview }: Props) {
   const hasCells = Boolean(fabricUnitCell(document ?? null))
   const stlLabel = hasCells ? '导出基底 STL' : undefined
+  const isFabric = Boolean(document?.document.metadata.fabric_config)
+  if (isFabric) return <section className="preview-panel" aria-label="Fabric 设计预览">
+    <div className="preview-header"><div><span className="eyebrow">FABRIC DESIGN PREVIEW</span><h1>3D 设计预览</h1>
+      <p>预览仅用于设计；Fabric STL 尚未开放。</p></div><button type="button" disabled>Fabric STL 尚未开放</button></div>
+    {fabricPreview ? <FabricThreePreview key={fabricPreview.preview_id} plan={fabricPreview} />
+      : <p>设计已变化或尚未预览。请返回 Fabric 页面点击「更新3D预览」。</p>}
+  </section>
   if (!result) return <section className="preview-empty" aria-label="三维预览未就绪">
     <h1>3D 模型</h1>
     <p>{status === 'stale' ? '设计或厚度已变化，旧预览与 STL 已失效。请返回制造模式重新检查并生成。'

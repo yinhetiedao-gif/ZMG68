@@ -2,13 +2,29 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import lru_cache
 import math
 from typing import Any, Mapping
 
 from .fabric_cells import UNIT_CELL_REGISTRY, UnitCellDefinition
 
 
-MAX_PREVIEW_INSTANCES = 10000
+MAX_PREVIEW_INSTANCES = 5000
+
+
+def _preview_indices(total: int):
+    """Select up to the preview cap without changing the underlying design."""
+    if total <= MAX_PREVIEW_INSTANCES:
+        return range(total)
+    last = total - 1
+    denominator = MAX_PREVIEW_INSTANCES - 1
+    return (index * last // denominator for index in range(MAX_PREVIEW_INSTANCES))
+
+
+@lru_cache(maxsize=64)
+def _preview_prototype(cell: UnitCellDefinition):
+    # Mesh is read-only in a FabricInstancePlan. Do not mutate this cached mesh.
+    return UNIT_CELL_REGISTRY.create(cell)
 
 
 @dataclass(frozen=True)
@@ -44,6 +60,24 @@ class FabricInstance:
     rotation_deg: float = 0.0
     scale: float = 1.0
     source_id: str | None = None
+    final_geometry_id: str | None = None
+    scale_x: float = 1.0
+    scale_y: float = 1.0
+    enabled: bool = True
+    base_width_mm: float | None = None
+    base_depth_mm: float | None = None
+
+
+@dataclass(frozen=True)
+class FabricPlacementPoint:
+    final_geometry_id: str
+    source_id: str | None
+    x_mm: float
+    y_mm: float
+    scale_x: float = 1.0
+    scale_y: float = 1.0
+    rotation_deg: float = 0.0
+    enabled: bool = True
 
 
 @dataclass(frozen=True)
@@ -52,6 +86,8 @@ class FabricInstancePlan:
     instances: tuple[FabricInstance, ...]
     bounds_mm: tuple[tuple[float, float, float], tuple[float, float, float]]
     prototype: Any
+    total_count: int = 0
+    skipped_count: int = 0
 
     @property
     def count(self) -> int:
@@ -60,13 +96,21 @@ class FabricInstancePlan:
     def preview_payload(self) -> dict[str, Any]:
         return {"schema_version": "1.0", "kind": "fabric_instance_preview",
                 "cell_type": self.cell.type, "count": self.count,
+                "total_count": self.total_count or self.count,
+                "skipped_count": self.skipped_count,
+                "preview_simplified": (self.total_count or self.count) > self.count,
                 "bounds_mm": self.bounds_mm,
                 "prototype": {"vertices": self.prototype.vertices.tolist(),
                               "faces": self.prototype.faces.tolist()},
                 "instances": [{"id": item.id, "x_mm": item.x_mm, "y_mm": item.y_mm,
                                "z_mm": item.z_mm, "rotation_deg": item.rotation_deg,
-                               "scale": item.scale, "height_mm": item.height_mm,
-                               "cell_type": item.cell_type, "source_id": item.source_id}
+                               "scale": item.scale, "scale_x": item.scale_x,
+                               "scale_y": item.scale_y, "enabled": item.enabled,
+                               "height_mm": item.height_mm, "cell_type": item.cell_type,
+                               "base_width_mm": item.base_width_mm,
+                               "base_depth_mm": item.base_depth_mm,
+                               "source_id": item.source_id,
+                               "final_geometry_id": item.final_geometry_id}
                               for item in self.instances],
                 "manufacturing_status": "preview_only_not_in_stl"}
 
@@ -83,20 +127,55 @@ class FabricPlanner:
         rows = math.floor((top - bottom) / placement.spacing_y_mm + 1e-9)
         if columns < 1 or rows < 1:
             raise ValueError("布点间距大于基底尺寸，无法生成 Unit Cell。")
-        if columns * rows > MAX_PREVIEW_INSTANCES:
-            raise ValueError("Unit Cell 数量超过 F2 预览上限，请增大布点间距。")
-        prototype = UNIT_CELL_REGISTRY.create(cell)
-        instances = tuple(FabricInstance(f"fabric:r{row}:c{column}",
-                          left + (column + .5) * placement.spacing_x_mm,
-                          bottom + (row + .5) * placement.spacing_y_mm, base_top_z,
-                          cell.type, cell.height_mm)
-                          for row in range(rows) for column in range(columns))
-        xs = [item.x_mm for item in instances]
-        ys = [item.y_mm for item in instances]
-        bounds = ((min(xs) - cell.width_mm / 2, min(ys) - cell.depth_mm / 2, base_top_z),
-                  (max(xs) + cell.width_mm / 2, max(ys) + cell.depth_mm / 2,
+        prototype = _preview_prototype(cell)
+        total = columns * rows
+        instances = tuple(FabricInstance(f"fabric:r{index // columns}:c{index % columns}",
+                          left + (index % columns + .5) * placement.spacing_x_mm,
+                          bottom + (index // columns + .5) * placement.spacing_y_mm, base_top_z,
+                          cell.type, cell.height_mm,
+                          base_width_mm=cell.width_mm, base_depth_mm=cell.depth_mm)
+                          for index in _preview_indices(total))
+        bounds = ((left + placement.spacing_x_mm / 2 - cell.width_mm / 2,
+                   bottom + placement.spacing_y_mm / 2 - cell.depth_mm / 2, base_top_z),
+                  (left + (columns - .5) * placement.spacing_x_mm + cell.width_mm / 2,
+                   bottom + (rows - .5) * placement.spacing_y_mm + cell.depth_mm / 2,
                    base_top_z + cell.height_mm))
-        return FabricInstancePlan(cell, instances, bounds, prototype)
+        return FabricInstancePlan(cell, instances, bounds, prototype, total_count=total)
+
+    def plan_points(self, points: list[FabricPlacementPoint], base_top_z: float,
+                    cell: UnitCellDefinition) -> FabricInstancePlan:
+        if not math.isfinite(base_top_z) or base_top_z <= 0:
+            raise ValueError("Fabric Base 顶部高度无效。")
+        valid = [point for point in points
+                 if point.enabled and isinstance(point.final_geometry_id, str) and point.final_geometry_id
+                 and all(type(value) in (int, float) and math.isfinite(value)
+                         for value in (point.x_mm, point.y_mm, point.scale_x,
+                                       point.scale_y, point.rotation_deg))
+                 and point.scale_x > 0 and point.scale_y > 0]
+        if not valid:
+            raise ValueError("当前最终二维几何没有可用于布点的有效元素。")
+        total = len(valid)
+        instances = tuple(FabricInstance(f"fabric:final:{point.final_geometry_id}",
+                          point.x_mm, point.y_mm, base_top_z, cell.type, cell.height_mm,
+                          rotation_deg=point.rotation_deg, source_id=point.source_id,
+                          final_geometry_id=point.final_geometry_id,
+                          scale_x=point.scale_x, scale_y=point.scale_y,
+                          base_width_mm=cell.width_mm, base_depth_mm=cell.depth_mm)
+                          for point in (valid[index] for index in _preview_indices(total)))
+        extents = []
+        for point in valid:
+            angle = math.radians(point.rotation_deg)
+            half_width = cell.width_mm * point.scale_x / 2
+            half_depth = cell.depth_mm * point.scale_y / 2
+            dx = abs(math.cos(angle)) * half_width + abs(math.sin(angle)) * half_depth
+            dy = abs(math.sin(angle)) * half_width + abs(math.cos(angle)) * half_depth
+            extents.append((point.x_mm - dx, point.y_mm - dy,
+                            point.x_mm + dx, point.y_mm + dy))
+        bounds = ((min(item[0] for item in extents), min(item[1] for item in extents), base_top_z),
+                  (max(item[2] for item in extents), max(item[3] for item in extents),
+                   base_top_z + cell.height_mm))
+        return FabricInstancePlan(cell, instances, bounds, _preview_prototype(cell),
+                                  total_count=total, skipped_count=len(points) - total)
 
 
 def plan_from_fabric_config(config, manufacturing_bounds_mm):

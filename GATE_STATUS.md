@@ -1,5 +1,16 @@
 # Gate 状态（2026-10-01）
 
+## F2.5 Fabric 预览稳定化与布点方式（2026-10-01）
+
+- 状态：**实现与定向验证完成；全量 Python 回归未正常退出，因此 F2.5 尚未验收 PASS、尚未提交或建立最终稳定备份**。开发分支 `feature/f2-5-fabric-stabilization`；F2 稳定点 `backup/f2-unit-cell-library-final` 保持不变。当前修改不进入 F3。
+- 新预览 API 直接由最终二维几何建立 `FabricInstancePlan`，复用单个 Unit Cell 原型和浏览器 `InstancedMesh`；预览不调用 Fabric 完整制造、Boolean、Mesh Validation、GLB/STL。`Area Fill` 保留规则采样；`Pattern Points` 对每个有效最终元素取世界毫米坐标的代表点，真实 169 方块 JPG 得到 169 个实例。预览最多均匀显示 5000 个实例，超限只简化显示，不回写布点参数。
+- 浏览器实测 169 方块项目：100 / 400 / 1024 / 5041 总布点均可请求独立预览；修正采样前 5041 的预览只显示 2521，现已增加回归确保显示 5000 / 5041。浏览器单原型实例创建：100=10.0 ms、400=9.9 ms、1024=11.1 ms；5041 的旧采样结果为 2521=10.9 ms，新 5000 显示量尚未在重启后端的浏览器复测。浏览器致命 Console error 0。Fabric STL 按钮禁用且说明尚未开放；普通制造/STL 路径保持。
+- 同机单次 profiler：真实 169 项目原完整 Fabric 制造前置路径 2777.5 ms（基底构建+挤出 1105.9 ms、Mesh Validation 1491.0 ms 为主要耗时），独立预览 311.9 ms（含首次原型/求值）；此前另一次机器负载下测得 7538.4 ms 对 540.4 ms。用户报告的 111 秒失败现场未提供，**不能声称已复现或根治**。100/400/1000/5000 计划构建约 0.17/0.47/1.06/5.72 ms，序列化约 0.22/0.60/1.36/6.81 ms。
+- 169 JPG 的 Shared Field 制造矩阵（无 Field、Constant、Linear、Wave、Ring、Stripe、Checker、Spiral、Noise）9/9 在统一安全参数下通过；未复现用户原退化面，公共根因仍待失败快照。F1/F2/F2.5 Python 定向 16/16 PASS；普通 Web 制造、STL 与 169 Field 矩阵定向 12/12 PASS；Web 112/112 PASS、构建 PASS，固定图案 6/6 PASS。全量 Python 两次均在既有 Tk `Variable.__del__` 非主线程清理异常处失去正常退出能力，第二次停在 `test_web_pattern_structure_wm65` 测试期间，人工中断 exit 1。按安全规范不把该结果记为全量 PASS。
+- F2.5 补充（Final Geometry 映射）：Pattern Points 以既有 `final_geometry()` 的可见最终元素作为唯一布点输入；XY 取最终中心，X/Y 尺寸比对 evaluator 的稳定前置源尺寸，Z 旋转取最终角度。每个预览实例携带 source/final ID、XY 比例、角度、启用状态和基准单元尺寸；浏览器对共享原型仅应用一次平移/旋转/非均匀缩放。缺失可靠基准尺寸时以 1 倍显示并统计，不猜比例；隐藏元素已被最终几何过滤，不产生实例。此数据仅作派生预览，不回写 PatternDocument，也不进入最终 Fabric STL。
+- 补充验证：真实 169 方块 JPG 的 Wave Size + Spiral Rotation + Wave Position 组合逐实例对齐最终二维 XY/尺寸比/角度，169/169 匹配；20 元素 Position 偏移、Density 可见性和 Area Fill 回归通过。独立测试浏览器加载该 JPG，3D 设计预览显示 169 个共享原型实例（evaluate 18.3 ms、plan 309.7 ms、HTTP 往返 391.5 ms、浏览器实例创建 8.1 ms，单次本机测量）。F1/F2/F2.5 与 169 Field 制造定向 Python 19/19 PASS，Web 113/113 PASS、TypeScript/Vite build PASS。既有 Tk 全量退出问题仍未解决，F2.5 整体状态保持未验收；不提交最终稳定备份或进入 F3。
+- Revision mismatch 修正：用户看到的统一“文档不匹配”实际上是 8765 端口的旧 FastAPI 响应实例缺少 `scale_x/scale_y`；诊断请求的 document ID 与 revision 16 在请求、后端接收和响应中全部相同，`placement_mode=pattern_points`。只重启该端口的 Pattern Lab FastAPI 后，同一诊断请求返回新版实例字段。前端现在分别提示真正的 ID/revision 不匹配与过旧/不完整响应；同 revision 的重复请求和旧 revision 晚到均按请求序号/Abort 丢弃，不关闭任何校验。真实 169 方块 JPG 在当前网页使用 Size/Rotation/Position 后，Pattern Points 预览 169/169 就绪，3D 视图显示 169 个共享原型实例；revision 16 的 169 组合用例由 Python 定向测试验证。Fabric 定向 Python 5/5、Web 116/116、构建 PASS；F2.5 整体仍受既有 Tk 全量退出问题阻塞。
+
 ## 169 方块图片的 Shared Field 制造对照（2026-10-01）
 
 - 状态：**已建立真实 JPG 回归并完成安全参数对照；用户遇到的退化面失败尚未复现，根因未确认**。本轮不进入 F3/F4，不修改任何 Field、Manufacturing Adapter、挤出算法或 MeshValidator 阈值。

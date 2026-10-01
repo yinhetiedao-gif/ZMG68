@@ -6,6 +6,9 @@ import type { ParameterDefinition } from './document/parameterSchema'
 vi.mock('./manufacturing/ThreePreview', () => ({
   ThreePreview: ({ resultId }: { resultId: string }) => <div aria-label="三维模型预览">GLB {resultId}</div>,
 }))
+vi.mock('./manufacturing/FabricThreePreview', () => ({
+  FabricThreePreview: ({ plan }: { plan: { total_count: number } }) => <div aria-label="Fabric 设计预览">{plan.total_count} instances</div>,
+}))
 
 const parameter = (id: string, value: number, min: number): ParameterDefinition => ({
   id, label: id === 'thickness_mm' ? '厚度' : id, type: 'number', default: value, value, min, max: 10000,
@@ -25,8 +28,9 @@ const document = { schema_version: 1, canvas: { width: 50, height: 40, unit: 'mm
 const reply = (value: unknown) => ({ ok: true, status: 200, json: async () => value }) as Response
 
 describe('F1 Web Fabric Base', () => {
-  it('uses generic controls, commits one revision per edit, and builds with matching thickness', async () => {
+  it('uses generic controls and previews without entering manufacturing or enabling Fabric STL', async () => {
     const builds: Record<string, unknown>[] = []
+    const previews: Record<string, any>[] = []
     const calls = vi.fn<typeof fetch>((url, init) => {
       const path = String(url)
       if (path.endsWith('/health')) return Promise.resolve(reply({ status: 'ok', contract_version: '1.0' }))
@@ -47,6 +51,20 @@ describe('F1 Web Fabric Base', () => {
           mesh_validation_summary: { is_watertight: true, component_count: 1, error_count: 0, warning_count: 0, issues: [] },
           component_count: 1, bounds_mm: { size_x: 50, size_y: 40, size_z: body.height_mm, units: 'mm' }, warnings: [] }))
       }
+      if (path.endsWith('/fabric/preview')) {
+        previews.push(body)
+        return Promise.resolve(reply({ schema_version: '1.0', kind: 'fabric_instance_preview',
+          document_id: body.document.document_id, document_revision: body.document_revision,
+          preview_id: `preview-${body.document_revision}`, placement_mode: 'area_fill', element_count: 1,
+          count: 1, total_count: 1, skipped_count: 0, unmatched_reference_count: 0,
+          preview_simplified: false,
+          prototype: null, instances: [{ id: 'preview-1', x_mm: 25, y_mm: 20, z_mm: .8,
+            rotation_deg: 0, scale: 1, scale_x: 1, scale_y: 1, enabled: true,
+            cell_type: 'cone', base_width_mm: 2, base_depth_mm: 2, height_mm: 3,
+            source_id: null, final_geometry_id: null }], base_preview: { type: 'solid', bounds_mm: [0, 0, 50, 40],
+            thickness_mm: .8, spacing_x_mm: null, spacing_y_mm: null, line_width_mm: null },
+          timings_ms: { evaluate: 1, plan_and_prototype: 1 }, cache_hit: false }))
+      }
       return Promise.reject(new Error(`unexpected ${path}`))
     })
     vi.stubGlobal('fetch', calls)
@@ -66,17 +84,17 @@ describe('F1 Web Fabric Base', () => {
     expect(screen.getByText(/待提交/)).toBeInTheDocument()
     fireEvent.blur(thickness)
     await screen.findByText('revision 2')
-    fireEvent.click(screen.getByRole('button', { name: '检查并生成' }))
-    await screen.findByText('模型已生成')
-    expect(builds).toHaveLength(1)
-    expect(builds[0].height_mm).toBe(.8)
-    expect((builds[0].document as Record<string, any>).document.metadata.fabric_config.base).toMatchObject({ type: 'solid', thickness_mm: .8 })
+    fireEvent.click(screen.getByRole('button', { name: '更新3D预览' }))
+    await screen.findByText('设计预览已就绪')
+    expect(builds).toHaveLength(0)
+    expect(previews).toHaveLength(1)
+    expect(previews[0].document.document.metadata.fabric_config.base).toMatchObject({ type: 'solid', thickness_mm: .8 })
     expect(screen.getByRole('button', { name: '3D 预览' })).toBeEnabled()
-    expect(screen.getByRole('button', { name: '导出 STL' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Fabric STL 尚未开放' })).toBeDisabled()
     fireEvent.change(screen.getByLabelText('Fabric Base 类型'), { target: { value: 'grid' } })
     await screen.findByText('revision 3')
     expect(screen.getByLabelText('spacing_x_mm')).toBeInTheDocument()
-    expect(screen.getByText('结果已过期，请重新检查并生成')).toBeInTheDocument()
+    expect(screen.getByText('设计已变化，请更新3D预览')).toBeInTheDocument()
     await waitFor(() => expect(calls.mock.calls.filter(([url]) => String(url).endsWith('/evaluate'))).toHaveLength(4))
     fireEvent.change(screen.getByLabelText('Unit Cell 类型'), { target: { value: 'cylinder' } })
     await screen.findByText('revision 4')
@@ -87,18 +105,23 @@ describe('F1 Web Fabric Base', () => {
     fireEvent.change(cellControls.getByLabelText('spacing_x_mm'), { target: { value: '6' } })
     fireEvent.blur(cellControls.getByLabelText('spacing_x_mm'))
     await screen.findByText('revision 6')
-    fireEvent.click(screen.getByRole('button', { name: '检查并生成' }))
-    await screen.findByText('模型已生成')
-    expect(builds).toHaveLength(2)
-    const fabric = (builds[1].document as Record<string, any>).document.metadata.fabric_config
+    fireEvent.click(screen.getByRole('button', { name: '更新3D预览' }))
+    await screen.findByText('设计预览已就绪')
+    expect(builds).toHaveLength(0)
+    const fabric = previews[1].document.document.metadata.fabric_config
     expect(fabric.unit_cell).toMatchObject({ type: 'cylinder', height_mm: 4 })
     expect(fabric.placement.spacing_x_mm).toBe(6)
-    expect(builds[1].height_mm).toBe(.8)
     fireEvent.click(screen.getByRole('button', { name: /3D Preview/ }))
-    expect(await screen.findByText('GLB fabric-1')).toBeInTheDocument()
+    expect(await screen.findByText('1 instances')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /制造 Manufacture/ }))
     fireEvent.change(screen.getByLabelText('Unit Cell 类型'), { target: { value: 'fin' } })
     await screen.findByText('revision 7')
-    expect(screen.getByText('结果已过期，请重新检查并生成')).toBeInTheDocument()
+    expect(screen.getByText('设计已变化，请更新3D预览')).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('布点方式'), { target: { value: 'pattern_points' } })
+    await screen.findByText('revision 8')
+    expect(within(screen.getByLabelText('Fabric Unit Cell')).queryByLabelText('spacing_x_mm')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: '更新3D预览' }))
+    await screen.findByText('设计预览已就绪')
+    expect(previews.at(-1)?.document.document.metadata.fabric_config.placement.mode).toBe('pattern_points')
   })
 })

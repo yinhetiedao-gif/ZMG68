@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { fabricPlacement, fabricUnitCell, setFabricUnitCellType, updateFabricUnitCell } from './fabricCell'
+import { fabricPlacement, fabricUnitCell, setFabricUnitCellType, updateFabricUnitCell, setFabricPlacementMode } from './fabricCell'
 import type { ParameterCatalog, ParameterDefinition } from './parameterSchema'
 import type { PatternDocumentDTO } from '../model/types'
 
@@ -43,5 +43,14 @@ describe('F2 Unit Cell document editing', () => {
     expect(() => updateFabricUnitCell(cylinder, 'cell', 'height_mm', 0, catalog)).toThrow()
     expect(() => updateFabricUnitCell(cylinder, 'placement', 'spacing_y_mm', Number.NaN, catalog)).toThrow()
     expect(cylinder.document_revision).toBe(1)
+  })
+
+  it('switches placement mode in one revision without losing the saved spacing', () => {
+    const cylinder = setFabricUnitCellType(dto, 'cylinder', catalog)
+    const points = setFabricPlacementMode(cylinder, 'pattern_points')
+    expect(points.document_revision).toBe(cylinder.document_revision + 1)
+    expect(fabricPlacement(points)).toMatchObject({ mode: 'pattern_points', spacing_x_mm: 5, spacing_y_mm: 5 })
+    expect(setFabricPlacementMode(points, 'pattern_points')).toBe(points)
+    expect(fabricPlacement(setFabricPlacementMode(points, 'area_fill'))?.mode).toBe('area_fill')
   })
 })

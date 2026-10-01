@@ -42,6 +42,7 @@ from .runtime_store import InMemoryManufacturingResultStore, StoredManufacturing
 from .preview_artifact import export_preview_glb
 from .failure_snapshot import save_manufacturing_failure
 from xiaomang_pattern_lab.fabric_plan import plan_from_fabric_config
+from xiaomang_pattern_lab.fabric_preview import FabricPreviewCache, build_fabric_preview, preview_key
 
 
 MAX_REQUEST_BYTES = 2 * 1024 * 1024
@@ -281,7 +282,9 @@ def _build(document, dto: PatternDocumentDTO, height_mm: float):
     response.artifacts.append(artifact)
     plan = None
     fabric = document.metadata.get("fabric_config")
-    if isinstance(fabric, dict) and fabric.get("unit_cell") is not None:
+    if (isinstance(fabric, dict) and fabric.get("unit_cell") is not None
+            and isinstance(fabric.get("placement"), dict)
+            and fabric["placement"].get("mode", "area_fill") == "area_fill"):
         try:
             plan = plan_from_fabric_config(fabric, result.conversion.geometry.bounds)
         except (ValueError, TypeError, KeyError) as error:
@@ -325,6 +328,7 @@ def create_app(*, asset_resolver: AssetResolver | None = None,
     """Build an isolated headless server instance; importing does not start it."""
     resolver = asset_resolver if asset_resolver is not None else NullAssetResolver()
     store = result_store if result_store is not None else InMemoryManufacturingResultStore()
+    fabric_preview_cache = FabricPreviewCache()
     uploads = asset_store if asset_store is not None else TemporaryAssetStore()
     snapshot_enabled = os.environ.get("XIAOMANG_DEV_MANUFACTURING_SNAPSHOTS") == "1"
     snapshot_dir = (failure_snapshot_dir if failure_snapshot_dir is not None else
@@ -465,6 +469,24 @@ def create_app(*, asset_resolver: AssetResolver | None = None,
             raise
         store.put(result_id, stored)
         return JSONResponse(stored.response)
+
+    @app.post("/api/v1/fabric/preview", openapi_extra=JSON_DOCUMENT_BODY)
+    async def fabric_design_preview(request: Request) -> JSONResponse:
+        payload = await _read_payload(request)
+        dto = PatternDocumentDTO.from_dict(_document_payload(payload))
+        if payload.get("document_revision") != dto.document_revision:
+            raise ContractError("stale_revision", "文档已更改，请重新更新 Fabric 预览。")
+        key = await run_in_threadpool(preview_key, dto)
+        cached = fabric_preview_cache.get(key)
+        if cached is not None:
+            return JSONResponse({**cached, "cache_hit": True}, headers={"Cache-Control": "no-store"})
+        document = await run_in_threadpool(_resolve_document, dto, resolver)
+        try:
+            result = await run_in_threadpool(build_fabric_preview, document, dto)
+        except (ValueError, TypeError, KeyError) as error:
+            raise WebError("invalid_fabric_preview", str(error)) from error
+        fabric_preview_cache.put(key, result)
+        return JSONResponse(result, headers={"Cache-Control": "no-store"})
 
     @app.get("/api/v1/manufacturing/{manufacturing_result_id}/model.stl")
     def download_stl(manufacturing_result_id: str) -> Response:

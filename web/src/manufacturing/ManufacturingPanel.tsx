@@ -7,6 +7,7 @@ import { fabricBase, type FabricBaseType } from '../document/fabricBase'
 import { fabricUnitCell, fabricPlacement, type UnitCellType } from '../document/fabricCell'
 import { groupFor, type ParameterCatalog, type ParameterValue } from '../document/parameterSchema'
 import type { PatternDocumentDTO } from '../model/types'
+import type { FabricDesignPreview } from '../api/fabricPreview'
 
 interface Props {
   heightText: string
@@ -26,6 +27,11 @@ interface Props {
   onFabricParameter: (key: string, value: ParameterValue) => void
   onUnitCellType: (type: UnitCellType | 'none') => void
   onUnitCellParameter: (section: 'cell' | 'placement', key: string, value: ParameterValue) => void
+  onPlacementMode: (mode: 'area_fill' | 'pattern_points') => void
+  fabricPreviewStatus: 'idle' | 'building' | 'ready' | 'error' | 'stale'
+  fabricPreviewResult: FabricDesignPreview | null
+  fabricPreviewError: string | null
+  onUpdateFabricPreview: () => void
 }
 
 const labels: Record<ManufacturingStatus, string> = {
@@ -60,8 +66,8 @@ export function ManufacturingPanel(props: Props) {
     ...(mesh?.issues ?? []).map((issue) => issue.message ?? issue.code ?? '网格问题'),
   ] : []
   return <section className="manufacturing-panel" aria-label="制造检查">
-    <div className="manufacturing-heading"><span className="eyebrow">FINAL MANUFACTURING MESH</span><h1>制造检查</h1>
-      <p>从当前二维设计生成最终制造网格；此操作不会更改设计或撤销历史。</p></div>
+    <div className="manufacturing-heading"><span className="eyebrow">{base ? 'FABRIC DESIGN PREVIEW' : 'FINAL MANUFACTURING MESH'}</span><h1>{base ? 'Fabric 设计预览' : '制造检查'}</h1>
+      <p>{base ? '快速查看基底与单元布点；此预览不是可打印制造模型。' : '从当前二维设计生成最终制造网格；此操作不会更改设计或撤销历史。'}</p></div>
     <section className="manufacturing-settings" aria-label="Fabric Base">
       <label htmlFor="fabric-base-type">Fabric Base 类型</label>
       <select id="fabric-base-type" value={base?.type ?? 'none'} onChange={(event) =>
@@ -81,8 +87,15 @@ export function ManufacturingPanel(props: Props) {
         </select>
         {cell && cellGroup && <ParameterPanel group={cellGroup} values={{ ...cell }}
           onCommit={(key, value) => props.onUnitCellParameter('cell', key, value)} />}
-        {cell && placement && placementGroup && <ParameterPanel group={placementGroup} values={{ ...placement }}
-          onCommit={(key, value) => props.onUnitCellParameter('placement', key, value)} />}
+        {cell && placement && <><label htmlFor="fabric-placement-mode">布点方式</label>
+          <select id="fabric-placement-mode" value={placement.mode ?? 'area_fill'}
+            onChange={(event) => props.onPlacementMode(event.target.value as 'area_fill' | 'pattern_points')}>
+            <option value="area_fill">全区域</option><option value="pattern_points">按图案元素</option>
+          </select></>}
+        {cell && placement && (placement.mode ?? 'area_fill') === 'area_fill' && placementGroup &&
+          <ParameterPanel group={placementGroup} values={{ ...placement }}
+            onCommit={(key, value) => props.onUnitCellParameter('placement', key, value)} />}
+        {cell && (placement?.mode ?? 'area_fill') === 'pattern_points' && <p>图案元素：{props.fabricPreviewResult?.element_count ?? '待更新'} · 单元实例：{props.fabricPreviewResult?.total_count ?? '待更新'}</p>}
         {cell && <p>单元阵列仅作设计预览，底部与基底顶面接触；当前 STL 仍只导出 F1 基底，不含单元。</p>}
       </section>}
     </section>
@@ -90,15 +103,26 @@ export function ManufacturingPanel(props: Props) {
       {!base && <><label htmlFor="manufacturing-height">厚度 <span>mm</span></label>
         <input id="manufacturing-height" type="number" min="0.01" step="0.1" value={props.heightText}
           onChange={(event) => props.onHeightChange(event.target.value)} /></>}
-      <button type="button" onClick={props.onBuild} disabled={!props.canBuild || status === 'building'}>检查并生成</button>
+      <button type="button" onClick={base ? props.onUpdateFabricPreview : props.onBuild}
+        disabled={!props.canBuild || (base ? props.fabricPreviewStatus === 'building' : status === 'building')}>
+        {base ? '更新3D预览' : '检查并生成'}</button>
     </div>
     {!props.validHeight && <p className="manufacturing-error" role="alert">厚度必须大于 0 mm。</p>}
-    <div className={`manufacturing-status ${status}`} role="status">{labels[status]}</div>
-    {status === 'building' && <p className="manufacturing-progress">
+    <div className={`manufacturing-status ${base ? props.fabricPreviewStatus : status}`} role="status">
+      {base ? ({ idle: '尚未更新设计预览', building: '正在更新3D预览…', ready: '设计预览已就绪',
+        stale: '设计已变化，请更新3D预览', error: '设计预览失败' }[props.fabricPreviewStatus]) : labels[status]}</div>
+    {base && props.fabricPreviewError && <p className="manufacturing-error" role="alert">{props.fabricPreviewError}</p>}
+    {base && props.fabricPreviewResult && <p>实例：{props.fabricPreviewResult.count} / {props.fabricPreviewResult.total_count} ·
+      Python evaluate {props.fabricPreviewResult.timings_ms.evaluate.toFixed(1)} ms ·
+      plan {props.fabricPreviewResult.timings_ms.plan_and_prototype.toFixed(1)} ms
+      {props.fabricPreviewResult.client_request_ms !== undefined ? ` · 请求往返 ${props.fabricPreviewResult.client_request_ms.toFixed(1)} ms` : ''}
+      {props.fabricPreviewResult.cache_hit ? ' · 已复用预览缓存' : ''}</p>}
+    {base && props.fabricPreviewResult?.preview_simplified && <p role="note">预览已简化，最终设计参数未改变。</p>}
+    {!base && status === 'building' && <p className="manufacturing-progress">
       处理流程：二维几何检查 → 制造几何转换 → 3D 模型生成 → Mesh 检查 · 已用 {elapsedSeconds.toFixed(1)} 秒
     </p>}
-    {props.error && <p className="manufacturing-error" role="alert">{props.error}</p>}
-    {result && <div className="manufacturing-report">
+    {!base && props.error && <p className="manufacturing-error" role="alert">{props.error}</p>}
+    {!base && result && <div className="manufacturing-report">
       <small className="manufacturing-result-id">结果编号：{result.manufacturing_result_id}</small>
       <dl>
         <div><dt>几何检查</dt><dd>{geometry?.error_count ? `${geometry.error_count} 个错误` : `有效 · ${geometry?.checked_count ?? 0} 个元素`}</dd></div>
@@ -113,9 +137,10 @@ export function ManufacturingPanel(props: Props) {
       {notes.length > 0 && <div className="manufacturing-notes"><strong>提醒 / 检查信息</strong><ul>{[...new Set(notes)].map((note) => <li key={note}>{note}</li>)}</ul></div>}
     </div>}
     <div className="manufacturing-output-actions">
-      <button type="button" onClick={props.onPreview} disabled={!result || !props.isCurrentResult(result.manufacturing_result_id)}>3D 预览</button>
-      <StlExportButton result={result} status={status} projectName={props.projectName}
-        isCurrentResult={props.isCurrentResult} label={cell ? '导出基底 STL' : undefined} />
+      <button type="button" onClick={props.onPreview} disabled={base ? !props.fabricPreviewResult : !result || !props.isCurrentResult(result.manufacturing_result_id)}>3D 预览</button>
+      {base ? <button type="button" disabled title="Fabric 最终制造尚未开放">Fabric STL 尚未开放</button>
+        : <StlExportButton result={result} status={status} projectName={props.projectName}
+          isCurrentResult={props.isCurrentResult} />}
     </div>
   </section>
 }

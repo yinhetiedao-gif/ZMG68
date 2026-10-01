@@ -23,9 +23,10 @@ import { initialBrowserState, type WorkspaceMode } from './state/browserState'
 import { initialDocumentState } from './state/documentState'
 import { ManufacturingPanel } from './manufacturing/ManufacturingPanel'
 import { useManufacturing } from './manufacturing/useManufacturing'
+import { useFabricPreview } from './manufacturing/useFabricPreview'
 import { PreviewPanel } from './manufacturing/PreviewPanel'
 import { setFabricBaseType, updateFabricBase } from './document/fabricBase'
-import { setFabricUnitCellType, updateFabricUnitCell } from './document/fabricCell'
+import { setFabricUnitCellType, updateFabricUnitCell, setFabricPlacementMode } from './document/fabricCell'
 
 type ConnectionState =
   | { kind: 'checking'; message: string }
@@ -52,6 +53,7 @@ export function App() {
   const [browser, setBrowser] = useState(initialBrowserState)
   const [project, setProject] = useState(initialDocumentState)
   const manufacturing = useManufacturing(project.currentDocument)
+  const fabricPreview = useFabricPreview(project.currentDocument)
   const [projectError, setProjectError] = useState<string | null>(null)
   const [mapping, setMapping] = useState<{ dto: PatternDocumentDTO; fileName: string; warnings: string[] } | null>(null)
   const [mappingValue, setMappingValue] = useState('')
@@ -588,6 +590,14 @@ export function App() {
                 try { commitDocument(updateFabricUnitCell(dto, section, key, value, parameterCatalog), dto) }
                 catch (error) { setProjectError(error instanceof Error ? error.message : 'Unit Cell 参数无效。') }
               }}
+              onPlacementMode={(mode) => {
+                const dto = project.currentDocument
+                if (!dto || !canEditDocument) return
+                try { commitDocument(setFabricPlacementMode(dto, mode), dto) }
+                catch (error) { setProjectError(error instanceof Error ? error.message : 'Fabric 布点方式无效。') }
+              }}
+              fabricPreviewStatus={fabricPreview.status} fabricPreviewResult={fabricPreview.result}
+              fabricPreviewError={fabricPreview.error} onUpdateFabricPreview={() => void fabricPreview.update()}
               validHeight={manufacturing.validHeight} canBuild={connected && project.evaluateStatus === 'ready'
                 && Boolean(project.currentDocument) && manufacturing.validHeight}
               onBuild={() => void manufacturing.build()} status={manufacturing.status}
@@ -596,7 +606,7 @@ export function App() {
               onPreview={() => setBrowser((current) => ({ ...current, activeMode: 'preview' }))} />
           ) : <PreviewPanel result={manufacturing.result} status={manufacturing.status}
             projectName={project.fileName} isCurrentResult={manufacturing.isCurrentResult}
-            document={project.currentDocument} />}
+            document={project.currentDocument} fabricPreview={fabricPreview.result} />}
           {project.evaluateStatus === 'loading' && <div className="viewer-notice" role="status">Python 正在计算最终二维几何…</div>}
           {importing && <div className="viewer-notice" role="status">Python 正在转换图片为可编辑元素…</div>}
           {project.evaluateError && <div className="viewer-error" role="alert">{project.evaluateError}</div>}

@@ -4,7 +4,7 @@ import { fabricBase } from './fabricBase'
 
 export type UnitCellType = 'cylinder' | 'cone' | 'pyramid' | 'double_tower' | 'fin'
 export interface FabricUnitCell { type: UnitCellType; width_mm: number; depth_mm: number; height_mm: number }
-export interface FabricPlacement { spacing_x_mm: number; spacing_y_mm: number }
+export interface FabricPlacement { mode?: 'area_fill' | 'pattern_points'; spacing_x_mm: number; spacing_y_mm: number }
 const types: UnitCellType[] = ['cylinder', 'cone', 'pyramid', 'double_tower', 'fin']
 
 function config(dto: PatternDocumentDTO | null): Record<string, unknown> | null {
@@ -66,4 +66,12 @@ export function updateFabricUnitCell(dto: PatternDocumentDTO, section: 'cell' | 
   }
   if (placement[key as keyof FabricPlacement] === value) return dto
   return changed(dto, cell, { ...placement, [key]: value })
+}
+
+export function setFabricPlacementMode(dto: PatternDocumentDTO, mode: 'area_fill' | 'pattern_points') {
+  if (mode !== 'area_fill' && mode !== 'pattern_points') throw new Error('Fabric 布点方式无效。')
+  const cell = fabricUnitCell(dto)
+  const placement = fabricPlacement(dto)
+  if (!cell || !placement || (placement.mode ?? 'area_fill') === mode) return dto
+  return changed(dto, cell, { ...placement, mode })
 }

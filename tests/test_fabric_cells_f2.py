@@ -54,7 +54,7 @@ class FabricCellsF2Tests(unittest.TestCase):
         self.assertEqual(len(plan.preview_payload()["instances"]), 400)
         print(f"F2 400-instance plan: {elapsed * 1000:.2f} ms, one shared prototype")
 
-    def test_invalid_dimensions_spacing_and_excess_count_rejected(self):
+    def test_invalid_dimensions_spacing_and_excess_count_preview_sampled(self):
         for invalid in (0, -1, float("nan"), float("inf")):
             with self.subTest(value=invalid), self.assertRaises(ValueError):
                 UnitCellDefinition.from_mapping({"type": "cone", "width_mm": invalid,
@@ -66,9 +66,11 @@ class FabricCellsF2Tests(unittest.TestCase):
                 RegularPlacement.from_mapping({"spacing_x_mm": invalid, "spacing_y_mm": 5})
             with self.assertRaises(ValueError):
                 RegularPlacement(invalid, 5)
-        with self.assertRaisesRegex(ValueError, "上限"):
-            FabricPlanner().plan((0, 0, 200, 200), .6, UnitCellDefinition("cylinder", 1, 1, 2),
-                                 RegularPlacement(1, 1))
+        plan = FabricPlanner().plan((0, 0, 200, 200), .6, UnitCellDefinition("cylinder", 1, 1, 2),
+                                    RegularPlacement(1, 1))
+        self.assertEqual(plan.total_count, 40000)
+        self.assertLessEqual(plan.count, 5000)
+        self.assertTrue(plan.preview_payload()["preview_simplified"])
 
     def test_python_schema_declares_all_cells_and_placement(self):
         definitions = parameter_definitions()["definitions"]
