@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 import math
+import os
 from copy import deepcopy
 from dataclasses import replace
 from pathlib import Path
@@ -39,6 +40,7 @@ from .http_errors import (
 )
 from .runtime_store import InMemoryManufacturingResultStore, StoredManufacturingResult
 from .preview_artifact import export_preview_glb
+from .failure_snapshot import save_manufacturing_failure
 from xiaomang_pattern_lab.fabric_plan import plan_from_fabric_config
 
 
@@ -234,6 +236,12 @@ def _prepare_pattern(dto: PatternDocumentDTO, family: str, raw: dict[str, Any] |
             "preview": preview}
 
 
+class ManufacturingBuildFailure(WebError):
+    def __init__(self, code: str, message: str, validation_summary: dict | None = None) -> None:
+        super().__init__(code, message)
+        self.validation_summary = validation_summary
+
+
 def _build(document, dto: PatternDocumentDTO, height_mm: float):
     # WM1's validated service still accepts a headless Session. It neither
     # imports Tk nor writes to the submitted PatternDocument.
@@ -244,7 +252,7 @@ def _build(document, dto: PatternDocumentDTO, height_mm: float):
             result = ManufacturingService().build(session, height_mm)
         except ValueError as error:
             if "fabric_config" in document.metadata:
-                raise WebError("invalid_fabric_base", str(error)) from error
+                raise ManufacturingBuildFailure("invalid_fabric_base", str(error)) from error
             raise
     response = ManufacturingBuildResponseDTO.from_service_result(result, dto)
     if not result.ready or result.mesh_result is None:
@@ -258,7 +266,13 @@ def _build(document, dto: PatternDocumentDTO, height_mm: float):
         elif response.conversion_summary.get("converted_count", 0) == 0:
             details.append("没有可转换为制造网格的闭合二维几何。")
         reason = next((str(item) for item in details if item), None)
-        raise WebError("manufacturing_validation_failed", reason or "制造检查未通过，请检查二维几何与网格报告。")
+        raise ManufacturingBuildFailure(
+            "manufacturing_validation_failed", reason or "制造检查未通过，请检查二维几何与网格报告。",
+            {"geometry": response.geometry_validation_summary,
+             "connectivity": response.connectivity_summary,
+             "conversion": response.conversion_summary,
+             "mesh": response.mesh_validation_summary},
+        )
     result_id = response.manufacturing_result_id
     artifact = ArtifactDTO(
         artifact_id=result_id + "-stl", manufacturing_result_id=result_id,
@@ -271,7 +285,7 @@ def _build(document, dto: PatternDocumentDTO, height_mm: float):
         try:
             plan = plan_from_fabric_config(fabric, result.conversion.geometry.bounds)
         except (ValueError, TypeError, KeyError) as error:
-            raise WebError("invalid_fabric_base", str(error)) from error
+            raise ManufacturingBuildFailure("invalid_fabric_base", str(error)) from error
     return result_id, StoredManufacturingResult(result, response.to_dict(), fabric_plan=plan)
 
 
@@ -306,11 +320,15 @@ def _import_asset(item) -> dict[str, Any]:
 
 def create_app(*, asset_resolver: AssetResolver | None = None,
                result_store: InMemoryManufacturingResultStore | None = None,
-               asset_store: TemporaryAssetStore | None = None) -> FastAPI:
+               asset_store: TemporaryAssetStore | None = None,
+               failure_snapshot_dir: Path | None = None) -> FastAPI:
     """Build an isolated headless server instance; importing does not start it."""
     resolver = asset_resolver if asset_resolver is not None else NullAssetResolver()
     store = result_store if result_store is not None else InMemoryManufacturingResultStore()
     uploads = asset_store if asset_store is not None else TemporaryAssetStore()
+    snapshot_enabled = os.environ.get("XIAOMANG_DEV_MANUFACTURING_SNAPSHOTS") == "1"
+    snapshot_dir = (failure_snapshot_dir if failure_snapshot_dir is not None else
+                    Path(__file__).resolve().parents[2] / "work" / "manufacturing-failures")
     app = FastAPI(title="Xiaomang Pattern Lab API", version="0.3-alpha")
     app.add_middleware(CORSMiddleware, allow_origins=list(LOCAL_DEV_ORIGINS),
                        allow_credentials=False, allow_methods=["GET", "POST"],
@@ -430,7 +448,20 @@ def create_app(*, asset_resolver: AssetResolver | None = None,
         if cached is not None:
             return JSONResponse(cached.response)
         document = await run_in_threadpool(_resolve_document, dto, resolver)
-        result_id, stored = await run_in_threadpool(_build, document, dto, parameters.height_mm)
+        try:
+            result_id, stored = await run_in_threadpool(_build, document, dto, parameters.height_mm)
+        except ManufacturingBuildFailure as error:
+            if snapshot_enabled:
+                try:
+                    path = await run_in_threadpool(
+                        save_manufacturing_failure, snapshot_dir, dto, parameters.height_mm,
+                        error.code, error.validation_summary)
+                    logging.getLogger(__name__).info("Manufacturing failure snapshot saved: %s", path.name)
+                except (OSError, ValueError, TypeError, ContractError) as snapshot_error:
+                    logging.getLogger(__name__).warning(
+                        "Manufacturing failure snapshot could not be saved (%s)",
+                        type(snapshot_error).__name__)
+            raise
         store.put(result_id, stored)
         return JSONResponse(stored.response)
 

@@ -1,5 +1,18 @@
 # Xiaomang Pattern Lab / 小芒图案实验室（当前活跃项目）
 
+## 开发调试：制造失败快照
+
+默认**关闭**。需要复现制造检查失败时，在启动 Web 后端的同一个 PowerShell 会话中设置
+`$env:XIAOMANG_DEV_MANUFACTURING_SNAPSHOTS = '1'`，然后按现有方式启动后端。
+Gate T / Gate W 等制造失败会把本次实际提交的 PatternDocumentDTO、厚度、Fabric 配置、
+启用的 Field/Modifier、错误码和验证摘要写入被 Git 忽略的
+`work/manufacturing-failures/`；每次生成独立文件，不覆盖旧记录。敏感键值会脱敏，
+本地绝对路径被 Web Contract 拒绝，快照不含浏览器临时交互状态。它不修复 Mesh，
+也不降低校验标准。调试后移除该环境变量并重启后端即可关闭。
+
+快照仅覆盖**后端收到并处理的制造请求**，不能替代用户在报错后立刻保存的
+`.pattern.json`。当前那次退化面失败尚无原始工程，不能凭快照功能反推其根因。
+
 ## F2 — Unit Cell Library + Uniform Instance MVP
 
 制造页的 Fabric Base 可附加 Cylinder、Cone、Pyramid、DoubleTower 或 Fin 单元，并设置统一宽、深、高及规则布点间距。Python 以毫米生成一份单元原型和派生 `FabricInstancePlan`；每个单元固定方向、固定比例，底部 Z 等于基底顶面。Three.js 用共享几何实例显示阵列，不逐个制造或布尔合并。

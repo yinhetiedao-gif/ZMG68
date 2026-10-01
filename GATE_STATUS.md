@@ -1,5 +1,12 @@
 # Gate 状态（2026-10-01）
 
+## 制造失败快照（2026-10-01）
+
+- 状态：**调试能力已通过自动测试；原始退化面根因仍待失败工程复现**。起点 `b9e71fa`，预变更保护引用 `backup/pre-manufacturing-failure-snapshot`。本轮未进入 F3/F4，未调整 MeshValidator 阈值，也未修复或删除坏三角面。
+- Web `/manufacturing/build` 对 Gate T/Gate W 制造验证失败及 Fabric Base 配置失败，在显式设置 `XIAOMANG_DEV_MANUFACTURING_SNAPSHOTS=1` 后写入 `work/manufacturing-failures/`。默认不写；文件名含 UTC 时间和随机 ID，不覆盖。快照包含实际请求 DTO、revision、厚度、Fabric 配置、启用 Field/Modifier、错误码及验证摘要；敏感键值脱敏，不存本机绝对路径或浏览器临时状态。快照 I/O 失败不覆盖原 HTTP 错误。
+- 当前浏览器连接无法读取仍开着的失败页面；未获得当次 `.pattern.json`，没有据此猜测导致退化面的元素或参数。后续必须用用户保存的失败工程单独定位 face index、面积、顶点和来源。
+- 验证：新增快照定向测试 4/4 PASS；制造/API/F1/F2 定向 26/26 PASS；固定图案 self-test 6/6 PASS；独立 Tk smoke 2/2 PASS。第一次完整 Python 回归（追加第 4 条测试前）384/384 PASS、exit 0；最终代码的第二次全量运行遇到既有 Tk `Variable.__del__` 非主线程清理风暴，无法正常退出，人工中断为 exit 1。因此**本轮 full regression 未验证 PASS，不更新 Last Known Good、不进入下一功能 Gate**。该退出问题不属于本轮 Web 快照代码路径，但本轮未做基线对照证明。
+
 ## F2 Fabric Unit Cell Library MVP（2026-10-01）
 
 - 状态：**PASS（软件设计预览，不是最终 Fabric 制造）**。起点 `f03c3cd` / `backup/f1-fabric-base-final`；独立分支 `feature/f2-unit-cell-library`，事前源码快照 `backup/pre-f2-unit-cell-library`。Web Alpha 与 F1 稳定引用不覆盖。
