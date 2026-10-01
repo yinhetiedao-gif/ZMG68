@@ -1,5 +1,12 @@
 # 更新记录
 
+## Xiaomang Pattern Lab Web v0.1 Alpha — 实物验证冻结（2026-10-01）
+
+- 仅冻结文档与 Git 引用，产品代码保持 `b035c3f`；最终发布标签为 `web-v0.1-alpha`，稳定备份为 `backup/web-v0.1-alpha-physical-validated`。未新增 Fabric、制造算法、Web 功能或安装包。
+- 当前 Web 主链已接入图片/SVG 导入、可编辑二维、Layout、Field、Modifier、会话 Undo/Redo、Web Manufacturing、Mesh Validation、同结果 Three.js 预览及 STL 下载。
+- 用户确认通过网页版导出 STL，随后在 Bambu Studio 切片并真机打印，实物正常；标记 `Web Alpha Physical Validation = PASS`。该结论基于用户反馈，代理没有操作打印机，也没有此次打印的照片、测量公差或打印配置。
+- Alpha 边界保留：本机 Web 工作区，并非生产部署；项目完整持久化、3MF、自动连接/修复、最小壁厚保证及 Fabric 均未完成。下方旧里程碑的功能缺失描述仅代表各自当时的状态。
+
 ## Xiaomang Pattern Lab WM6 — Web Parametric Controls MVP（2026-09-28）
 
 - 增加集中式不可变 Document 编辑层与右侧参数检查器，支持已有矩阵、参数场、效果层、形状替换和明确映射的自由源元素变换；Python 仍是唯一求值后端。

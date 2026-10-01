@@ -1,4 +1,12 @@
-# Gate 状态（2026-09-30）
+# Gate 状态（2026-10-01）
+
+## Xiaomang Pattern Lab Web v0.1 Alpha — 实物验证冻结（2026-10-01）
+
+- 状态：**PASS（用户报告的 Web Alpha 实物打印验收）**。产品代码基线 `b035c3f` / `backup/perf1-manufacturing-final`；本轮仅更新四份文档，不修改功能、制造算法或打包产物。最终冻结提交由 `web-v0.1-alpha` 标签和 `backup/web-v0.1-alpha-physical-validated` 分支共同保护。
+- 用户确认已在网页版完成：图片/SVG 导入 → 可编辑二维与参数化设计 → Layout → Field → Modifier → 制造检查/网格验证 → 同一制造结果的 Three.js 预览与 STL 下载 → Bambu Studio → 切片 → 真机打印；实物正常。因此记录 `Web Alpha Physical Validation = PASS`。这是用户完成的实物验证，不冒充代理操作打印机、独立计量或任意图案/材料的制造保证；尚无此次打印的照片、测量公差及打印配置证据。
+- 当前 Web Alpha 已接入：图片/SVG 导入、二维编辑、布局/参数场/效果堆栈、会话内 Undo/Redo、Web 制造、Mesh Validation、只读 Three.js 预览与 STL 下载。Python Engine 保持设计和制造计算权威；Web 预览不重新生成制造几何。
+- 边界：这是本机运行的 Alpha，不等于已部署的商业网站或新安装包。网页项目保存/云端同步、3MF、自动连接/修复、最小壁厚保证、Fabric 系统仍未完成。先冻结此版本，不进入 F0 或 Fabric 实现。
+- 冻结复验：Web 101/101 PASS、TypeScript/Vite build PASS；Python full regression 368/368 PASS（exit 0，日志 `work/web-v0.1-alpha-freeze/python-full.log`）、固定图案 6/6 PASS、Tk smoke 2/2 PASS。全部产品代码未改；仅文档提交后创建上述 tag 与保护分支，不重打包。
 
 ## PERF-1 — Web「检查并生成」耗时优化（2026-09-30）
 

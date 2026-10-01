@@ -1,5 +1,15 @@
 # Xiaomang Pattern Lab / 小芒图案实验室（当前活跃项目）
 
+## Web v0.1 Alpha — 已完成实物验证（2026-10-01）
+
+当前 Web Alpha 已形成可用闭环：图片/SVG 导入 → 可编辑二维图案 → Layout、Field、Modifier 参数化设计 → 制造检查与网格验证 → Three.js 只读 3D 预览 → 下载 STL。用户确认已将网页版下载的 STL 导入 Bambu Studio、切片并完成真机打印，实物正常；因此本次 Web Alpha 实物验收记录为 **PASS（依据用户反馈）**。
+
+当前已接入图片/SVG 导入、二维编辑、Free/Grid/Radial/Curve 布局、参数场与效果堆栈、会话内撤销/重做、Web 制造、Mesh Validation、3D 预览和 STL 下载。制造与导出仍由 Python Engine 完成，浏览器不计算制造网格。相同设计及厚度可以复用当前进程中的制造结果；STL/GLB 从同一已验证 Mesh 按需生成。
+
+这仍是本机 Alpha，不是已部署网站或新安装包。浏览器内尚无完整项目保存/云同步；3MF、自动连接、自动网格修复、最小壁厚保证和 Fabric 系统未完成。图片导入后的临时毫米映射须在制造前由用户核对。本次用户未提供实物照片、测量公差或打印配置，故不声称独立实测或保证所有图案都可打印。
+
+源码版本以 `web-v0.1-alpha` 标签和 `backup/web-v0.1-alpha-physical-validated` 分支为准；二者应指向同一份文档冻结提交。标签不包含 `.venv`、`node_modules`、本机 `work` 产物或可执行安装包。下方 WM 和桌面 v0.1-alpha 段落保留为各阶段的历史记录，其中“当时尚未实现”的表述不代表当前 Web Alpha 状态。
+
 ## WM5.6 — Web 元素编辑可见性修复
 
 移动、拖动、宽高和旋转编辑会在求值期间保留上一帧。拖动预览结束时清除临时 SVG 位移，避免最终几何被重复平移；无效尺寸或重复 ID 的响应不会覆盖有效画面。输入框中的空白草稿不会立即提交。详细验证见 [WM5.6 记录](work/wm5-6/edit-visibility-report.md)。
