@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
-import { AmbientLight, Box3, Color, DirectionalLight, Group, Mesh, MeshPhongMaterial,
-  PerspectiveCamera, Scene, Vector3, WebGLRenderer } from 'three'
+import { AmbientLight, Box3, BufferGeometry, Color, DirectionalLight, DoubleSide, Float32BufferAttribute,
+  Group, InstancedMesh, Matrix4, Mesh, MeshPhongMaterial, PerspectiveCamera, Scene, Vector3, WebGLRenderer } from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
-import { fetchPreviewGlb } from '../api/manufacturingArtifacts'
+import { fetchFabricPlan, fetchPreviewGlb } from '../api/manufacturingArtifacts'
 
 interface Props { resultId: string }
 
@@ -14,6 +14,7 @@ export function ThreePreview({ resultId }: Props) {
   const resetRef = useRef<(() => void) | null>(null)
   const [status, setStatus] = useState('正在载入最终制造网格…')
   const [bounds, setBounds] = useState<string | null>(null)
+  const [instanceCount, setInstanceCount] = useState<number | null>(null)
 
   useEffect(() => {
     const host = hostRef.current
@@ -27,6 +28,7 @@ export function ThreePreview({ resultId }: Props) {
     let observer: ResizeObserver | null = null
     let model: Group | null = null
     const displayMaterial = new MeshPhongMaterial({ color: 0x3a4953, shininess: 25 })
+    const instanceMaterial = new MeshPhongMaterial({ color: 0x557c91, shininess: 25, side: DoubleSide })
     const scene = new Scene()
     scene.background = new Color(0xf9fbfc)
     const camera = new PerspectiveCamera(45, 1, 0.01, 100000)
@@ -59,6 +61,32 @@ export function ThreePreview({ resultId }: Props) {
         if (disposed) return
         model = gltf.scene
         model.traverse((node) => { if (node instanceof Mesh) node.material = displayMaterial })
+        let planError: string | null = null
+        let planCount: number | null = null
+        try {
+          const plan = await fetchFabricPlan(resultId, abort.signal)
+          if (disposed) return
+          if (plan) {
+            const geometry = new BufferGeometry()
+            geometry.setAttribute('position', new Float32BufferAttribute(plan.prototype.vertices.flat(), 3))
+            geometry.setIndex(plan.prototype.faces.flat())
+            geometry.computeVertexNormals()
+            const instances = new InstancedMesh(geometry, instanceMaterial, plan.count)
+            const matrix = new Matrix4()
+            plan.instances.forEach((instance, index) => {
+              matrix.makeTranslation(instance.x_mm, instance.y_mm, instance.z_mm)
+              instances.setMatrixAt(index, matrix)
+            })
+            instances.instanceMatrix.needsUpdate = true
+            instances.computeBoundingSphere()
+            model.add(instances)
+            planCount = plan.count
+            setInstanceCount(plan.count)
+          }
+        } catch (error) {
+          if (abort.signal.aborted || disposed) return
+          planError = error instanceof Error ? error.message : 'Unit Cell 预览无法载入。'
+        }
         scene.add(model)
         const box = new Box3().setFromObject(model)
         if (box.isEmpty()) throw new Error('GLB 不包含可显示的制造网格。')
@@ -81,7 +109,8 @@ export function ThreePreview({ resultId }: Props) {
         fitRef.current = () => fit(false)
         resetRef.current = () => fit(true)
         fit(true)
-        setStatus('三维预览已就绪 · 鼠标拖动旋转，滚轮缩放')
+        setStatus(planError ?? (planCount === null ? '三维预览已就绪 · 鼠标拖动旋转，滚轮缩放'
+          : '基底 + Unit Cell 设计预览已就绪；STL 仍只包含基底。'))
         const animate = () => {
           if (disposed || !renderer || !controls) return
           frame = requestAnimationFrame(animate)
@@ -102,6 +131,7 @@ export function ThreePreview({ resultId }: Props) {
       controls?.dispose()
       model?.traverse((node) => { if (node instanceof Mesh) node.geometry.dispose() })
       displayMaterial.dispose()
+      instanceMaterial.dispose()
       renderer?.dispose()
       fitRef.current = null
       resetRef.current = null
@@ -114,5 +144,7 @@ export function ThreePreview({ resultId }: Props) {
     <div className="three-preview-viewport" ref={hostRef}><canvas ref={canvasRef} aria-label="最终制造网格三维画布" /></div>
     <div className="three-preview-status" role="status">{status}</div>
     {bounds && <small className="three-preview-bounds">预览 XYZ：{bounds}</small>}
+    {instanceCount !== null && <small className="three-preview-bounds" data-instance-count={instanceCount}>
+      Unit Cell：{instanceCount} 个共享原型实例；仅设计预览，不包含在当前 STL 中。</small>}
   </div>
 }

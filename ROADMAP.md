@@ -4,7 +4,8 @@
 
 - [x] F0 架构蓝图：`docs/FABRIC_SYSTEM_V1.md`；OpenSCAD `v 0-5.scad` 源码映射仍为 Pending source-code verification。
 - [x] F1 Fabric Base MVP：Solid/Grid 软件生成、Web 预览与 STL 验证通过；尚未进行 Fabric Base 实物打印。
-- [ ] F2 Unit Cell Library；F3 Height/Density/Orientation；F4 Image-driven Fabric；F5 Manufacturing Validation；Fabric Alpha。本轮 F1 完成后停止，不自动进入 F2。
+- [x] F2 Unit Cell Library：五类原型、规则布点和 Web 设计预览通过软件验证；单元不在正式 STL 中，制造融合留到 F5。
+- [ ] F3 Height/Density/Orientation；F4 Image-driven Fabric；F5 Manufacturing Validation；Fabric Alpha。F2 完成后停止，不自动进入 F3。
 
 ## 当前：Xiaomang Pattern Lab Web v0.1 Alpha（2026-10-01）
 

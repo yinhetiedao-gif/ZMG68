@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { App } from './App'
 import type { ParameterDefinition } from './document/parameterSchema'
@@ -15,6 +15,9 @@ const definitions = { schema_version: '1.0', units: 'mm', definitions: { layout:
   fabric_base: { solid: { label: 'Solid', parameters: [parameter('thickness_mm', .6, .01), parameter('margin_mm', 0, 0)] },
     grid: { label: 'Grid', parameters: [parameter('thickness_mm', .6, .01), parameter('margin_mm', 0, 0),
       parameter('spacing_x_mm', 5, .01), parameter('spacing_y_mm', 5, .01), parameter('line_width_mm', 1, .01)] } },
+  fabric_cell: Object.fromEntries(['cylinder', 'cone', 'pyramid', 'double_tower', 'fin'].map((type) => [type,
+    { label: type, parameters: [parameter('width_mm', 2, .01), parameter('depth_mm', 2, .01), parameter('height_mm', 3, .01)] }])),
+  fabric_placement: { regular: { label: 'regular', parameters: [parameter('spacing_x_mm', 5, .01), parameter('spacing_y_mm', 5, .01)] } },
 } }
 const document = { schema_version: 1, canvas: { width: 50, height: 40, unit: 'mm', mm_per_unit: 1 },
   reference: { source_path: '', visible: false }, groups: [], transforms: {}, metadata: {}, fields: [], modifiers: [],
@@ -75,5 +78,27 @@ describe('F1 Web Fabric Base', () => {
     expect(screen.getByLabelText('spacing_x_mm')).toBeInTheDocument()
     expect(screen.getByText('结果已过期，请重新检查并生成')).toBeInTheDocument()
     await waitFor(() => expect(calls.mock.calls.filter(([url]) => String(url).endsWith('/evaluate'))).toHaveLength(4))
+    fireEvent.change(screen.getByLabelText('Unit Cell 类型'), { target: { value: 'cylinder' } })
+    await screen.findByText('revision 4')
+    const cellControls = within(screen.getByLabelText('Fabric Unit Cell'))
+    fireEvent.change(cellControls.getByLabelText('height_mm'), { target: { value: '4' } })
+    fireEvent.blur(cellControls.getByLabelText('height_mm'))
+    await screen.findByText('revision 5')
+    fireEvent.change(cellControls.getByLabelText('spacing_x_mm'), { target: { value: '6' } })
+    fireEvent.blur(cellControls.getByLabelText('spacing_x_mm'))
+    await screen.findByText('revision 6')
+    fireEvent.click(screen.getByRole('button', { name: '检查并生成' }))
+    await screen.findByText('模型已生成')
+    expect(builds).toHaveLength(2)
+    const fabric = (builds[1].document as Record<string, any>).document.metadata.fabric_config
+    expect(fabric.unit_cell).toMatchObject({ type: 'cylinder', height_mm: 4 })
+    expect(fabric.placement.spacing_x_mm).toBe(6)
+    expect(builds[1].height_mm).toBe(.8)
+    fireEvent.click(screen.getByRole('button', { name: /3D Preview/ }))
+    expect(await screen.findByText('GLB fabric-1')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /制造 Manufacture/ }))
+    fireEvent.change(screen.getByLabelText('Unit Cell 类型'), { target: { value: 'fin' } })
+    await screen.findByText('revision 7')
+    expect(screen.getByText('结果已过期，请重新检查并生成')).toBeInTheDocument()
   })
 })

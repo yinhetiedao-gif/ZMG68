@@ -8,9 +8,10 @@ interface Props {
   status: ManufacturingStatus
   projectName: string | null
   isCurrentResult: (resultId: string) => boolean
+  label?: string
 }
 
-export function StlExportButton({ result, status, projectName, isCurrentResult }: Props) {
+export function StlExportButton({ result, status, projectName, isCurrentResult, label = '导出 STL' }: Props) {
   const [downloading, setDownloading] = useState(false)
   const [downloadError, setDownloadError] = useState<string | null>(null)
   const controller = useRef<AbortController | null>(null)
@@ -60,7 +61,7 @@ export function StlExportButton({ result, status, projectName, isCurrentResult }
 
   return <div className="stl-export-action">
     <button type="button" onClick={() => void download()} disabled={!enabled || downloading}>
-      {downloading ? '正在导出…' : '导出 STL'}
+      {downloading ? '正在导出…' : label}
     </button>
     {reason && <small className="stl-export-reason">{reason}</small>}
     {downloadError && <p className="manufacturing-error" role="alert">{downloadError}</p>}

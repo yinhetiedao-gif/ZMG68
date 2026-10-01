@@ -19,6 +19,7 @@ class StoredManufacturingResult:
     stl_bytes: bytes | None = None
     preview_glb_bytes: bytes | None = None
     artifact_lock: Any = field(default_factory=Lock, repr=False, compare=False)
+    fabric_plan: Any = None
 
 
 class InMemoryManufacturingResultStore:

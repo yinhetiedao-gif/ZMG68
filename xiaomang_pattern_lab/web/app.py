@@ -39,6 +39,7 @@ from .http_errors import (
 )
 from .runtime_store import InMemoryManufacturingResultStore, StoredManufacturingResult
 from .preview_artifact import export_preview_glb
+from xiaomang_pattern_lab.fabric_plan import plan_from_fabric_config
 
 
 MAX_REQUEST_BYTES = 2 * 1024 * 1024
@@ -264,7 +265,14 @@ def _build(document, dto: PatternDocumentDTO, height_mm: float):
         kind="stl", media_type="model/stl", filename=result_id + ".stl",
     ).to_dict()
     response.artifacts.append(artifact)
-    return result_id, StoredManufacturingResult(result, response.to_dict())
+    plan = None
+    fabric = document.metadata.get("fabric_config")
+    if isinstance(fabric, dict) and fabric.get("unit_cell") is not None:
+        try:
+            plan = plan_from_fabric_config(fabric, result.conversion.geometry.bounds)
+        except (ValueError, TypeError, KeyError) as error:
+            raise WebError("invalid_fabric_base", str(error)) from error
+    return result_id, StoredManufacturingResult(result, response.to_dict(), fabric_plan=plan)
 
 
 def _import_asset(item) -> dict[str, Any]:
@@ -448,5 +456,16 @@ def create_app(*, asset_resolver: AssetResolver | None = None,
                 stored.preview_glb_bytes = export_preview_glb(stored.result.mesh_result)
         return Response(stored.preview_glb_bytes, media_type="model/gltf-binary",
                         headers={"Cache-Control": "no-store"})
+
+    @app.get("/api/v1/manufacturing/{manufacturing_result_id}/fabric-plan")
+    def fabric_plan(manufacturing_result_id: str) -> Response:
+        stored = store.get(manufacturing_result_id)
+        if stored is None:
+            raise WebError("artifact_not_found", "制造结果不存在或已经过期。")
+        if stored.fabric_plan is None:
+            return Response(status_code=204, headers={"Cache-Control": "no-store"})
+        payload = stored.fabric_plan.preview_payload()
+        payload["manufacturing_result_id"] = manufacturing_result_id
+        return JSONResponse(payload, headers={"Cache-Control": "no-store"})
 
     return app

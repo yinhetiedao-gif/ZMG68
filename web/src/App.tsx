@@ -25,6 +25,7 @@ import { ManufacturingPanel } from './manufacturing/ManufacturingPanel'
 import { useManufacturing } from './manufacturing/useManufacturing'
 import { PreviewPanel } from './manufacturing/PreviewPanel'
 import { setFabricBaseType, updateFabricBase } from './document/fabricBase'
+import { setFabricUnitCellType, updateFabricUnitCell } from './document/fabricCell'
 
 type ConnectionState =
   | { kind: 'checking'; message: string }
@@ -575,6 +576,18 @@ export function App() {
                 try { commitDocument(updateFabricBase(dto, key, value, parameterCatalog), dto) }
                 catch (error) { setProjectError(error instanceof Error ? error.message : 'Fabric Base 参数无效。') }
               }}
+              onUnitCellType={(type) => {
+                const dto = project.currentDocument
+                if (!dto || !canEditDocument) return
+                try { commitDocument(setFabricUnitCellType(dto, type, parameterCatalog), dto) }
+                catch (error) { setProjectError(error instanceof Error ? error.message : 'Unit Cell 配置无效。') }
+              }}
+              onUnitCellParameter={(section, key, value) => {
+                const dto = project.currentDocument
+                if (!dto || !canEditDocument) return
+                try { commitDocument(updateFabricUnitCell(dto, section, key, value, parameterCatalog), dto) }
+                catch (error) { setProjectError(error instanceof Error ? error.message : 'Unit Cell 参数无效。') }
+              }}
               validHeight={manufacturing.validHeight} canBuild={connected && project.evaluateStatus === 'ready'
                 && Boolean(project.currentDocument) && manufacturing.validHeight}
               onBuild={() => void manufacturing.build()} status={manufacturing.status}
@@ -582,7 +595,8 @@ export function App() {
               isCurrentResult={manufacturing.isCurrentResult}
               onPreview={() => setBrowser((current) => ({ ...current, activeMode: 'preview' }))} />
           ) : <PreviewPanel result={manufacturing.result} status={manufacturing.status}
-            projectName={project.fileName} isCurrentResult={manufacturing.isCurrentResult} />}
+            projectName={project.fileName} isCurrentResult={manufacturing.isCurrentResult}
+            document={project.currentDocument} />}
           {project.evaluateStatus === 'loading' && <div className="viewer-notice" role="status">Python 正在计算最终二维几何…</div>}
           {importing && <div className="viewer-notice" role="status">Python 正在转换图片为可编辑元素…</div>}
           {project.evaluateError && <div className="viewer-error" role="alert">{project.evaluateError}</div>}

@@ -172,6 +172,22 @@ def parameter_definitions() -> dict[str, Any]:
                 _p("margin_mm", "边距", "number", 0, min=0, max=10000, step=0.1, unit="mm"),
             ]},
         },
+        "fabric_cell": {
+            kind: {"label": label, "parameters": [
+                _size("width_mm", "单元宽度", 2),
+                _size("depth_mm", "单元深度", 2),
+                _size("height_mm", "单元高度", 3) | {
+                    "slider_min": 0.1, "slider_max": 20, "slider_step": 0.1},
+            ]} for kind, label in (
+                ("cylinder", "圆柱"), ("cone", "圆锥"), ("pyramid", "方锥"),
+                ("double_tower", "双塔"), ("fin", "鳍片"))
+        },
+        "fabric_placement": {
+            "regular": {"label": "规则布点", "parameters": [
+                _size("spacing_x_mm", "水平间距", 5),
+                _size("spacing_y_mm", "垂直间距", 5),
+            ]},
+        },
     }}
 
 

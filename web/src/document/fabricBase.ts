@@ -28,7 +28,12 @@ function validBase(base: FabricBaseConfig): void {
 
 function changed(dto: PatternDocumentDTO, base: FabricBaseConfig | null): PatternDocumentDTO {
   const metadata = { ...dto.document.metadata }
-  if (base) metadata.fabric_config = { config_version: 1, base }
+  if (base) {
+    const previous = metadata.fabric_config
+    const config = previous && typeof previous === 'object' && !Array.isArray(previous)
+      ? previous as Record<string, unknown> : {}
+    metadata.fabric_config = { ...config, config_version: 1, base }
+  }
   else delete metadata.fabric_config
   return { ...dto, document_revision: dto.document_revision + 1,
     document: { ...dto.document, metadata } }

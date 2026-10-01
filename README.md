@@ -1,5 +1,11 @@
 # Xiaomang Pattern Lab / 小芒图案实验室（当前活跃项目）
 
+## F2 — Unit Cell Library + Uniform Instance MVP
+
+制造页的 Fabric Base 可附加 Cylinder、Cone、Pyramid、DoubleTower 或 Fin 单元，并设置统一宽、深、高及规则布点间距。Python 以毫米生成一份单元原型和派生 `FabricInstancePlan`；每个单元固定方向、固定比例，底部 Z 等于基底顶面。Three.js 用共享几何实例显示阵列，不逐个制造或布尔合并。
+
+**重要：F2 单元仅为设计预览，不属于当前制造网格和 STL。** 现有 STL、Mesh Validation 与 GLB 仍只针对 F1 基底；界面把下载按钮标为“导出基底 STL”。单元与网格基底的 XY 接触、融合、可打印性尚未经验证，不能把此预览当成最终 Fabric 模型。F3 的高度/密度/方向 Field、F5 的融合与制造验证均未实现。
+
 ## F1 — Fabric Base MVP（增量功能）
 
 制造页可选“标准二维挤出”“Solid Base”或“Grid Base”。Fabric 配置作为可选 `fabric_config` 存于原 PatternDocument；缺失时沿用 Web Alpha 制造行为。Solid/Grid 从最终二维制造几何的**轴对齐外接矩形**（世界坐标 mm）生成基底，网格条带先合并再挤出；厚度、边距和网格间距/线宽由 Python 校验。生成结果继续使用原有 Mesh Validation、同一 `manufacturing_result_id` 的 3D 预览与 STL 下载。

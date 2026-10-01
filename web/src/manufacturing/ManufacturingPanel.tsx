@@ -4,6 +4,7 @@ import type { ManufacturingStatus } from './useManufacturing'
 import { StlExportButton } from './StlExportButton'
 import { ParameterPanel } from '../document/ParameterPanel'
 import { fabricBase, type FabricBaseType } from '../document/fabricBase'
+import { fabricUnitCell, fabricPlacement, type UnitCellType } from '../document/fabricCell'
 import { groupFor, type ParameterCatalog, type ParameterValue } from '../document/parameterSchema'
 import type { PatternDocumentDTO } from '../model/types'
 
@@ -23,6 +24,8 @@ interface Props {
   parameterCatalog: ParameterCatalog | null
   onFabricType: (type: FabricBaseType | 'none') => void
   onFabricParameter: (key: string, value: ParameterValue) => void
+  onUnitCellType: (type: UnitCellType | 'none') => void
+  onUnitCellParameter: (section: 'cell' | 'placement', key: string, value: ParameterValue) => void
 }
 
 const labels: Record<ManufacturingStatus, string> = {
@@ -34,6 +37,10 @@ export function ManufacturingPanel(props: Props) {
   const { result, status } = props
   const base = fabricBase(props.document)
   const fabricGroup = base && groupFor(props.parameterCatalog, 'fabric_base', base.type)
+  const cell = fabricUnitCell(props.document)
+  const placement = fabricPlacement(props.document)
+  const cellGroup = cell && groupFor(props.parameterCatalog, 'fabric_cell', cell.type)
+  const placementGroup = placement && groupFor(props.parameterCatalog, 'fabric_placement', 'regular')
   const [elapsedSeconds, setElapsedSeconds] = useState(0)
   useEffect(() => {
     if (status !== 'building') return
@@ -64,6 +71,20 @@ export function ManufacturingPanel(props: Props) {
       {base && <p>基底使用最终二维制造几何的外接矩形（mm）；Solid 会填满矩形，Grid 会生成贯通网孔，不沿原图轮廓或保留原图孔洞。</p>}
       {base && fabricGroup && <ParameterPanel group={fabricGroup} values={{ ...base }}
         onCommit={props.onFabricParameter} />}
+      {base && <section aria-label="Fabric Unit Cell">
+        <label htmlFor="fabric-cell-type">Unit Cell 类型</label>
+        <select id="fabric-cell-type" value={cell?.type ?? 'none'} onChange={(event) =>
+          props.onUnitCellType(event.target.value as UnitCellType | 'none')}>
+          <option value="none">无单元</option><option value="cylinder">Cylinder 圆柱</option>
+          <option value="cone">Cone 圆锥</option><option value="pyramid">Pyramid 方锥</option>
+          <option value="double_tower">DoubleTower 双塔</option><option value="fin">Fin 鳍片</option>
+        </select>
+        {cell && cellGroup && <ParameterPanel group={cellGroup} values={{ ...cell }}
+          onCommit={(key, value) => props.onUnitCellParameter('cell', key, value)} />}
+        {cell && placement && placementGroup && <ParameterPanel group={placementGroup} values={{ ...placement }}
+          onCommit={(key, value) => props.onUnitCellParameter('placement', key, value)} />}
+        {cell && <p>单元阵列仅作设计预览，底部与基底顶面接触；当前 STL 仍只导出 F1 基底，不含单元。</p>}
+      </section>}
     </section>
     <div className="manufacturing-settings">
       {!base && <><label htmlFor="manufacturing-height">厚度 <span>mm</span></label>
@@ -93,7 +114,8 @@ export function ManufacturingPanel(props: Props) {
     </div>}
     <div className="manufacturing-output-actions">
       <button type="button" onClick={props.onPreview} disabled={!result || !props.isCurrentResult(result.manufacturing_result_id)}>3D 预览</button>
-      <StlExportButton result={result} status={status} projectName={props.projectName} isCurrentResult={props.isCurrentResult} />
+      <StlExportButton result={result} status={status} projectName={props.projectName}
+        isCurrentResult={props.isCurrentResult} label={cell ? '导出基底 STL' : undefined} />
     </div>
   </section>
 }

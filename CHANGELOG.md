@@ -1,5 +1,10 @@
 # 更新记录
 
+## F2 Fabric Unit Cell Library MVP（2026-10-01）
+
+- 增加 Cylinder、Cone、Pyramid、DoubleTower、Fin 原型 Registry 和规则布点 `FabricInstancePlan`；尺寸与间距使用现有 Python 参数 Schema，在原 PatternDocument 的可选 Fabric 配置内保存设计意图。
+- 同一制造结果 ID 提供只读实例计划；Web Three.js 用共享原型实例显示统一阵列。基底正式 GLB/STL 保持 F1 内容，单元尚未布尔融合或纳入制造验证，界面明确标注“仅设计预览／导出基底 STL”。
+
 ## F1 Fabric Base MVP（2026-10-01）
 
 - 可选版本化 `fabric_config` 接入原 PatternDocument；无配置的项目维持既有 Web Alpha 制造路径。

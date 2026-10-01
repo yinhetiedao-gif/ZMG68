@@ -1,5 +1,13 @@
 # Gate 状态（2026-10-01）
 
+## F2 Fabric Unit Cell Library MVP（2026-10-01）
+
+- 状态：**PASS（软件设计预览，不是最终 Fabric 制造）**。起点 `f03c3cd` / `backup/f1-fabric-base-final`；独立分支 `feature/f2-unit-cell-library`，事前源码快照 `backup/pre-f2-unit-cell-library`。Web Alpha 与 F1 稳定引用不覆盖。
+- 在现有 `fabric_config` 下增加可选 `unit_cell` 和 `placement`；单元原型由 Registry/Factory 生成。FabricPlanner 在最终二维制造边界的基底范围内产生稳定 ID 的规则布点计划，固定高度/大小/方向，局部单元 Z=0，实例 Z=基底顶面。
+- API 将计划作为同一 `manufacturing_result_id` 下的只读 `/fabric-plan` 提供给 Web；Three.js 使用一份原型几何的 `InstancedMesh` 显示。F1 基底的正式 GLB/STL、Mesh Validation 及其结果 ID/缓存策略不改变。没有单元配置时该接口返回 204。
+- **制造边界**：F2 单元只是设计预览，不在正式 STL/GLB 基底网格里，也没有 Boolean 融合或实体连接保证；Grid Base 网孔上方的单元尚未验证 XY 接触与实物可制造。界面明确显示“导出基底 STL”。不声明完成最终 Fabric 面料打印。
+- Python 全回归 381/381 PASS，F1+F2 定向 13/13 PASS；50×40 mm / 5 mm 间距为 80 实例；100×100 mm / 5 mm 间距为 400 实例，单原型计划约 1.4–2.1 ms（本机多次测量）。真实浏览器带孔图案中圆柱 36 实例、鳍片 9 实例及鳍片 400 实例可见；400 实例请求到制造状态就绪约 301 ms，切入预览到实例状态可见约 14 ms（单次本机测量，不是标准化帧率）。Fatal Console error 0。Web 107/107 PASS、npm build PASS、固定图案 6/6 PASS。
+
 ## F1 Fabric Base MVP（2026-10-01）
 
 - 状态：**PASS（软件验证，未作 Fabric Base 实物打印）**。F0 文档基线 `01bff18`；F1 独立分支 `feature/f1-fabric-base`，Web Alpha 冻结标签和保护分支不变。
