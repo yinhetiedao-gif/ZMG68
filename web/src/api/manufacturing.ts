@@ -40,7 +40,10 @@ export async function buildManufacturing(
   if (!response.ok) {
     const message = payload && typeof payload === 'object' && 'message' in payload
       ? String(payload.message) : `HTTP ${response.status}`
-    throw new ManufacturingError(`制造检查失败：${message}`)
+    const details = payload && typeof payload === 'object' && 'details' in payload ? payload.details : null
+    const failureId = details && typeof details === 'object' && 'failure_id' in details
+      && typeof details.failure_id === 'string' ? details.failure_id : null
+    throw new ManufacturingError(`制造检查失败：${message}${failureId ? ` · failure_id: ${failureId}` : ''}`)
   }
   if (!payload || typeof payload !== 'object') throw new ManufacturingError('制造服务返回格式无效。')
   const result = payload as Record<string, unknown>

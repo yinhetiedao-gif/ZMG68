@@ -48,10 +48,11 @@ class WebError(Exception):
         self.code = code
 
 
-def error_response(code: str, message: str) -> JSONResponse:
+def error_response(code: str, message: str, *, failure_id: str | None = None) -> JSONResponse:
     status = HTTP_STATUS_BY_CODE.get(code, 500)
     return JSONResponse(status_code=status,
-                        content=ErrorDTO(code, message, recoverable=status < 500).to_dict())
+                        content=ErrorDTO(code, message, recoverable=status < 500,
+                                         details={"failure_id": failure_id} if failure_id else None).to_dict())
 
 
 async def contract_error_handler(_request: Request, error: ContractError) -> JSONResponse:
@@ -60,7 +61,7 @@ async def contract_error_handler(_request: Request, error: ContractError) -> JSO
 
 
 async def web_error_handler(_request: Request, error: WebError) -> JSONResponse:
-    return error_response(error.code, str(error))
+    return error_response(error.code, str(error), failure_id=getattr(error, "failure_id", None))
 
 
 async def internal_error_handler(_request: Request, error: Exception) -> JSONResponse:

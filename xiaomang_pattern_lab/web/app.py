@@ -456,7 +456,8 @@ def create_app(*, asset_resolver: AssetResolver | None = None,
                     path = await run_in_threadpool(
                         save_manufacturing_failure, snapshot_dir, dto, parameters.height_mm,
                         error.code, error.validation_summary)
-                    logging.getLogger(__name__).info("Manufacturing failure snapshot saved: %s", path.name)
+                    error.failure_id = path.stem
+                    logging.getLogger(__name__).info("Manufacturing failure snapshot saved: failure_id=%s", path.stem)
                 except (OSError, ValueError, TypeError, ContractError) as snapshot_error:
                     logging.getLogger(__name__).warning(
                         "Manufacturing failure snapshot could not be saved (%s)",

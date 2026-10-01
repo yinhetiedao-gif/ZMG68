@@ -24,9 +24,10 @@ function mockApi() {
     return Promise.resolve(reply({ message: 'unexpected route' }, 404))
   })
   vi.stubGlobal('fetch', mock)
-  const finish = (index: number, options: { status?: number; componentCount?: number; message?: string } = {}) => {
+  const finish = (index: number, options: { status?: number; componentCount?: number; message?: string; failureId?: string } = {}) => {
     const { body, resolve } = builds[index]
-    if (options.status) { resolve(reply({ message: options.message ?? '二维轮廓未闭合' }, options.status)); return }
+    if (options.status) { resolve(reply({ message: options.message ?? '二维轮廓未闭合',
+      details: options.failureId ? { failure_id: options.failureId } : null }, options.status)); return }
     resolve(reply({ schema_version: '1.0', status: 'completed', manufacturing_result_id: `mesh-${index}`,
       document_id: body.document_id, document_revision: body.document_revision,
       geometry_validation_summary: { checked_count: 1, error_count: 0, warning_count: 0, issues: [] },
@@ -105,6 +106,15 @@ describe('P2 web manufacturing derived workflow', () => {
     fireEvent.click(screen.getByRole('button', { name: /设计 Design/ }))
     const canvas = await screen.findByRole('img', { name: '最终二维几何，单位毫米' })
     expect(canvas.querySelector('[data-element-id="circle-1"]')).not.toBeNull()
+  })
+
+  it('shows the server failure ID only when a dev snapshot was saved', async () => {
+    const api = mockApi()
+    await openProject(api)
+    fireEvent.click(screen.getByRole('button', { name: '检查并生成' }))
+    api.finish(0, { status: 422, message: 'Mesh 存在退化三角面', failureId: 'test-failure-001' })
+    expect(await screen.findByRole('alert')).toHaveTextContent('failure_id: test-failure-001')
+    expect(screen.getByText('revision 0')).toBeInTheDocument()
   })
 
   it('marks a built result stale after a design commit and never treats the old result as current', async () => {

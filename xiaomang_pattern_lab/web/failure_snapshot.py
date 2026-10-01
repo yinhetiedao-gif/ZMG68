@@ -33,9 +33,11 @@ def save_manufacturing_failure(
     the original manufacturing error always remains the HTTP response.
     """
     timestamp = datetime.now(timezone.utc)
+    failure_id = f"{timestamp.strftime('%Y%m%dT%H%M%S%fZ')}-{uuid4().hex[:12]}"
     document = dto.to_dict()
     payload = _redact({
         "snapshot_version": 1,
+        "failure_id": failure_id,
         "timestamp_utc": timestamp.isoformat(),
         "document_id": dto.document_id,
         "document_revision": dto.document_revision,
@@ -53,7 +55,7 @@ def save_manufacturing_failure(
     # The Web contract rejects absolute local paths and non-finite numbers.
     content = json.dumps(json.loads(canonical_json(payload)), ensure_ascii=False, indent=2)
     directory.mkdir(parents=True, exist_ok=True)
-    path = directory / f"{timestamp.strftime('%Y%m%dT%H%M%S%fZ')}-{uuid4().hex[:12]}.json"
+    path = directory / f"{failure_id}.json"
     with path.open("x", encoding="utf-8") as stream:
         stream.write(content + "\n")
     return path

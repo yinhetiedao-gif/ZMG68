@@ -30,6 +30,7 @@ class ManufacturingFailureSnapshotTests(unittest.TestCase):
                 response = client.post("/api/v1/manufacturing/build", json=build_payload(dto))
             self.assertEqual(response.status_code, 422)
             self.assertEqual(response.json()["code"], "manufacturing_validation_failed")
+            self.assertIsNone(response.json()["details"])
             self.assertFalse(directory.exists())
 
     def test_enabled_captures_reproducible_gate_t_failure_without_secrets(self):
@@ -41,14 +42,21 @@ class ManufacturingFailureSnapshotTests(unittest.TestCase):
             os.environ, {"XIAOMANG_DEV_MANUFACTURING_SNAPSHOTS": "1"}
         ):
             directory = Path(temporary) / "failures"
-            with TestClient(create_app(failure_snapshot_dir=directory)) as client:
-                responses = [client.post("/api/v1/manufacturing/build", json=build_payload(dto, 2.0))
-                             for _ in range(2)]
+            with self.assertLogs("xiaomang_pattern_lab.web.app", level="INFO") as logs:
+                with TestClient(create_app(failure_snapshot_dir=directory)) as client:
+                    responses = [client.post("/api/v1/manufacturing/build", json=build_payload(dto, 2.0))
+                                 for _ in range(2)]
             self.assertTrue(all(response.status_code == 422 for response in responses))
+            failure_ids = [response.json()["details"]["failure_id"] for response in responses]
+            self.assertEqual(len(set(failure_ids)), 2)
+            for failure_id in failure_ids:
+                self.assertIn("failure_id=" + failure_id, "\n".join(logs.output))
             files = sorted(directory.glob("*.json"))
             self.assertEqual(len(files), 2)
             self.assertNotEqual(files[0].name, files[1].name)
+            self.assertEqual({path.stem for path in files}, set(failure_ids))
             snapshot = json.loads(files[0].read_text(encoding="utf-8"))
+            self.assertEqual(snapshot["failure_id"], files[0].stem)
             self.assertEqual(snapshot["document_id"], "empty")
             self.assertEqual(snapshot["document_revision"], 7)
             self.assertEqual(snapshot["height_mm"], 2.0)
@@ -81,6 +89,7 @@ class ManufacturingFailureSnapshotTests(unittest.TestCase):
             self.assertEqual(response.status_code, 422)
             self.assertEqual(response.json()["code"], "manufacturing_validation_failed")
             snapshot = json.loads(next(directory.glob("*.json")).read_text(encoding="utf-8"))
+            self.assertEqual(response.json()["details"]["failure_id"], snapshot["failure_id"])
             self.assertEqual(snapshot["validation_summary"]["mesh"]["degenerate_face_count"], 1)
             self.assertEqual(snapshot["document_revision"], 3)
 
@@ -96,6 +105,7 @@ class ManufacturingFailureSnapshotTests(unittest.TestCase):
                 response = client.post("/api/v1/manufacturing/build", json=build_payload(dto))
         self.assertEqual(response.status_code, 422)
         self.assertEqual(response.json()["code"], "manufacturing_validation_failed")
+        self.assertIsNone(response.json()["details"])
 
 
 if __name__ == "__main__":

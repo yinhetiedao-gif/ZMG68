@@ -1,5 +1,12 @@
 # Gate 状态（2026-10-01）
 
+## Web 项目文件入口收敛与制造失败编号（2026-10-01）
+
+- 状态：**定向功能验证通过；完整 Python 回归未验证 PASS**。起点 `bd7f8ab`，预变更保护引用 `backup/pre-web-session-only`。不更新 Last Known Good，不进入新 Fabric Gate。
+- 普通 Web 界面移除“打开本地项目”及空白页 JSON 项目入口；PNG/JPG/SVG 导入、会话内 PatternDocument、设计/制造/预览/STL 流程保留。`.pattern.json` 文件输入只在 Vitest 的 `test` 模式挂载，供已有固定工程测试使用；生产构建不提供项目文件入口。原本没有普通用户的项目导出按钮。
+- 开发模式 `XIAOMANG_DEV_MANUFACTURING_SNAPSHOTS=1` 下，制造验证失败自动保存原请求快照到 `work/manufacturing-failures/`；快照内容、文件名、服务日志与失败响应中的 `failure_id` 一致。默认模式不保存、不返回 `failure_id`；快照写入失败不覆盖原制造错误。未修改 MeshValidator 或制造算法。
+- 验证：Web 110/110 PASS、TypeScript/Vite build PASS；制造快照 + Web API + F1/F2 定向 Python 26/26 PASS；固定图案 6/6 PASS。完整 Python 回归再次在既有 Tk `Variable.__del__` 非主线程清理阶段反复出现 `main thread is not in main loop`，未正常退出，测试进程人工中断为 exit 1。因此本变更**不能宣称全量 PASS**；Tk 生命周期问题仍需独立处理。
+
 ## 制造失败快照（2026-10-01）
 
 - 状态：**调试能力已通过自动测试；原始退化面根因仍待失败工程复现**。起点 `b9e71fa`，预变更保护引用 `backup/pre-manufacturing-failure-snapshot`。本轮未进入 F3/F4，未调整 MeshValidator 阈值，也未修复或删除坏三角面。

@@ -1,6 +1,10 @@
 # Xiaomang Pattern Lab / 小芒图案实验室（当前活跃项目）
 
-## 开发调试：制造失败快照
+## Web 用户流程与制造失败调试
+
+普通用户的 Web 流程是：导入 PNG/JPG（或已有 SVG）→ 参数化设计 → Fabric/制造 → 3D 预览 → STL。
+界面不提供 `.pattern.json` 的导入/导出或项目文件保存。PatternDocument 仍是会话中的内部设计事实；
+现有 JSON 读取器只保留给自动测试注入固定工程，不在开发或正式用户界面显示。
 
 默认**关闭**。需要复现制造检查失败时，在启动 Web 后端的同一个 PowerShell 会话中设置
 `$env:XIAOMANG_DEV_MANUFACTURING_SNAPSHOTS = '1'`，然后按现有方式启动后端。
@@ -8,10 +12,11 @@ Gate T / Gate W 等制造失败会把本次实际提交的 PatternDocumentDTO、
 启用的 Field/Modifier、错误码和验证摘要写入被 Git 忽略的
 `work/manufacturing-failures/`；每次生成独立文件，不覆盖旧记录。敏感键值会脱敏，
 本地绝对路径被 Web Contract 拒绝，快照不含浏览器临时交互状态。它不修复 Mesh，
-也不降低校验标准。调试后移除该环境变量并重启后端即可关闭。
+也不降低校验标准。失败响应、开发 UI 和日志使用同一个 `failure_id` 对应快照文件名；
+生产环境默认不生成或返回该 ID。调试后移除该环境变量并重启后端即可关闭。
 
-快照仅覆盖**后端收到并处理的制造请求**，不能替代用户在报错后立刻保存的
-`.pattern.json`。当前那次退化面失败尚无原始工程，不能凭快照功能反推其根因。
+快照仅覆盖**后端收到并处理的制造请求**，不会要求用户保存工程文件。
+当前那次退化面失败尚无原始请求快照，不能凭后续功能反推其根因。
 
 ## F2 — Unit Cell Library + Uniform Instance MVP
 

@@ -52,8 +52,7 @@ button { font: inherit; }
 .sidebar-intro { padding: 0 10px 28px; border-bottom: 1px solid #e7ebee; }
 .eyebrow { color: #7c91a0; font-size: 10px; font-weight: 800; letter-spacing: .135em; }
 .sidebar-intro p { font-size: 12px; color: #687783; line-height: 1.7; margin: 10px 0 0; }
-.open-project-side { margin: 18px 8px 0; padding: 10px 12px; border: 1px solid #b8d1dd; border-radius: 8px; background: #e8f3f7; color: #315d76; font-size: 12px; font-weight: 700; cursor: pointer; }
-.open-project-side:hover, .primary-action:hover { background: #d8eaf1; }
+.primary-action:hover { background: #d8eaf1; }
 .side-group { margin-top: 24px; }
 .group-heading { display: flex; align-items: center; gap: 10px; padding: 0 10px; }
 .group-heading span { color: #9fb3c0; font-size: 10px; font-weight: 800; }

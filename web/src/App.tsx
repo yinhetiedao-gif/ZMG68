@@ -479,8 +479,7 @@ export function App() {
 
     <div className="work-area">
       <aside className="sidebar" aria-label="左侧工具栏">
-        <div className="sidebar-intro"><span className="eyebrow">WORKSPACE / 工作台</span><p>打开项目，查看并移动可直接编辑的二维元素。</p></div>
-        <button className="open-project-side" type="button" onClick={() => inputRef.current?.click()}>打开本地项目</button>
+        <div className="sidebar-intro"><span className="eyebrow">WORKSPACE / 工作台</span><p>导入图片，设计可直接编辑的二维图案。</p></div>
         <section className="side-group" aria-label="素材来源">
           <div className="group-heading"><span>01</span><h2>素材来源</h2></div>
           <div className="side-items">
@@ -556,9 +555,10 @@ export function App() {
             <section className="empty-state" aria-label="空白设计工作区">
               <div className="orbit-art" aria-hidden="true"><div className="orbit-ring ring-one" /><div className="orbit-ring ring-two" /><div className="orbit-ring ring-three" /><span className="orbit-core" /><i className="orbit-dot dot-one" /><i className="orbit-dot dot-two" /><i className="orbit-dot dot-three" /></div>
               <span className="empty-kicker">A NEW CANVAS AWAITS</span>
-              <h1>打开项目查看二维图案</h1>
-              <p>读取本地 PatternDocument JSON，并由 Python 计算最终几何。</p>
-              <button type="button" className="primary-action" onClick={() => inputRef.current?.click()}>打开项目</button>
+              <h1>导入图片开始设计</h1>
+              <p>导入 PNG、JPG 或 SVG，由 Python 转换并计算可编辑几何。</p>
+              <button type="button" className="primary-action" disabled={!connected || importing}
+                onClick={() => imageInputRef.current?.click()}>选择图片开始</button>
               <span className="empty-hint">WM6 · Parametric Controls MVP</span>
             </section>
           ) : browser.activeMode === 'manufacture' ? (
@@ -653,8 +653,9 @@ export function App() {
         </div>
       </aside>
     </div>
-    <input ref={inputRef} type="file" accept=".json,application/json" className="visually-hidden"
-      aria-label="选择 PatternDocument 项目文件" onChange={(event) => void onFile(event)} />
+    {/* Test fixture loader only; absent from development/production UI and accessibility tree. */}
+    {import.meta.env.MODE === 'test' && <input ref={inputRef} type="file" accept=".json,application/json" className="visually-hidden"
+      aria-label="选择 PatternDocument 项目文件" onChange={(event) => void onFile(event)} />}
     <input ref={imageInputRef} type="file" accept=".png,.jpg,.jpeg,image/png,image/jpeg" className="visually-hidden"
       aria-label="选择 PNG 或 JPG 图片" onChange={onImageFile} />
     <input ref={svgInputRef} type="file" accept=".svg,image/svg+xml" className="visually-hidden"

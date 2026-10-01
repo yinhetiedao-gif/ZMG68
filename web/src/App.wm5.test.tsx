@@ -65,7 +65,7 @@ describe('WM5 project → Python Evaluate → 2D workspace', () => {
     await screen.findByText('Backend Online')
     uploadJson({ nonsense: true })
     expect(await screen.findByRole('alert')).toHaveTextContent('不是 PatternDocument')
-    expect(screen.getByText('打开项目查看二维图案')).toBeInTheDocument()
+    expect(screen.getByText('导入图片开始设计')).toBeInTheDocument()
   })
 
   it('requests explicit mm mapping for a legacy 144-element project', async () => {
