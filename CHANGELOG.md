@@ -1,5 +1,11 @@
 # 更新记录
 
+## F1 Fabric Base MVP（2026-10-01）
+
+- 可选版本化 `fabric_config` 接入原 PatternDocument；无配置的项目维持既有 Web Alpha 制造路径。
+- 新增 Solid/Grid 基底，基于最终二维制造外接矩形，以毫米构造并沿用既有网格验证、预览和 STL 导出；制造页使用通用参数面板，切换配置后旧制造结果失效。
+- 本阶段只完成软件生成与验证，不声明 Fabric Base 已实物打印；外接矩形方案不裁切原图轮廓或保留原图孔洞，Unit Cell 等后续能力仍未实现。
+
 ## Xiaomang Pattern Lab Web v0.1 Alpha — 实物验证冻结（2026-10-01）
 
 - 仅冻结文档与 Git 引用，产品代码保持 `b035c3f`；最终发布标签为 `web-v0.1-alpha`，稳定备份为 `backup/web-v0.1-alpha-physical-validated`。未新增 Fabric、制造算法、Web 功能或安装包。

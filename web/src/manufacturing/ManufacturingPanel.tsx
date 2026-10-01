@@ -2,6 +2,10 @@ import { useEffect, useState } from 'react'
 import type { ManufacturingBuildResult } from '../api/manufacturing'
 import type { ManufacturingStatus } from './useManufacturing'
 import { StlExportButton } from './StlExportButton'
+import { ParameterPanel } from '../document/ParameterPanel'
+import { fabricBase, type FabricBaseType } from '../document/fabricBase'
+import { groupFor, type ParameterCatalog, type ParameterValue } from '../document/parameterSchema'
+import type { PatternDocumentDTO } from '../model/types'
 
 interface Props {
   heightText: string
@@ -15,6 +19,10 @@ interface Props {
   projectName: string | null
   isCurrentResult: (resultId: string) => boolean
   onPreview: () => void
+  document: PatternDocumentDTO | null
+  parameterCatalog: ParameterCatalog | null
+  onFabricType: (type: FabricBaseType | 'none') => void
+  onFabricParameter: (key: string, value: ParameterValue) => void
 }
 
 const labels: Record<ManufacturingStatus, string> = {
@@ -24,6 +32,8 @@ const labels: Record<ManufacturingStatus, string> = {
 
 export function ManufacturingPanel(props: Props) {
   const { result, status } = props
+  const base = fabricBase(props.document)
+  const fabricGroup = base && groupFor(props.parameterCatalog, 'fabric_base', base.type)
   const [elapsedSeconds, setElapsedSeconds] = useState(0)
   useEffect(() => {
     if (status !== 'building') return
@@ -45,10 +55,20 @@ export function ManufacturingPanel(props: Props) {
   return <section className="manufacturing-panel" aria-label="制造检查">
     <div className="manufacturing-heading"><span className="eyebrow">FINAL MANUFACTURING MESH</span><h1>制造检查</h1>
       <p>从当前二维设计生成最终制造网格；此操作不会更改设计或撤销历史。</p></div>
+    <section className="manufacturing-settings" aria-label="Fabric Base">
+      <label htmlFor="fabric-base-type">Fabric Base 类型</label>
+      <select id="fabric-base-type" value={base?.type ?? 'none'} onChange={(event) =>
+        props.onFabricType(event.target.value as FabricBaseType | 'none')}>
+        <option value="none">标准二维挤出</option><option value="solid">Solid Base</option><option value="grid">Grid Base</option>
+      </select>
+      {base && <p>基底使用最终二维制造几何的外接矩形（mm）；Solid 会填满矩形，Grid 会生成贯通网孔，不沿原图轮廓或保留原图孔洞。</p>}
+      {base && fabricGroup && <ParameterPanel group={fabricGroup} values={{ ...base }}
+        onCommit={props.onFabricParameter} />}
+    </section>
     <div className="manufacturing-settings">
-      <label htmlFor="manufacturing-height">厚度 <span>mm</span></label>
-      <input id="manufacturing-height" type="number" min="0.01" step="0.1" value={props.heightText}
-        onChange={(event) => props.onHeightChange(event.target.value)} />
+      {!base && <><label htmlFor="manufacturing-height">厚度 <span>mm</span></label>
+        <input id="manufacturing-height" type="number" min="0.01" step="0.1" value={props.heightText}
+          onChange={(event) => props.onHeightChange(event.target.value)} /></>}
       <button type="button" onClick={props.onBuild} disabled={!props.canBuild || status === 'building'}>检查并生成</button>
     </div>
     {!props.validHeight && <p className="manufacturing-error" role="alert">厚度必须大于 0 mm。</p>}

@@ -1,5 +1,11 @@
 # Xiaomang Pattern Lab / 小芒图案实验室（当前活跃项目）
 
+## F1 — Fabric Base MVP（增量功能）
+
+制造页可选“标准二维挤出”“Solid Base”或“Grid Base”。Fabric 配置作为可选 `fabric_config` 存于原 PatternDocument；缺失时沿用 Web Alpha 制造行为。Solid/Grid 从最终二维制造几何的**轴对齐外接矩形**（世界坐标 mm）生成基底，网格条带先合并再挤出；厚度、边距和网格间距/线宽由 Python 校验。生成结果继续使用原有 Mesh Validation、同一 `manufacturing_result_id` 的 3D 预览与 STL 下载。
+
+F1 **不是**沿原图轮廓裁剪基底：Solid 会填满外接矩形（包括原图孔洞），Grid 只保留自身网孔；也未将原二维元素与基底融合。制造前必须核对实际尺寸与连接方式。本阶段没有 Unit Cell、Height/Density/Orientation 或真实 Fabric 打印验证。Web Alpha 冻结标签仍指向原稳定版本，不随 F1 改动。
+
 ## Web v0.1 Alpha — 已完成实物验证（2026-10-01）
 
 当前 Web Alpha 已形成可用闭环：图片/SVG 导入 → 可编辑二维图案 → Layout、Field、Modifier 参数化设计 → 制造检查与网格验证 → Three.js 只读 3D 预览 → 下载 STL。用户确认已将网页版下载的 STL 导入 Bambu Studio、切片并完成真机打印，实物正常；因此本次 Web Alpha 实物验收记录为 **PASS（依据用户反馈）**。

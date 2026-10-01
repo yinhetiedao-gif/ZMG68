@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { buildManufacturing, type ManufacturingBuildResult } from '../api/manufacturing'
 import type { PatternDocumentDTO } from '../model/types'
+import { fabricBase } from '../document/fabricBase'
 
 export type ManufacturingStatus = 'idle' | 'building' | 'ready' | 'warning' | 'error' | 'stale'
 type BuildState = { key: string | null; status: ManufacturingStatus; result: ManufacturingBuildResult | null; error: string | null }
@@ -10,8 +11,9 @@ export function useManufacturing(dto: PatternDocumentDTO | null) {
   const [buildState, setBuildState] = useState<BuildState>({ key: null, status: 'idle', result: null, error: null })
   const controller = useRef<AbortController | null>(null)
   const requestSequence = useRef(0)
-  const heightMm = Number(heightText)
-  const validHeight = heightText.trim() !== '' && Number.isFinite(heightMm) && heightMm > 0
+  const base = fabricBase(dto)
+  const heightMm = base ? base.thickness_mm : Number(heightText)
+  const validHeight = (base !== null || heightText.trim() !== '') && Number.isFinite(heightMm) && heightMm > 0
   const key = dto && validHeight ? `${dto.document_id}:${dto.document_revision}:${heightMm}` : null
   const keyRef = useRef(key)
   keyRef.current = key
@@ -52,6 +54,6 @@ export function useManufacturing(dto: PatternDocumentDTO | null) {
     }
   }, [dto, heightMm, key, validHeight])
 
-  return { heightText, setHeightText, validHeight, status, result, isCurrentResult,
+  return { heightText: base ? String(base.thickness_mm) : heightText, setHeightText, validHeight, status, result, isCurrentResult,
     error: status === 'stale' ? null : buildState.error, build }
 }

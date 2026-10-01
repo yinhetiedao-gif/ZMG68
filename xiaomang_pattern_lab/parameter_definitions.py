@@ -157,6 +157,21 @@ def parameter_definitions() -> dict[str, Any]:
                 angle("rotation", "旋转 °"),
             ]},
         },
+        "fabric_base": {
+            "solid": {"label": "连续基底", "parameters": [
+                _size("thickness_mm", "厚度", 0.6) | {
+                    "slider_min": 0.1, "slider_max": 3, "slider_step": 0.05},
+                _p("margin_mm", "边距", "number", 0, min=0, max=10000, step=0.1, unit="mm"),
+            ]},
+            "grid": {"label": "网格基底", "parameters": [
+                _size("thickness_mm", "厚度", 0.6) | {
+                    "slider_min": 0.1, "slider_max": 3, "slider_step": 0.05},
+                _size("spacing_x_mm", "水平间距", 5),
+                _size("spacing_y_mm", "垂直间距", 5),
+                _size("line_width_mm", "线宽", 1),
+                _p("margin_mm", "边距", "number", 0, min=0, max=10000, step=0.1, unit="mm"),
+            ]},
+        },
     }}
 
 

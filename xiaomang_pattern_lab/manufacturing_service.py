@@ -22,6 +22,7 @@ from .manufacturing_geometry import ManufacturingConversionResult, Manufacturing
 from .mesh_validation import MeshValidationReport
 from .geometry_validation import GeometryValidator
 from .connectivity import ConnectivityAnalyzer
+from .fabric_base import FabricBaseBuilder, fabric_config_from_document
 
 
 def parse_height_mm(value: str | float) -> float:
@@ -84,6 +85,9 @@ class ManufacturingService:
         before = self._state(session)
         try:
             document = session.require_document()
+            fabric = fabric_config_from_document(document)
+            if fabric is not None and not math.isclose(height, fabric.base.thickness_mm, rel_tol=0, abs_tol=1e-9):
+                raise ValueError("制造厚度必须与 Fabric Base 厚度一致。")
             final_elements = session.evaluate_elements()
             geometry = GeometryValidator().validate_elements(final_elements)
             connectivity = ConnectivityAnalyzer().analyze_elements(final_elements, validation_report=geometry)
@@ -92,7 +96,13 @@ class ManufacturingService:
             build = None
             mesh = None
             if geometry.error_count == 0 and conversion.report.converted_count and not conversion.report.skipped_invalid_count:
-                build = ManufacturingBuildResult(conversion, TrimeshBackend().extrude(conversion.geometry, height))
+                if fabric is None:
+                    mesh_result = TrimeshBackend().extrude(conversion.geometry, height)
+                else:
+                    if conversion.report.skipped_count or conversion.geometry.bounds is None:
+                        raise ValueError("Fabric Base 需要所有可见二维元素成功转换为毫米制造边界。")
+                    mesh_result = FabricBaseBuilder().build(conversion.geometry.bounds, fabric.base)
+                build = ManufacturingBuildResult(conversion, mesh_result)
                 mesh = session.validate_manufacturing_mesh(build.mesh_result)
         finally:
             self._assert_read_only(session, before)

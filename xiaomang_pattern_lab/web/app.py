@@ -239,7 +239,12 @@ def _build(document, dto: PatternDocumentDTO, height_mm: float):
     with TemporaryDirectory(prefix="xiaomang-wm3-") as temporary:
         session = PatternLabSession(FoundationPipeline(None, None), Path(temporary), document=document)
         session.revision = dto.document_revision
-        result = ManufacturingService().build(session, height_mm)
+        try:
+            result = ManufacturingService().build(session, height_mm)
+        except ValueError as error:
+            if "fabric_config" in document.metadata:
+                raise WebError("invalid_fabric_base", str(error)) from error
+            raise
     response = ManufacturingBuildResponseDTO.from_service_result(result, dto)
     if not result.ready or result.mesh_result is None:
         summaries = (response.geometry_validation_summary, response.mesh_validation_summary or {})

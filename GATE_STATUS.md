@@ -1,5 +1,12 @@
 # Gate 状态（2026-10-01）
 
+## F1 Fabric Base MVP（2026-10-01）
+
+- 状态：**PASS（软件验证，未作 Fabric Base 实物打印）**。F0 文档基线 `01bff18`；F1 独立分支 `feature/f1-fabric-base`，Web Alpha 冻结标签和保护分支不变。
+- 在原 PatternDocument 元数据中增加可选版本化 `fabric_config`。无配置时沿用原制造路径；有配置时，在原有 Evaluate、二维几何校验与制造边界转换之后，由无 UI 依赖的 `FabricBaseBuilder` 生成 Solid 或 Grid 基底，再进入原有 Mesh Validator、GLB 预览和 STL 导出。
+- F1 基底取最终二维制造几何的轴对齐外接矩形，使用 mm；Solid 填满矩形，Grid 生成相连的横纵条带。它不沿源轮廓裁切，也不保留源图孔洞或融合原元素。厚度须与制造请求一致；非法/非有限参数被拒绝。基底尚无独立实物打印证明。
+- 定向 Python 12/12 PASS；完整 Python 回归 374/374 PASS（exit 0）；固定图案 6/6 PASS；Web 104/104 PASS、TypeScript/Vite 构建 PASS。并行负载下 Web 旧 P1-E 测试曾单次超时，隔离及全套顺序重跑均 PASS。浏览器在独立测试端口导入带孔 fixture，Solid/Grid 都得到封闭且单组件的 30×30×0.6 mm 模型，Grid 预览可见网孔，切换类型使旧结果 stale；HTTP STL 请求 200，自动化读回 STL/GLB 均封闭。备份将在提交后建立。
+
 ## Xiaomang Pattern Lab Web v0.1 Alpha — 实物验证冻结（2026-10-01）
 
 - 状态：**PASS（用户报告的 Web Alpha 实物打印验收）**。产品代码基线 `b035c3f` / `backup/perf1-manufacturing-final`；本轮仅更新四份文档，不修改功能、制造算法或打包产物。最终冻结提交由 `web-v0.1-alpha` 标签和 `backup/web-v0.1-alpha-physical-validated` 分支共同保护。

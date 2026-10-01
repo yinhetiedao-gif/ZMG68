@@ -37,6 +37,7 @@ HTTP_STATUS_BY_CODE = {
     "empty_layout": 422,
     "invalid_layout": 422,
     "invalid_layout_parameter": 422,
+    "invalid_fabric_base": 422,
     "internal_error": 500,
 }
 

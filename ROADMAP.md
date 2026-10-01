@@ -1,11 +1,17 @@
 # Roadmap
 
+## Fabric 增量路线（2026-10-01）
+
+- [x] F0 架构蓝图：`docs/FABRIC_SYSTEM_V1.md`；OpenSCAD `v 0-5.scad` 源码映射仍为 Pending source-code verification。
+- [x] F1 Fabric Base MVP：Solid/Grid 软件生成、Web 预览与 STL 验证通过；尚未进行 Fabric Base 实物打印。
+- [ ] F2 Unit Cell Library；F3 Height/Density/Orientation；F4 Image-driven Fabric；F5 Manufacturing Validation；Fabric Alpha。本轮 F1 完成后停止，不自动进入 F2。
+
 ## 当前：Xiaomang Pattern Lab Web v0.1 Alpha（2026-10-01）
 
 - [x] Web Alpha 设计制造闭环：图片/SVG → 可编辑二维 → Layout → Field → Modifier → Mesh Validation → Three.js 预览 → Web STL 下载。
 - [x] Web Alpha 实物验收：用户确认网页版 STL 已在 Bambu Studio 中切片并真机打印，成品正常。记录为用户反馈，不推断任意图案/材料均可打印。
 - [x] 冻结 `web-v0.1-alpha` 与 `backup/web-v0.1-alpha-physical-validated`；本轮不开发新功能。
-- [ ] 后续另行立项 Fabric：F0 架构蓝图 → F1 Fabric Base → F2 Unit Cell Library → F3 Height/Density/Orientation → F4 Image-driven Fabric → F5 Manufacturing Validation → Fabric Alpha。此处仅为计划，均未开始。
+- [ ] Fabric 后续阶段以本文件上方增量路线为准；Web Alpha 冻结版本本身不包含 Fabric。
 - [ ] 其他独立计划：项目完整持久化/云端产品化、3MF、自动连接/修复、最小壁厚与打印配置。Web Alpha 冻结不包含这些能力。
 
 ## 历史阶段快照：Xiaomang Pattern Lab（2026-09-23）

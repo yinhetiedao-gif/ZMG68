@@ -24,6 +24,7 @@ import { initialDocumentState } from './state/documentState'
 import { ManufacturingPanel } from './manufacturing/ManufacturingPanel'
 import { useManufacturing } from './manufacturing/useManufacturing'
 import { PreviewPanel } from './manufacturing/PreviewPanel'
+import { setFabricBaseType, updateFabricBase } from './document/fabricBase'
 
 type ConnectionState =
   | { kind: 'checking'; message: string }
@@ -561,6 +562,19 @@ export function App() {
             </section>
           ) : browser.activeMode === 'manufacture' ? (
             <ManufacturingPanel heightText={manufacturing.heightText} onHeightChange={manufacturing.setHeightText}
+              document={project.currentDocument} parameterCatalog={parameterCatalog}
+              onFabricType={(type) => {
+                const dto = project.currentDocument
+                if (!dto || !canEditDocument) return
+                try { commitDocument(setFabricBaseType(dto, type, parameterCatalog), dto) }
+                catch (error) { setProjectError(error instanceof Error ? error.message : 'Fabric Base 配置无效。') }
+              }}
+              onFabricParameter={(key, value) => {
+                const dto = project.currentDocument
+                if (!dto || !canEditDocument) return
+                try { commitDocument(updateFabricBase(dto, key, value, parameterCatalog), dto) }
+                catch (error) { setProjectError(error instanceof Error ? error.message : 'Fabric Base 参数无效。') }
+              }}
               validHeight={manufacturing.validHeight} canBuild={connected && project.evaluateStatus === 'ready'
                 && Boolean(project.currentDocument) && manufacturing.validHeight}
               onBuild={() => void manufacturing.build()} status={manufacturing.status}

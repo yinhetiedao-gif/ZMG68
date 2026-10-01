@@ -21,10 +21,10 @@ export interface ParameterCatalog {
   schema_version: string
   units: string
   definitions: Record<'layout' | 'field' | 'modifier', Record<string, ParameterGroup>> &
-    { element?: Record<string, ParameterGroup> }
+    { element?: Record<string, ParameterGroup>; fabric_base?: Record<string, ParameterGroup> }
 }
 
-export function groupFor(catalog: ParameterCatalog | null, category: 'layout' | 'field' | 'modifier' | 'element',
+export function groupFor(catalog: ParameterCatalog | null, category: 'layout' | 'field' | 'modifier' | 'element' | 'fabric_base',
   type: string): ParameterGroup | null {
   return catalog?.definitions?.[category]?.[type] ?? null
 }
