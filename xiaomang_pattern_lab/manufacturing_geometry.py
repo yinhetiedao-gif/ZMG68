@@ -304,6 +304,29 @@ def _normalise_ring(ring: Iterable[Point], epsilon: float) -> tuple[Point, ...]:
             result.append((float(point[0]), float(point[1])))
     if len(result) > 1 and math.hypot(result[0][0] - result[-1][0], result[0][1] - result[-1][1]) <= epsilon:
         result.pop()
+    # Raster-derived straight sides are often encoded as cubic paths.  After
+    # rotation their many sampled points are only *nearly* collinear in float
+    # arithmetic; earcut may then make zero-area cap triangles.  Discard only
+    # a middle point that lies on the segment between its neighbours within
+    # the existing manufacturing-coordinate epsilon.  Corners and actual
+    # curvature are preserved.
+    changed = True
+    while changed and len(result) > 3:
+        changed = False
+        for index in range(len(result)):
+            start, middle, end = result[index - 1], result[index], result[(index + 1) % len(result)]
+            dx, dy = end[0] - start[0], end[1] - start[1]
+            length_squared = dx * dx + dy * dy
+            if length_squared <= epsilon * epsilon:
+                continue
+            projection = ((middle[0] - start[0]) * dx + (middle[1] - start[1]) * dy) / length_squared
+            if not 0.0 <= projection <= 1.0:
+                continue
+            distance = abs((middle[0] - start[0]) * dy - (middle[1] - start[1]) * dx) / math.sqrt(length_squared)
+            if distance <= epsilon:
+                result.pop(index)
+                changed = True
+                break
     return tuple(result)
 
 

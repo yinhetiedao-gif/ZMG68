@@ -1,5 +1,13 @@
 # Gate 状态（2026-10-02）
 
+## F3.5 Blocker — 真实失败快照的二维挤出退化面（2026-10-02）
+
+- 状态：**定向修复 PASS；未进入 F4**。以 `failure_id=20261002T111412247992Z-adf6121c04c4` 的真实开发快照重放；该快照实际为 169 个 `filled_region`，1 个 Linear Field、Size + Rotation Modifier，厚度 2 mm，并非先前口述的约 20 个元素。
+- 第一个失败阶段是 **Extrusion/triangulation**。Final Geometry 169/169、Gate T 0 错误、Connectivity 169 组件、Adapter 169 转换且 0 跳过；输入 Polygon 均有效。旋转/尺寸变化后，导入方块直边的贝塞尔采样产生大量冗余共线点；earcut 将其组成近零面积顶面三角形。完整失败快照最先出错的组件为 `layer-0`，第一个坏面索引 1，面积约 `1.87e-16 mm²`；全网格退化面 32,556 个。该元素最终尺寸约 3.8388 × 4.0409 mm，面积约 15.5123 mm²，最短轮廓边约 0.2375 mm，并非元素缩至零。
+- 只在既有制造轮廓标准化处，以原 `epsilon_mm=1e-6` 移除位于相邻线段上的冗余共线中点；未调低 MeshValidator 阈值、未删 Mesh 面、未改 Field/Modifier、未修改源文档。`layer-0` Polygon 面积前后均约 15.5122507453 mm²，轮廓从 64 个冗余采样顶点化为 4 个角点。
+- 同一快照重放：Gate T/Adapter/Extrusion/MeshValidator 均 PASS，退化面 0，Mesh watertight，169 组件；制造 API 200，二进制 STL 200，重读 STL 为 2,028 面且 watertight。新增单元素旋转贝塞尔直边回归用例。
+- 回归：相关 Python 73/73 PASS（含制造、169-square Shared Field 矩阵、F1/F2/F2.5/F3/F3.5），Web 131/131 PASS，TypeScript/Vite build PASS。按任务范围未运行无关 Python 全量回归。Fabric 最终 STL 仍未开放。
+
 ## F3.5 补充 — Unit Cell 尺寸映射与预览样式（2026-10-02）
 
 - 状态：**PASS（定向自动验收）**。从已冻结 F3.5 `b0f6a2a` 增量开发；原任务书所列 `782a1c4` 是较早 F3 基线，未回退。保护引用 `backup/pre-f3-5-size-preview`。Fabric 最终制造/STL、F1 Base 与普通 Web Alpha 制造流程未改。

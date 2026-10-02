@@ -12,6 +12,8 @@ from ppg.foundation import (
 )
 from xiaomang_pattern_lab.connectivity import polygons_touch_or_overlap
 from xiaomang_pattern_lab.manufacturing_geometry import ManufacturingGeometryAdapter
+from xiaomang_pattern_lab.manufacturing_backend import TrimeshBackend
+from xiaomang_pattern_lab.mesh_validation import MeshValidator
 from xiaomang_pattern_lab.parametric import GridParametricModel
 from xiaomang_pattern_lab.session import PatternLabSession
 from xiaomang_pattern_lab.shared_modifiers import ModifierScope, ModifierScopeMode, PositionModifier, SharedModifierStack
@@ -96,6 +98,28 @@ class ManufacturingGeometryGateU5Tests(unittest.TestCase):
         item = region("multi", "M 0 0 L 5 0 L 5 5 L 0 5 Z M 10 10 L 15 10 L 15 15 L 10 15 Z")
         result = self.adapter.adapt_document(document([item]))
         self.assertEqual((result.report.converted_count, result.geometry.polygon_count), (1, 2))
+
+    def test_rotated_raster_straight_cubics_do_not_create_degenerate_cap_faces(self):
+        # Minimal polygon from the real 20261002 F3.5 failure: a square edge
+        # encoded as many collinear cubic samples, then resized and rotated.
+        item = FilledRegionElement(
+            "raster-rotated", 15.5, 16, 3.8388329226519726, 4.040876760686287,
+            rotation=10.575473943588229, style={"fill": "#000"},
+            path_data=("M0 0 C6.27 0 12.54 0 19 0 "
+                       "C19 6.6 19 13.2 19 20 "
+                       "C12.73 20 6.46 20 0 20 "
+                       "C0 13.4 0 6.8 0 0 Z"),
+            base_x=15.5, base_y=16, base_width=19, base_height=20,
+        )
+        source = document([item])
+        before = deepcopy(source.to_dict())
+        converted = self.adapter.adapt_document(source)
+        self.assertEqual(converted.report.converted_count, 1)
+        self.assertEqual(len(converted.geometry.polygons[0].outer), 4)
+        mesh = TrimeshBackend().extrude(converted.geometry, 2.0)
+        report = MeshValidator().validate(mesh)
+        self.assertEqual((report.degenerate_face_count, report.error_count), (0, 0))
+        self.assertEqual(source.to_dict(), before)
 
     def test_ambiguous_nested_nonzero_fill_is_explicitly_skipped(self):
         item = region("ambiguous", "M 0 0 L 20 0 L 20 20 L 0 20 Z M 5 5 L 15 5 L 15 15 L 5 15 Z")
