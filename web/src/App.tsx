@@ -27,6 +27,7 @@ import { useFabricPreview } from './manufacturing/useFabricPreview'
 import { PreviewPanel } from './manufacturing/PreviewPanel'
 import { setFabricBaseType, updateFabricBase } from './document/fabricBase'
 import { setFabricUnitCellType, updateFabricUnitCell, setFabricPlacementMode } from './document/fabricCell'
+import { setFabricModifierEnabled, setFabricModifierField, updateFabricModifier } from './document/fabricModifiers'
 
 type ConnectionState =
   | { kind: 'checking'; message: string }
@@ -595,6 +596,24 @@ export function App() {
                 if (!dto || !canEditDocument) return
                 try { commitDocument(setFabricPlacementMode(dto, mode), dto) }
                 catch (error) { setProjectError(error instanceof Error ? error.message : 'Fabric 布点方式无效。') }
+              }}
+              onFabricModifierEnabled={(type, enabled) => {
+                const dto = project.currentDocument
+                if (!dto || !canEditDocument) return
+                try { commitDocument(setFabricModifierEnabled(dto, type, enabled, parameterCatalog), dto) }
+                catch (error) { setProjectError(error instanceof Error ? error.message : 'Fabric Modifier 配置无效。') }
+              }}
+              onFabricModifierField={(type, fieldId) => {
+                const dto = project.currentDocument
+                if (!dto || !canEditDocument) return
+                try { commitDocument(setFabricModifierField(dto, type, fieldId), dto) }
+                catch (error) { setProjectError(error instanceof Error ? error.message : 'Fabric 参数场绑定无效。') }
+              }}
+              onFabricModifierParameter={(type, key, value) => {
+                const dto = project.currentDocument
+                if (!dto || !canEditDocument) return
+                try { commitDocument(updateFabricModifier(dto, type, key, value, parameterCatalog), dto) }
+                catch (error) { setProjectError(error instanceof Error ? error.message : 'Fabric Modifier 参数无效。') }
               }}
               fabricPreviewStatus={fabricPreview.status} fabricPreviewResult={fabricPreview.result}
               fabricPreviewError={fabricPreview.error} onUpdateFabricPreview={() => void fabricPreview.update()}

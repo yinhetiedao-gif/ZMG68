@@ -119,6 +119,10 @@ export function removeField(dto: PatternDocumentDTO, id: string): PatternDocumen
   if (!dto.document.fields.some((item) => item.id === id)) throw new DocumentEditError('参数场不存在。')
   if (dto.document.modifiers.some((item) => item.field_id === id))
     throw new DocumentEditError('该参数场仍被效果层引用，请先更换效果层的参数场。')
+  const fabricConfig = asRecord(dto.document.metadata.fabric_config)
+  const fabricModifiers = asRecord(fabricConfig?.field_modifiers)
+  if (fabricModifiers && Object.values(fabricModifiers).some((item) => asRecord(item)?.field_id === id))
+    throw new DocumentEditError('该参数场仍被 Fabric 效果引用，请先更换 Fabric 参数场。')
   if (dto.document.fields.some((item) => item.type === 'composite' &&
       Object.values(asRecord(item.parameters) ?? {}).some((value) => value === id)))
     throw new DocumentEditError('该参数场仍被组合场引用，不能删除。')

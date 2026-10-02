@@ -5,6 +5,7 @@ import { StlExportButton } from './StlExportButton'
 import { ParameterPanel } from '../document/ParameterPanel'
 import { fabricBase, type FabricBaseType } from '../document/fabricBase'
 import { fabricUnitCell, fabricPlacement, type UnitCellType } from '../document/fabricCell'
+import { availableFabricFields, fabricFieldModifier, fabricModifierTypes, type FabricModifierType } from '../document/fabricModifiers'
 import { groupFor, type ParameterCatalog, type ParameterValue } from '../document/parameterSchema'
 import type { PatternDocumentDTO } from '../model/types'
 import type { FabricDesignPreview } from '../api/fabricPreview'
@@ -28,6 +29,9 @@ interface Props {
   onUnitCellType: (type: UnitCellType | 'none') => void
   onUnitCellParameter: (section: 'cell' | 'placement', key: string, value: ParameterValue) => void
   onPlacementMode: (mode: 'area_fill' | 'pattern_points') => void
+  onFabricModifierEnabled: (type: FabricModifierType, enabled: boolean) => void
+  onFabricModifierField: (type: FabricModifierType, fieldId: string) => void
+  onFabricModifierParameter: (type: FabricModifierType, key: string, value: ParameterValue) => void
   fabricPreviewStatus: 'idle' | 'building' | 'ready' | 'error' | 'stale'
   fabricPreviewResult: FabricDesignPreview | null
   fabricPreviewError: string | null
@@ -47,6 +51,7 @@ export function ManufacturingPanel(props: Props) {
   const placement = fabricPlacement(props.document)
   const cellGroup = cell && groupFor(props.parameterCatalog, 'fabric_cell', cell.type)
   const placementGroup = placement && groupFor(props.parameterCatalog, 'fabric_placement', 'regular')
+  const fabricFields = availableFabricFields(props.document)
   const [elapsedSeconds, setElapsedSeconds] = useState(0)
   useEffect(() => {
     if (status !== 'building') return
@@ -96,6 +101,30 @@ export function ManufacturingPanel(props: Props) {
           <ParameterPanel group={placementGroup} values={{ ...placement }}
             onCommit={(key, value) => props.onUnitCellParameter('placement', key, value)} />}
         {cell && (placement?.mode ?? 'area_fill') === 'pattern_points' && <p>图案元素：{props.fabricPreviewResult?.element_count ?? '待更新'} · 单元实例：{props.fabricPreviewResult?.total_count ?? '待更新'}</p>}
+        {cell && <section aria-label="Fabric Field Modifiers">
+          <h2>Fabric 参数场驱动</h2>
+          <p>使用当前设计的 Shared Field 控制单元实例；此设置只影响 3D 设计预览。</p>
+          {!fabricFields.length && <p>请先在设计界面添加参数场。</p>}
+          {fabricModifierTypes.map((type) => {
+            const group = groupFor(props.parameterCatalog, 'fabric_modifier', type)
+            const modifier = fabricFieldModifier(props.document, type)
+            return <section key={type} aria-label={`Fabric ${group?.label ?? type}`}>
+              <label><input type="checkbox" checked={modifier?.enabled === true}
+                disabled={!modifier && (!group || !fabricFields.length)}
+                onChange={(event) => props.onFabricModifierEnabled(type, event.target.checked)} />
+                {group?.label ?? type}</label>
+              {modifier?.enabled && <>
+                <label htmlFor={`fabric-${type}-field`}>驱动参数场</label>
+                <select id={`fabric-${type}-field`} value={modifier.field_id}
+                  onChange={(event) => props.onFabricModifierField(type, event.target.value)}>
+                  {fabricFields.map((field) => <option key={field.id} value={field.id}>{field.id} · {field.type}</option>)}
+                </select>
+                {group && <ParameterPanel group={group} values={{ ...modifier }}
+                  onCommit={(key, value) => props.onFabricModifierParameter(type, key, value)} />}
+              </>}
+            </section>
+          })}
+        </section>}
         {cell && <p>单元阵列仅作设计预览，底部与基底顶面接触；当前 STL 仍只导出 F1 基底，不含单元。</p>}
       </section>}
     </section>
@@ -112,7 +141,7 @@ export function ManufacturingPanel(props: Props) {
       {base ? ({ idle: '尚未更新设计预览', building: '正在更新3D预览…', ready: '设计预览已就绪',
         stale: '设计已变化，请更新3D预览', error: '设计预览失败' }[props.fabricPreviewStatus]) : labels[status]}</div>
     {base && props.fabricPreviewError && <p className="manufacturing-error" role="alert">{props.fabricPreviewError}</p>}
-    {base && props.fabricPreviewResult && <p>实例：{props.fabricPreviewResult.count} / {props.fabricPreviewResult.total_count} ·
+    {base && props.fabricPreviewResult && <p>实例：{props.fabricPreviewResult.active_count} 可见 / {props.fabricPreviewResult.total_count} ·
       Python evaluate {props.fabricPreviewResult.timings_ms.evaluate.toFixed(1)} ms ·
       plan {props.fabricPreviewResult.timings_ms.plan_and_prototype.toFixed(1)} ms
       {props.fabricPreviewResult.client_request_ms !== undefined ? ` · 请求往返 ${props.fabricPreviewResult.client_request_ms.toFixed(1)} ms` : ''}

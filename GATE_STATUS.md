@@ -1,4 +1,12 @@
-# Gate 状态（2026-10-01）
+# Gate 状态（2026-10-02）
+
+## F3 Fabric Field Driven Instances（2026-10-02）
+
+- 状态：**F3 PASS**。仅扩展派生 `FabricInstancePlan` 与 Three.js 实例预览；未进入最终 Fabric Mesh、Boolean、STL 或 F4。F2.5 稳定点 `backup/f2-5-fabric-stabilization-final` 保持不变。
+- 现有 Shared Field Registry 驱动 Height（mm 插值）、Scale（与 Pattern XY Scale 相乘一次）、Density（确定性阈值可见性）、Orientation（叠加 Pattern Z 角度）。Constant、Linear、Wave、Ring、Stripe、Checker、Spiral、Noise 与 Composite 可复用；同一 Field 可绑定多个 Fabric Modifier。Python Parameter Schema 定义四组参数，Web 使用现有 Generic ParameterPanel。删除仍被 Fabric Modifier 引用的 Field 会被阻止。
+- 测试：F3 Python 定向 **10/10 PASS**；完整 Python 回归 **400/400 PASS、退出码 0**；Web **120/120 PASS**；TypeScript/Vite build PASS；固定图案 **6/6 PASS**。第一轮全量回归遇到既有 Tk `Variable.__del__` 清理风暴并人工中断，不能记 PASS；第二轮完整运行正常退出。Tk 间歇性风险仍在，不属于 Fabric 路径。
+- 计划生成、场求值与 JSON 序列化的本机测量：100/400/1000/5000 实例约 **1.9/8.4/17.4/111.8 ms**（单轮，受负载影响，非浏览器端到端）。真实 169 方块 JPG 的 Pattern Points + Wave Height/Scale：169 可见实例，首次请求往返约 863 ms、浏览器实例创建约 31 ms；同图 Area Fill 4356 实例请求往返约 685 ms、浏览器实例创建约 21 ms。真实预览已恢复为 169 点供检查。这些是单次本机观察，不是性能保证。
+- 已知限制：F3 仍只有设计预览，没有 Fabric 单元最终可打印 STL；原用户 111 秒失败及退化面的现场快照未提供，不能声称根因已修复。
 
 ## F2.5 Fabric 预览稳定化与布点方式（2026-10-01）
 

@@ -66,6 +66,7 @@ class FabricInstance:
     enabled: bool = True
     base_width_mm: float | None = None
     base_depth_mm: float | None = None
+    base_height_mm: float | None = None
 
 
 @dataclass(frozen=True)
@@ -96,6 +97,7 @@ class FabricInstancePlan:
     def preview_payload(self) -> dict[str, Any]:
         return {"schema_version": "1.0", "kind": "fabric_instance_preview",
                 "cell_type": self.cell.type, "count": self.count,
+                "active_count": sum(item.enabled for item in self.instances),
                 "total_count": self.total_count or self.count,
                 "skipped_count": self.skipped_count,
                 "preview_simplified": (self.total_count or self.count) > self.count,
@@ -109,6 +111,7 @@ class FabricInstancePlan:
                                "height_mm": item.height_mm, "cell_type": item.cell_type,
                                "base_width_mm": item.base_width_mm,
                                "base_depth_mm": item.base_depth_mm,
+                               "base_height_mm": item.base_height_mm,
                                "source_id": item.source_id,
                                "final_geometry_id": item.final_geometry_id}
                               for item in self.instances],
@@ -133,7 +136,8 @@ class FabricPlanner:
                           left + (index % columns + .5) * placement.spacing_x_mm,
                           bottom + (index // columns + .5) * placement.spacing_y_mm, base_top_z,
                           cell.type, cell.height_mm,
-                          base_width_mm=cell.width_mm, base_depth_mm=cell.depth_mm)
+                          base_width_mm=cell.width_mm, base_depth_mm=cell.depth_mm,
+                          base_height_mm=cell.height_mm)
                           for index in _preview_indices(total))
         bounds = ((left + placement.spacing_x_mm / 2 - cell.width_mm / 2,
                    bottom + placement.spacing_y_mm / 2 - cell.depth_mm / 2, base_top_z),
@@ -160,7 +164,8 @@ class FabricPlanner:
                           rotation_deg=point.rotation_deg, source_id=point.source_id,
                           final_geometry_id=point.final_geometry_id,
                           scale_x=point.scale_x, scale_y=point.scale_y,
-                          base_width_mm=cell.width_mm, base_depth_mm=cell.depth_mm)
+                          base_width_mm=cell.width_mm, base_depth_mm=cell.depth_mm,
+                          base_height_mm=cell.height_mm)
                           for point in (valid[index] for index in _preview_indices(total)))
         extents = []
         for point in valid:

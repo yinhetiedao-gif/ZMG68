@@ -8,7 +8,7 @@ const dto = { schema_version: '1.0', document_id: 'fabric', document_revision: 3
 describe('Fabric design preview API', () => {
   it('uses a distinct preview route and rejects mismatched revisions', async () => {
     const response = { kind: 'fabric_instance_preview', document_id: 'fabric', document_revision: 3,
-      count: 0, total_count: 0, instances: [], base_preview: { bounds_mm: [0, 0, 10, 10] } }
+      count: 0, active_count: 0, total_count: 0, instances: [], base_preview: { bounds_mm: [0, 0, 10, 10] } }
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue({ ok: true,
       json: async () => response } as Response)
     expect((await requestFabricPreview(dto, undefined, fetcher)).total_count).toBe(0)

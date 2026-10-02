@@ -10,6 +10,7 @@ export interface FabricDesignPreview {
   placement_mode: 'area_fill' | 'pattern_points'
   element_count: number
   count: number
+  active_count: number
   total_count: number
   skipped_count: number
   unmatched_reference_count: number
@@ -38,6 +39,7 @@ export interface FabricPreviewInstance {
   cell_type: string
   base_width_mm: number | null
   base_depth_mm: number | null
+  base_height_mm: number | null
   height_mm: number
 }
 
@@ -62,9 +64,15 @@ export async function requestFabricPreview(dto: PatternDocumentDTO, signal?: Abo
     throw new Error(`Fabric 预览版本不匹配：请求 ${requestId} / revision ${requestRevision}，响应 ${String(payload.document_id)} / revision ${String(payload.document_revision)}。`)
   if (!Array.isArray(payload.instances) || payload.instances.length !== payload.count
     || !Number.isInteger(payload.total_count)
+    || !Number.isInteger(payload.active_count) || payload.active_count < 0
+    || payload.active_count > payload.count
     || payload.instances.some((instance) => !Number.isFinite(instance.x_mm)
       || !Number.isFinite(instance.y_mm) || !Number.isFinite(instance.rotation_deg)
       || !Number.isFinite(instance.scale_x) || !Number.isFinite(instance.scale_y)
+      || !Number.isFinite(instance.scale) || instance.scale <= 0
+      || !Number.isFinite(instance.height_mm) || instance.height_mm <= 0
+      || typeof instance.base_height_mm !== 'number' || !Number.isFinite(instance.base_height_mm)
+      || instance.base_height_mm <= 0
       || instance.scale_x <= 0 || instance.scale_y <= 0)
     || !payload.base_preview || !Array.isArray(payload.base_preview.bounds_mm))
     throw new Error('Fabric 预览数据不完整或格式过旧；请重启当前项目的 FastAPI 后端。')

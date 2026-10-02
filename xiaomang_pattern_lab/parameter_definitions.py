@@ -188,6 +188,27 @@ def parameter_definitions() -> dict[str, Any]:
                 _size("spacing_y_mm", "垂直间距", 5),
             ]},
         },
+        "fabric_modifier": {
+            "height": {"label": "高度", "parameters": [
+                _size("min_height_mm", "最低高度", 1) | {
+                    "slider_min": 0.1, "slider_max": 20, "slider_step": 0.1},
+                _size("max_height_mm", "最高高度", 5) | {
+                    "slider_min": 0.1, "slider_max": 20, "slider_step": 0.1},
+            ]},
+            "scale": {"label": "比例", "parameters": [
+                _p("min_scale", "最小比例", "number", 0.5, min=0.01, max=100, step=0.01) | {
+                    "slider_min": 0.01, "slider_max": 3, "slider_step": 0.01},
+                _p("max_scale", "最大比例", "number", 1.5, min=0.01, max=100, step=0.01) | {
+                    "slider_min": 0.01, "slider_max": 3, "slider_step": 0.01},
+            ]},
+            "density": {"label": "密度", "parameters": [
+                _p("threshold", "显示阈值", "number", 0.5, min=0, max=1, step=0.01),
+            ]},
+            "orientation": {"label": "Z 方向", "parameters": [
+                _p("min_angle_deg", "最小角度", "number", -45, min=-360, max=360, step=1, unit="°"),
+                _p("max_angle_deg", "最大角度", "number", 45, min=-360, max=360, step=1, unit="°"),
+            ]},
+        },
     }}
 
 

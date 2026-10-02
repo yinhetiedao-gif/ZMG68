@@ -17,6 +17,7 @@ from .contracts.v1 import PatternDocumentDTO, final_geometry
 from .evaluation import parametric_model_from_document
 from .fabric_base import FabricConfig
 from .fabric_cells import UnitCellDefinition
+from .fabric_field_modifiers import apply_fabric_field_modifiers
 from .fabric_plan import FabricPlacementPoint, FabricPlanner, RegularPlacement
 from .placement_assignment import PlacementAssignmentState
 from .shared_modifiers import SharedModifierStack
@@ -81,6 +82,8 @@ def build_fabric_preview(document, dto: PatternDocumentDTO) -> dict[str, Any]:
     placement = raw.get("placement")
     if cell is not None and not isinstance(placement, dict):
         raise ValueError("Fabric 布点配置缺失。")
+    if cell is None and raw.get("field_modifiers"):
+        raise ValueError("请先配置 Unit Cell，再启用 Fabric Field Modifier。")
     mode = placement.get("mode", "area_fill") if isinstance(placement, dict) else "area_fill"
     if mode not in ("area_fill", "pattern_points"):
         raise ValueError("不支持的 Fabric 布点方式。")
@@ -120,10 +123,13 @@ def build_fabric_preview(document, dto: PatternDocumentDTO) -> dict[str, Any]:
                 rotation_deg=item.get("rotation", 0.0),
             ))
         plan = FabricPlanner().plan_points(points, config.base.thickness_mm, cell)
+    if plan is not None:
+        plan = apply_fabric_field_modifiers(plan, document, raw.get("field_modifiers"))
     planned_at = perf_counter()
     payload = plan.preview_payload() if plan else {
         "schema_version": "1.0", "kind": "fabric_instance_preview", "cell_type": None,
         "count": 0, "total_count": 0, "skipped_count": 0, "preview_simplified": False,
+        "active_count": 0,
         "prototype": None, "instances": [], "manufacturing_status": "preview_only_not_in_stl"}
     payload.update({"document_id": dto.document_id, "document_revision": dto.document_revision,
                     "placement_mode": mode, "element_count": len(geometry),

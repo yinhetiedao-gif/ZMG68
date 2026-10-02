@@ -8,7 +8,8 @@ import type { FabricDesignPreview, FabricPreviewInstance } from '../api/fabricPr
 export function setFabricInstanceTransform(dummy: Object3D, instance: FabricPreviewInstance) {
   dummy.position.set(instance.x_mm, instance.y_mm, instance.z_mm)
   dummy.rotation.set(0, 0, instance.rotation_deg * Math.PI / 180)
-  dummy.scale.set(instance.scale * instance.scale_x, instance.scale * instance.scale_y, instance.scale)
+  dummy.scale.set(instance.scale * instance.scale_x, instance.scale * instance.scale_y,
+    instance.height_mm / (instance.base_height_mm ?? instance.height_mm))
   dummy.updateMatrix()
 }
 
@@ -129,7 +130,7 @@ export function FabricThreePreview({ plan }: { plan: FabricDesignPreview }) {
       resize()
       observer = new ResizeObserver(resize)
       observer.observe(host)
-      setStatus(`Fabric 设计预览已就绪 · ${plan.count} 个共享原型实例 · 浏览器实例创建 ${(performance.now() - started).toFixed(1)} ms`)
+      setStatus(`Fabric 设计预览已就绪 · ${plan.active_count} 个可见共享原型实例 · 浏览器实例创建 ${(performance.now() - started).toFixed(1)} ms`)
       const animate = () => {
         if (disposed || !renderer || !controls) return
         frame = requestAnimationFrame(animate)

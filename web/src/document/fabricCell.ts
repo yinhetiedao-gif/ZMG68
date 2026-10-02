@@ -29,7 +29,7 @@ function changed(dto: PatternDocumentDTO, cell: FabricUnitCell | null, placement
   if (!current) throw new Error('请先选择 Fabric Base。')
   const next = { ...current }
   if (cell && placement) { next.unit_cell = cell; next.placement = placement }
-  else { delete next.unit_cell; delete next.placement }
+  else { delete next.unit_cell; delete next.placement; delete next.field_modifiers }
   return { ...dto, document_revision: dto.document_revision + 1,
     document: { ...dto.document, metadata: { ...dto.document.metadata, fabric_config: next } } }
 }
