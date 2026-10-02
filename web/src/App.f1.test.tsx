@@ -55,12 +55,13 @@ describe('F1 Web Fabric Base', () => {
         previews.push(body)
         return Promise.resolve(reply({ schema_version: '1.0', kind: 'fabric_instance_preview',
           document_id: body.document.document_id, document_revision: body.document_revision,
-          preview_id: `preview-${body.document_revision}`, placement_mode: 'area_fill', element_count: 1,
+          preview_id: `preview-${body.document_revision}`, placement_mode: 'area_fill', unit_size_mode: 'follow_pattern', element_count: 1,
           count: 1, active_count: 1, total_count: 1, skipped_count: 0, unmatched_reference_count: 0,
           preview_simplified: false,
           prototype: null, instances: [{ id: 'preview-1', x_mm: 25, y_mm: 20, z_mm: .8,
             rotation_deg: 0, scale: 1, scale_x: 1, scale_y: 1, enabled: true,
             cell_type: 'cone', base_width_mm: 2, base_depth_mm: 2, base_height_mm: 3, height_mm: 3,
+            cell_width_mm: 2, cell_depth_mm: 2, cell_height_mm: 3,
             source_id: null, final_geometry_id: null }], base_preview: { type: 'solid', bounds_mm: [0, 0, 50, 40],
             thickness_mm: .8, spacing_x_mm: null, spacing_y_mm: null, line_width_mm: null },
           timings_ms: { evaluate: 1, plan_and_prototype: 1 }, cache_hit: false }))

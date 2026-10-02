@@ -1,5 +1,11 @@
 # 更新记录
 
+## F3.5 补充：Unit Cell 尺寸与预览样式（2026-10-02）
+
+- Unit Cell 增加固定尺寸 / 跟随最终二维图案的尺寸模式；派生实例明确输出最终宽、深、高，Fabric Scale 仅叠加一次。旧项目缺失模式时保持原 Pattern Points 尺寸映射。
+- Fabric Three.js 设计预览增加默认、高对比白底黑单元、高度着色三种样式；样式只改变浏览器显示，不修改设计或制造几何。
+- 保持共享 Unit Cell 原型与 InstancedMesh，不开放 Fabric STL 或 F4。
+
 ## F3.5 Fabric Design Validation & Preset（2026-10-02）
 
 - 为现有 Fabric 参数增加独立于合法 min/max 的常用 Slider 范围；超范围真实值不被钳制。

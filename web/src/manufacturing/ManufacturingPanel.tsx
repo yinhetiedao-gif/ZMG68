@@ -105,8 +105,11 @@ export function ManufacturingPanel(props: Props) {
           <option value="cone">Cone 圆锥</option><option value="pyramid">Pyramid 方锥</option>
           <option value="double_tower">DoubleTower 双塔</option><option value="fin">Fin 鳍片</option>
         </select>
-        {cell && cellGroup && <ParameterPanel group={cellGroup} values={{ ...cell }}
-          onCommit={(key, value) => props.onUnitCellParameter('cell', key, value)} />}
+        {cell && cellGroup && <><h2>UNIT CELL SIZE</h2><ParameterPanel group={cellGroup}
+          values={{ ...cell, size_mode: cell.size_mode ?? 'follow_pattern' }}
+          onCommit={(key, value) => props.onUnitCellParameter('cell', key, value)} />
+          <p>固定尺寸不继承二维大小；跟随图案按最终二维尺寸比例调整宽深。Fabric 比例场在两种模式下仍可叠加。</p>
+        </>}
         {cell && placement && <><label htmlFor="fabric-placement-mode">布点方式</label>
           <select id="fabric-placement-mode" value={placement.mode ?? 'area_fill'}
             onChange={(event) => props.onPlacementMode(event.target.value as 'area_fill' | 'pattern_points')}>

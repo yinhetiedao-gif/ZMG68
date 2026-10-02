@@ -67,6 +67,8 @@ class FabricInstance:
     base_width_mm: float | None = None
     base_depth_mm: float | None = None
     base_height_mm: float | None = None
+    cell_width_mm: float | None = None
+    cell_depth_mm: float | None = None
 
 
 @dataclass(frozen=True)
@@ -112,6 +114,9 @@ class FabricInstancePlan:
                                "base_width_mm": item.base_width_mm,
                                "base_depth_mm": item.base_depth_mm,
                                "base_height_mm": item.base_height_mm,
+                               "cell_width_mm": item.cell_width_mm,
+                               "cell_depth_mm": item.cell_depth_mm,
+                               "cell_height_mm": item.height_mm,
                                "source_id": item.source_id,
                                "final_geometry_id": item.final_geometry_id}
                               for item in self.instances],
@@ -137,7 +142,8 @@ class FabricPlanner:
                           bottom + (index // columns + .5) * placement.spacing_y_mm, base_top_z,
                           cell.type, cell.height_mm,
                           base_width_mm=cell.width_mm, base_depth_mm=cell.depth_mm,
-                          base_height_mm=cell.height_mm)
+                          base_height_mm=cell.height_mm, cell_width_mm=cell.width_mm,
+                          cell_depth_mm=cell.depth_mm)
                           for index in _preview_indices(total))
         bounds = ((left + placement.spacing_x_mm / 2 - cell.width_mm / 2,
                    bottom + placement.spacing_y_mm / 2 - cell.depth_mm / 2, base_top_z),
@@ -147,7 +153,7 @@ class FabricPlanner:
         return FabricInstancePlan(cell, instances, bounds, prototype, total_count=total)
 
     def plan_points(self, points: list[FabricPlacementPoint], base_top_z: float,
-                    cell: UnitCellDefinition) -> FabricInstancePlan:
+                    cell: UnitCellDefinition, *, follow_pattern_size: bool = True) -> FabricInstancePlan:
         if not math.isfinite(base_top_z) or base_top_z <= 0:
             raise ValueError("Fabric Base 顶部高度无效。")
         valid = [point for point in points
@@ -163,15 +169,18 @@ class FabricPlanner:
                           point.x_mm, point.y_mm, base_top_z, cell.type, cell.height_mm,
                           rotation_deg=point.rotation_deg, source_id=point.source_id,
                           final_geometry_id=point.final_geometry_id,
-                          scale_x=point.scale_x, scale_y=point.scale_y,
+                          scale_x=point.scale_x if follow_pattern_size else 1.0,
+                          scale_y=point.scale_y if follow_pattern_size else 1.0,
                           base_width_mm=cell.width_mm, base_depth_mm=cell.depth_mm,
-                          base_height_mm=cell.height_mm)
+                          base_height_mm=cell.height_mm,
+                          cell_width_mm=cell.width_mm * (point.scale_x if follow_pattern_size else 1.0),
+                          cell_depth_mm=cell.depth_mm * (point.scale_y if follow_pattern_size else 1.0))
                           for point in (valid[index] for index in _preview_indices(total)))
         extents = []
         for point in valid:
             angle = math.radians(point.rotation_deg)
-            half_width = cell.width_mm * point.scale_x / 2
-            half_depth = cell.depth_mm * point.scale_y / 2
+            half_width = cell.width_mm * (point.scale_x if follow_pattern_size else 1.0) / 2
+            half_depth = cell.depth_mm * (point.scale_y if follow_pattern_size else 1.0) / 2
             dx = abs(math.cos(angle)) * half_width + abs(math.sin(angle)) * half_depth
             dy = abs(math.sin(angle)) * half_width + abs(math.cos(angle)) * half_depth
             extents.append((point.x_mm - dx, point.y_mm - dy,

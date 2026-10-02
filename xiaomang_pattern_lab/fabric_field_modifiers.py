@@ -109,14 +109,16 @@ def apply_fabric_field_modifiers(plan: FabricInstancePlan, document,
             field_id, config = active["density"]
             enabled = enabled and values[field_id][index] >= config["threshold"]
         derived.append(replace(item, height_mm=height, scale=scale,
+                               cell_width_mm=plan.cell.width_mm * item.scale_x * scale,
+                               cell_depth_mm=plan.cell.depth_mm * item.scale_y * scale,
                                rotation_deg=rotation, enabled=enabled))
     visible = [item for item in derived if item.enabled]
     if visible:
         extents = []
         for item in visible:
             angle = math.radians(item.rotation_deg)
-            half_width = plan.cell.width_mm * item.scale_x * item.scale / 2
-            half_depth = plan.cell.depth_mm * item.scale_y * item.scale / 2
+            half_width = item.cell_width_mm / 2
+            half_depth = item.cell_depth_mm / 2
             dx = abs(math.cos(angle)) * half_width + abs(math.sin(angle)) * half_depth
             dy = abs(math.sin(angle)) * half_width + abs(math.cos(angle)) * half_depth
             extents.append((item.x_mm - dx, item.y_mm - dy,

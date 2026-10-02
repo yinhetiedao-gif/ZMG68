@@ -5,11 +5,27 @@ import { AmbientLight, Box3, BoxGeometry, BufferGeometry, Color, DirectionalLigh
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import type { FabricDesignPreview, FabricPreviewInstance } from '../api/fabricPreview'
 
+export type FabricPreviewStyle = 'default' | 'high_contrast' | 'height_map'
+
+export function fabricPreviewPalette(style: FabricPreviewStyle) {
+  return style === 'high_contrast'
+    ? { background: 0xffffff, cell: 0x000000, base: 0xc8cdd1 }
+    : style === 'height_map'
+      ? { background: 0xffffff, cell: 0xffffff, base: 0xc8cdd1 }
+      : { background: 0xf9fbfc, cell: 0x668ca1, base: 0x4b5961 }
+}
+
+export function fabricHeightColor(height: number, minHeight: number, maxHeight: number): Color {
+  const ratio = maxHeight > minHeight ? Math.min(1, Math.max(0, (height - minHeight) / (maxHeight - minHeight))) : .5
+  return new Color().setHSL((1 - ratio) * .66, .9, .48)
+}
+
 export function setFabricInstanceTransform(dummy: Object3D, instance: FabricPreviewInstance) {
   dummy.position.set(instance.x_mm, instance.y_mm, instance.z_mm)
   dummy.rotation.set(0, 0, instance.rotation_deg * Math.PI / 180)
-  dummy.scale.set(instance.scale * instance.scale_x, instance.scale * instance.scale_y,
-    instance.height_mm / (instance.base_height_mm ?? instance.height_mm))
+  dummy.scale.set(instance.cell_width_mm / instance.base_width_mm!,
+    instance.cell_depth_mm / instance.base_depth_mm!,
+    instance.cell_height_mm / instance.base_height_mm!)
   dummy.updateMatrix()
 }
 
@@ -20,6 +36,7 @@ export function FabricThreePreview({ plan }: { plan: FabricDesignPreview }) {
   const resetRef = useRef<(() => void) | null>(null)
   const [status, setStatus] = useState('正在准备 Fabric 设计预览…')
   const [bounds, setBounds] = useState<string | null>(null)
+  const [style, setStyle] = useState<FabricPreviewStyle>('default')
 
   useEffect(() => {
     const host = hostRef.current
@@ -30,11 +47,12 @@ export function FabricThreePreview({ plan }: { plan: FabricDesignPreview }) {
     let renderer: WebGLRenderer | null = null
     let controls: OrbitControls | null = null
     let observer: ResizeObserver | null = null
-    const material = new MeshPhongMaterial({ color: 0x668ca1, side: DoubleSide })
-    const baseMaterial = new MeshPhongMaterial({ color: 0x4b5961, side: DoubleSide })
+    const palette = fabricPreviewPalette(style)
+    const material = new MeshPhongMaterial({ color: palette.cell, side: DoubleSide })
+    const baseMaterial = new MeshPhongMaterial({ color: palette.base, side: DoubleSide })
     const group = new Group()
     const scene = new Scene()
-    scene.background = new Color(0xf9fbfc)
+    scene.background = new Color(palette.background)
     const camera = new PerspectiveCamera(45, 1, 0.01, 100000)
     camera.up.set(0, 0, 1)
     scene.add(new AmbientLight(0xffffff, 2.2))
@@ -93,11 +111,17 @@ export function FabricThreePreview({ plan }: { plan: FabricDesignPreview }) {
         geometry.computeVertexNormals()
         const active = plan.instances.filter((instance) => instance.enabled)
         const instances = new InstancedMesh(geometry, material, active.length)
+        const heights = active.map((instance) => instance.height_mm)
+        const minHeight = Math.min(...heights)
+        const maxHeight = Math.max(...heights)
         active.forEach((instance, index) => {
           setFabricInstanceTransform(dummy, instance)
           instances.setMatrixAt(index, dummy.matrix)
+          if (style === 'height_map') instances.setColorAt(index,
+            fabricHeightColor(instance.height_mm, minHeight, maxHeight))
         })
         instances.instanceMatrix.needsUpdate = true
+        if (instances.instanceColor) instances.instanceColor.needsUpdate = true
         instances.computeBoundingSphere()
         group.add(instances)
       }
@@ -153,9 +177,15 @@ export function FabricThreePreview({ plan }: { plan: FabricDesignPreview }) {
       fitRef.current = null
       resetRef.current = null
     }
-  }, [plan])
+  }, [plan, style])
 
   return <div className="three-preview" aria-label="Fabric 设计预览">
+    <label htmlFor="fabric-preview-style">预览样式</label>
+    <select id="fabric-preview-style" value={style} onChange={(event) => setStyle(event.target.value as FabricPreviewStyle)}>
+      <option value="default">默认实体</option>
+      <option value="high_contrast">高对比 · 白底黑色单元</option>
+      <option value="height_map">高度图 · 颜色仅用于预览</option>
+    </select>
     <div className="three-preview-toolbar"><button type="button" onClick={() => fitRef.current?.()} disabled={!bounds}>适合窗口</button>
       <button type="button" onClick={() => resetRef.current?.()} disabled={!bounds}>重置视角</button></div>
     <div className="three-preview-viewport" ref={hostRef}><canvas ref={canvasRef} aria-label="Fabric 设计三维画布" /></div>

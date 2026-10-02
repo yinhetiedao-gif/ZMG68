@@ -79,6 +79,9 @@ def build_fabric_preview(document, dto: PatternDocumentDTO) -> dict[str, Any]:
     config = FabricConfig.from_mapping(raw)
     cell_raw = raw.get("unit_cell")
     cell = UnitCellDefinition.from_mapping(cell_raw) if isinstance(cell_raw, dict) else None
+    size_mode = cell_raw.get("size_mode", "follow_pattern") if isinstance(cell_raw, dict) else "follow_pattern"
+    if size_mode not in ("fixed", "follow_pattern"):
+        raise ValueError("不支持的 Unit Cell 尺寸模式。")
     placement = raw.get("placement")
     if cell is not None and not isinstance(placement, dict):
         raise ValueError("Fabric 布点配置缺失。")
@@ -122,7 +125,8 @@ def build_fabric_preview(document, dto: PatternDocumentDTO) -> dict[str, Any]:
                 scale_y=height / reference[1] if reference else 1.0,
                 rotation_deg=item.get("rotation", 0.0),
             ))
-        plan = FabricPlanner().plan_points(points, config.base.thickness_mm, cell)
+        plan = FabricPlanner().plan_points(points, config.base.thickness_mm, cell,
+                                           follow_pattern_size=size_mode == "follow_pattern")
     if plan is not None:
         plan = apply_fabric_field_modifiers(plan, document, raw.get("field_modifiers"))
     planned_at = perf_counter()
@@ -133,6 +137,7 @@ def build_fabric_preview(document, dto: PatternDocumentDTO) -> dict[str, Any]:
         "prototype": None, "instances": [], "manufacturing_status": "preview_only_not_in_stl"}
     payload.update({"document_id": dto.document_id, "document_revision": dto.document_revision,
                     "placement_mode": mode, "element_count": len(geometry),
+                    "unit_size_mode": size_mode,
                     "unmatched_reference_count": unmatched_reference_count if mode == "pattern_points" else 0,
                     "base_preview": {"type": config.base.type, "bounds_mm": base_bounds,
                                      "thickness_mm": config.base.thickness_mm,

@@ -5,9 +5,12 @@ import type { PatternDocumentDTO } from '../model/types'
 
 const parameter = (id: string, value: number): ParameterDefinition => ({ id, label: id, type: 'number',
   default: value, value, min: .01, max: 10000, step: .1, unit: 'mm', options: [] })
+const sizeMode: ParameterDefinition = { id: 'size_mode', label: '单元尺寸模式', type: 'select',
+  default: 'follow_pattern', value: 'follow_pattern', min: null, max: null, step: null, unit: '',
+  options: [{ value: 'fixed', label: '固定尺寸' }, { value: 'follow_pattern', label: '跟随图案' }] }
 const catalog = { schema_version: '1.0', units: 'mm', definitions: { layout: {}, field: {}, modifier: {},
   fabric_cell: Object.fromEntries(['cylinder', 'cone', 'pyramid', 'double_tower', 'fin'].map((type) => [type,
-    { label: type, parameters: [parameter('width_mm', 2), parameter('depth_mm', 2), parameter('height_mm', 3)] }])),
+    { label: type, parameters: [sizeMode, parameter('width_mm', 2), parameter('depth_mm', 2), parameter('height_mm', 3)] }])),
   fabric_placement: { regular: { label: 'regular', parameters: [parameter('spacing_x_mm', 5), parameter('spacing_y_mm', 5)] } },
 } } as ParameterCatalog
 const dto = { schema_version: '1.0', document_id: 'f2', document_revision: 0, assets: [],
@@ -52,5 +55,15 @@ describe('F2 Unit Cell document editing', () => {
     expect(fabricPlacement(points)).toMatchObject({ mode: 'pattern_points', spacing_x_mm: 5, spacing_y_mm: 5 })
     expect(setFabricPlacementMode(points, 'pattern_points')).toBe(points)
     expect(fabricPlacement(setFabricPlacementMode(points, 'area_fill'))?.mode).toBe('area_fill')
+  })
+  it('switches size mode in one revision and preserves dimensions across cell types', () => {
+    const cylinder = setFabricUnitCellType(dto, 'cylinder', catalog)
+    expect(fabricUnitCell(cylinder)?.size_mode).toBe('follow_pattern')
+    const fixed = updateFabricUnitCell(cylinder, 'cell', 'size_mode', 'fixed', catalog)
+    expect(fixed.document_revision).toBe(cylinder.document_revision + 1)
+    expect(fabricUnitCell(fixed)?.size_mode).toBe('fixed')
+    expect(fabricUnitCell(setFabricUnitCellType(fixed, 'fin', catalog))?.size_mode).toBe('fixed')
+    expect(() => updateFabricUnitCell(fixed, 'cell', 'size_mode', 'invalid', catalog)).toThrow()
+    expect(dto.document.metadata.fabric_config).not.toHaveProperty('unit_cell')
   })
 })

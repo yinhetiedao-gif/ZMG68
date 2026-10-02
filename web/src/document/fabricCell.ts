@@ -3,7 +3,8 @@ import { groupFor, validateParameter, type ParameterCatalog, type ParameterValue
 import { fabricBase } from './fabricBase'
 
 export type UnitCellType = 'cylinder' | 'cone' | 'pyramid' | 'double_tower' | 'fin'
-export interface FabricUnitCell { type: UnitCellType; width_mm: number; depth_mm: number; height_mm: number }
+export interface FabricUnitCell { type: UnitCellType; width_mm: number; depth_mm: number; height_mm: number;
+  size_mode?: 'fixed' | 'follow_pattern' }
 export interface FabricPlacement { mode?: 'area_fill' | 'pattern_points'; spacing_x_mm: number; spacing_y_mm: number }
 const types: UnitCellType[] = ['cylinder', 'cone', 'pyramid', 'double_tower', 'fin']
 
@@ -44,7 +45,8 @@ export function setFabricUnitCellType(dto: PatternDocumentDTO, type: UnitCellTyp
   if (!group || !placementGroup) throw new Error('Python 参数定义尚未提供 Unit Cell。')
   const cell = Object.fromEntries(group.parameters.map((parameter) => [parameter.id, parameter.default])) as unknown as FabricUnitCell
   cell.type = type
-  if (current) { cell.width_mm = current.width_mm; cell.depth_mm = current.depth_mm; cell.height_mm = current.height_mm }
+  if (current) { cell.width_mm = current.width_mm; cell.depth_mm = current.depth_mm; cell.height_mm = current.height_mm;
+    cell.size_mode = current.size_mode ?? 'follow_pattern' }
   const placement = fabricPlacement(dto) ?? Object.fromEntries(
     placementGroup.parameters.map((parameter) => [parameter.id, parameter.default])) as unknown as FabricPlacement
   return changed(dto, cell, placement)
@@ -58,7 +60,8 @@ export function updateFabricUnitCell(dto: PatternDocumentDTO, section: 'cell' | 
   const group = section === 'cell' ? groupFor(catalog, 'fabric_cell', cell.type)
     : groupFor(catalog, 'fabric_placement', 'regular')
   const definition = group?.parameters.find((item) => item.id === key)
-  if (!definition || !validateParameter(definition, value) || typeof value !== 'number')
+  if (!definition || !validateParameter(definition, value) ||
+    (key === 'size_mode' ? typeof value !== 'string' : typeof value !== 'number'))
     throw new Error(`Unit Cell 参数 ${key} 无效。`)
   if (section === 'cell') {
     if (cell[key as keyof FabricUnitCell] === value) return dto

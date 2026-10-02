@@ -11,7 +11,7 @@ from fastapi.testclient import TestClient
 from ppg.foundation import Canvas, PatternDocument, RectElement, Reference
 from xiaomang_pattern_lab.contracts import PatternDocumentDTO
 from xiaomang_pattern_lab.fabric_field_modifiers import apply_fabric_field_modifiers
-from xiaomang_pattern_lab.fabric_plan import FabricPlanner, RegularPlacement
+from xiaomang_pattern_lab.fabric_plan import FabricPlacementPoint, FabricPlanner, RegularPlacement
 from xiaomang_pattern_lab.fabric_cells import UnitCellDefinition
 from xiaomang_pattern_lab.parameter_definitions import parameter_definitions
 from xiaomang_pattern_lab.shared_fields import (CheckerField, CompositeField, ConstantField, FieldMapping,
@@ -42,6 +42,72 @@ def preview(document, revision=1):
 
 
 class FabricFieldsF3Tests(unittest.TestCase):
+    def test_f35_independent_width_depth_ratios_and_shared_prototype(self):
+        cell = UnitCellDefinition("fin", 4, 2, 3)
+        point = FabricPlacementPoint("final-1", "source-1", 10, 20, scale_x=2, scale_y=.5,
+                                     rotation_deg=30)
+        follow = FabricPlanner().plan_points([point], .6, cell)
+        fixed = FabricPlanner().plan_points([point], .6, cell, follow_pattern_size=False)
+        self.assertIs(follow.prototype, fixed.prototype)
+        self.assertEqual((follow.instances[0].cell_width_mm, follow.instances[0].cell_depth_mm), (8, 1))
+        self.assertEqual((fixed.instances[0].cell_width_mm, fixed.instances[0].cell_depth_mm), (4, 2))
+        self.assertEqual((follow.instances[0].source_id, follow.instances[0].final_geometry_id),
+                         ("source-1", "final-1"))
+        self.assertEqual(follow.instances[0].rotation_deg, 30)
+
+    def test_f35_fixed_and_follow_pattern_use_final_dimensions_once(self):
+        document = document_with_fabric(114)
+        document.fields = [LinearField("linear", angle=0).to_dict()]
+        document.modifiers = [SizeModifier("pattern-size", "linear", FieldMapping(.5, 2)).to_dict()]
+        source_before = deepcopy(document.to_dict())
+        follow = preview(document).json()
+        self.assertEqual(follow["total_count"], 114)
+        self.assertEqual(follow["unit_size_mode"], "follow_pattern")
+        widths = [item["cell_width_mm"] for item in follow["instances"]]
+        self.assertLess(min(widths), max(widths))
+        for item in follow["instances"]:
+            self.assertAlmostEqual(item["cell_width_mm"], 2 * item["scale_x"])
+            self.assertAlmostEqual(item["cell_depth_mm"], 2 * item["scale_y"])
+            self.assertEqual(item["cell_height_mm"], 3)
+        document.metadata["fabric_config"]["unit_cell"]["size_mode"] = "fixed"
+        fixed = preview(document, 2).json()
+        self.assertEqual(fixed["unit_size_mode"], "fixed")
+        self.assertTrue(all(item["cell_width_mm"] == item["cell_depth_mm"] == 2
+                            for item in fixed["instances"]))
+        self.assertEqual([(item["x_mm"], item["y_mm"], item["rotation_deg"])
+                          for item in fixed["instances"]],
+                         [(item["x_mm"], item["y_mm"], item["rotation_deg"])
+                          for item in follow["instances"]])
+        self.assertEqual(document.to_dict()["elements"], source_before["elements"])
+        document.metadata["fabric_config"]["unit_cell"]["size_mode"] = "invalid"
+        invalid = preview(document, 3)
+        self.assertEqual(invalid.status_code, 422)
+        self.assertIn("尺寸模式", invalid.text)
+
+    def test_f35_wave_height_linear_scale_and_pattern_rotation(self):
+        document = document_with_fabric(114)
+        document.fields = [WaveField("wave", wavelength=40).to_dict(),
+                           LinearField("linear", angle=0).to_dict()]
+        document.modifiers = [SizeModifier("pattern-size", "linear", FieldMapping(.7, 1.8)).to_dict(),
+                              RotationModifier("rotate", "wave", FieldMapping(-35, 35)).to_dict()]
+        document.metadata["fabric_config"]["field_modifiers"] = {
+            "height": {"enabled": True, "field_id": "wave", "min_height_mm": 1, "max_height_mm": 5},
+            "scale": {"enabled": True, "field_id": "linear", "min_scale": .5, "max_scale": 1.5}}
+        first = preview(document).json()
+        second = preview(document).json()
+        self.assertEqual(first["instances"], second["instances"])
+        self.assertTrue(any(abs(item["rotation_deg"]) > 1 for item in first["instances"]))
+        self.assertGreater(max(item["cell_height_mm"] for item in first["instances"])
+                           - min(item["cell_height_mm"] for item in first["instances"]), 1)
+        for item in first["instances"]:
+            self.assertAlmostEqual(item["cell_width_mm"], 2 * item["scale_x"] * item["scale"])
+            self.assertAlmostEqual(item["cell_depth_mm"], 2 * item["scale_y"] * item["scale"])
+        document.metadata["fabric_config"]["unit_cell"]["size_mode"] = "fixed"
+        fixed = preview(document, 2).json()
+        for item in fixed["instances"]:
+            self.assertEqual((item["scale_x"], item["scale_y"]), (1, 1))
+            self.assertAlmostEqual(item["cell_width_mm"], 2 * item["scale"])
+
     def test_python_parameter_schema_defines_all_four_fabric_controls(self):
         definitions = parameter_definitions()["definitions"]["fabric_modifier"]
         self.assertEqual(set(definitions), {"height", "scale", "density", "orientation"})
@@ -79,8 +145,10 @@ class FabricFieldsF3Tests(unittest.TestCase):
         self.assertEqual(result["total_count"], 20)
         self.assertEqual(result["instances"][0]["scale_x"], 1.4)
         self.assertAlmostEqual(result["instances"][0]["scale"], .5)
+        self.assertAlmostEqual(result["instances"][0]["cell_width_mm"], 2 * 1.4 * .5)
         rightmost = max(result["instances"], key=lambda item: item["x_mm"])
         self.assertAlmostEqual(rightmost["scale"], 1.5)
+        self.assertAlmostEqual(rightmost["cell_width_mm"], 2 * 1.4 * 1.5)
         self.assertEqual(result["instances"][0]["height_mm"], 3)
 
     def test_noise_density_is_deterministic_and_does_not_change_placement(self):

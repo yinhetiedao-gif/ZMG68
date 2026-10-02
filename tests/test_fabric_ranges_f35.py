@@ -28,6 +28,11 @@ class FabricRangeF35Tests(unittest.TestCase):
             self.assertEqual((item["min"], item["max"]), (-360, 360))
         item = field("fabric_modifier", "density", "threshold")
         self.assertEqual((item["slider_min"], item["slider_max"]), (0, 1))
+        for variant in ("cylinder", "cone", "pyramid", "double_tower", "fin"):
+            mode = field("fabric_cell", variant, "size_mode")
+            self.assertEqual(mode["default"], "follow_pattern")
+            self.assertEqual({option["value"] for option in mode["options"]},
+                             {"fixed", "follow_pattern"})
         for section, variant, key, expected in (
             ("fabric_base", "grid", "line_width_mm", (.5, 10)),
             ("fabric_cell", "fin", "width_mm", (.3, 20)),

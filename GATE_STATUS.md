@@ -1,5 +1,13 @@
 # Gate 状态（2026-10-02）
 
+## F3.5 补充 — Unit Cell 尺寸映射与预览样式（2026-10-02）
+
+- 状态：**PASS（定向自动验收）**。从已冻结 F3.5 `b0f6a2a` 增量开发；原任务书所列 `782a1c4` 是较早 F3 基线，未回退。保护引用 `backup/pre-f3-5-size-preview`。Fabric 最终制造/STL、F1 Base 与普通 Web Alpha 制造流程未改。
+- Unit Cell 原有 `width_mm/depth_mm/height_mm` 继续由 Python Parameter Schema 定义；新增 `size_mode=fixed|follow_pattern` Select，旧文档缺失时默认 `follow_pattern`，保留既有 Pattern Points 效果。Fixed 使用统一宽深，Follow 使用 Final Geometry 尺寸与稳定前置源尺寸之比；位置及可靠 Z 角度仍取 Final Geometry。Fabric Scale 在派生计划里只乘一次，最终 `cell_width_mm/cell_depth_mm/cell_height_mm` 连同 source/final ID 输出；一份原型几何继续供所有 Three.js 实例复用。
+- 3D 预览增加 Default、High Contrast（白底黑单元）和 Height Map（仅实例着色）三种本地视觉样式；切换不提交文档、不调用制造或 STL。高度图颜色依最终实例高度计算，不改变几何。
+- 验证：F1/F2/F2.5/F3/F3.5 Python 定向 **33/33 PASS**，Web **131/131 PASS**，TypeScript/Vite build PASS。114 个合成矩形测试 Fixed/Follow、Wave Height + Linear Scale + Pattern Rotation、确定性与源元素不变；现有真实 169 方块 JPG 测试继续 PASS。100/400/1000/5000 原型复用基准约 3.0/8.8/17.3/90.3 ms（单机顺序复测；非浏览器端到端）；未获得用户所说的真实 114 元素项目，不能声称做过该项目的视觉验收。首次与 Python 并行跑 Web 全套时两项既有交互测试超时，单独复测及随后顺序全套 131/131 PASS。未按本补充任务范围运行 Python 全量回归。
+- 已知限制：旧 Tk teardown 间歇性风险、原制造退化面未取得失败快照，均未在本补充任务中修复；Fabric 最终 STL 仍未开放。完成后停止，不进入 F4。
+
 ## F3.5 Fabric Design Validation & Preset（2026-10-02）
 
 - 状态：**PASS（设计预览范围）**。基线 `782a1c4` / `backup/f3-fabric-field-modifiers-final`，独立分支 `feature/f3-5-fabric-design`。只改 Python 参数定义的推荐滑杆元数据和 Web Fabric 设计 UI；未改 Field、Fabric 几何算法、制造验证或 STL。
