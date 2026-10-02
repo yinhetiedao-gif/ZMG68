@@ -28,6 +28,7 @@ import { PreviewPanel } from './manufacturing/PreviewPanel'
 import { setFabricBaseType, updateFabricBase } from './document/fabricBase'
 import { setFabricUnitCellType, updateFabricUnitCell, setFabricPlacementMode } from './document/fabricCell'
 import { setFabricModifierEnabled, setFabricModifierField, updateFabricModifier } from './document/fabricModifiers'
+import { applyFabricPreset } from './document/fabricPresets'
 
 type ConnectionState =
   | { kind: 'checking'; message: string }
@@ -614,6 +615,12 @@ export function App() {
                 if (!dto || !canEditDocument) return
                 try { commitDocument(updateFabricModifier(dto, type, key, value, parameterCatalog), dto) }
                 catch (error) { setProjectError(error instanceof Error ? error.message : 'Fabric Modifier 参数无效。') }
+              }}
+              onFabricPreset={(presetId) => {
+                const dto = project.currentDocument
+                if (!dto || !canEditDocument) return
+                try { commitDocument(applyFabricPreset(dto, presetId, parameterCatalog), dto) }
+                catch (error) { setProjectError(error instanceof Error ? error.message : 'Fabric 预设无效。') }
               }}
               fabricPreviewStatus={fabricPreview.status} fabricPreviewResult={fabricPreview.result}
               fabricPreviewError={fabricPreview.error} onUpdateFabricPreview={() => void fabricPreview.update()}

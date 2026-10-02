@@ -1,5 +1,11 @@
 # 更新记录
 
+## F3.5 Fabric Design Validation & Preset（2026-10-02）
+
+- 为现有 Fabric 参数增加独立于合法 min/max 的常用 Slider 范围；超范围真实值不被钳制。
+- 新增五套可继续手调的内置 Fabric 配方，沿用现有 Shared Field、Parameter Schema、单次文档提交和会话 Undo；不改原图元素。
+- Fabric 设计预览显示最终实例范围摘要与非阻断极端参数提醒；新增 A–E 固定预览回归和五套配方测试。没有新增制造算法或 Fabric STL。
+
 ## F2 Fabric Unit Cell Library MVP（2026-10-01）
 
 - 增加 Cylinder、Cone、Pyramid、DoubleTower、Fin 原型 Registry 和规则布点 `FabricInstancePlan`；尺寸与间距使用现有 Python 参数 Schema，在原 PatternDocument 的可选 Fabric 配置内保存设计意图。

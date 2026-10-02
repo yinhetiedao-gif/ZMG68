@@ -197,6 +197,41 @@ class FabricFieldsF3Tests(unittest.TestCase):
             self.assertEqual(result.instances[-1].height_mm, 5)
         print("F3 plan+field+serialization ms:", timings)
 
+    def test_f35_five_preview_design_cases_are_stable(self):
+        """Named F3.5 design fixtures: transforms, count and repeatability."""
+        cases = (
+            ("A_wave_height", [WaveField("wave", wavelength=40).to_dict()],
+             {"height": {"enabled": True, "field_id": "wave", "min_height_mm": 1, "max_height_mm": 5}}, "height_mm"),
+            ("B_linear_scale", [LinearField("linear", angle=0).to_dict()],
+             {"scale": {"enabled": True, "field_id": "linear", "min_scale": .5, "max_scale": 1.5}}, "scale"),
+            ("C_noise_density", [NoiseField("noise", scale=17, seed=42).to_dict()],
+             {"density": {"enabled": True, "field_id": "noise", "threshold": .5}}, "enabled"),
+            ("D_linear_fin_orientation", [LinearField("linear", angle=0).to_dict()],
+             {"orientation": {"enabled": True, "field_id": "linear", "min_angle_deg": -45,
+                              "max_angle_deg": 45}}, "rotation_deg"),
+            ("E_wave_height_scale", [WaveField("wave", wavelength=40).to_dict()],
+             {"height": {"enabled": True, "field_id": "wave", "min_height_mm": 1,
+                         "max_height_mm": 5},
+              "scale": {"enabled": True, "field_id": "wave", "min_scale": .5,
+                        "max_scale": 1.5}}, "height_mm"),
+        )
+        for name, fields, modifiers, channel in cases:
+            with self.subTest(case=name):
+                document = document_with_fabric(count=20, cell_type="fin")
+                document.fields = fields
+                document.metadata["fabric_config"]["field_modifiers"] = modifiers
+                before = deepcopy(document.to_dict())
+                first_response = preview(document)
+                second_response = preview(document)
+                self.assertEqual(first_response.status_code, 200, first_response.text)
+                self.assertEqual(second_response.status_code, 200, second_response.text)
+                first, second = first_response.json(), second_response.json()
+                self.assertEqual(first["total_count"], 20)
+                self.assertEqual(first["active_count"], sum(item["enabled"] for item in first["instances"]))
+                self.assertEqual(first["instances"], second["instances"])
+                self.assertGreater(len({item[channel] for item in first["instances"]}), 1)
+                self.assertEqual(document.to_dict(), before)
+
 
 if __name__ == "__main__":
     unittest.main()

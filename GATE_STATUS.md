@@ -1,5 +1,16 @@
 # Gate 状态（2026-10-02）
 
+## F3.5 Fabric Design Validation & Preset（2026-10-02）
+
+- 状态：**PASS（设计预览范围）**。基线 `782a1c4` / `backup/f3-fabric-field-modifiers-final`，独立分支 `feature/f3-5-fabric-design`。只改 Python 参数定义的推荐滑杆元数据和 Web Fabric 设计 UI；未改 Field、Fabric 几何算法、制造验证或 STL。
+- 推荐 Slider：Fabric 高度 0.5–10 mm、比例 0.3–3、密度阈值 0–1、Z 旋转 -180–180°、布点/基底间距 0.5–50 mm；单元宽深 0.3–20 mm、网格线宽 0.5–10 mm、边距 0–50 mm。原 `min/max` 合法范围未缩窄；超推荐值保留真实数字、滑杆停边界且显示提示。
+- 五套内置配置：Soft Texture、Spike Surface、Wave Textile、Dense Grid、Lightweight Fabric。配方只设置现有 Base/Placement/Unit Cell/Fabric Field Modifier；复用已启用的同类型 Shared Field，缺少时通过现有字段创建入口添加。一次应用只发布一次 PatternDocument revision/Evaluate/Undo，`source_elements` 不变；之后仍可手动调整。没有第二套持久项目格式。
+- Fabric 设计摘要显示 Cell、可见实例数、Height/Scale 范围、Placement、Full/Simplified；预览已就绪时范围从可见最终实例测得，未预览时显示配置范围。高度/基底比例、过小 Scale、较低可见密度、过密间距以非阻断提醒显示；不是制造校验。
+- 固定预览案例 A–E：Wave→Height、Linear→Scale、Noise→Density、Linear→Fin Orientation、Wave→Height+Scale，均验证实例数量、变化范围、重复结果一致和源文档不变。五套预设浏览器实测均可应用并生成预览；真实 169 方块 JPG 的 Soft Texture 显示 169 个单元。Dense Grid 超出 5000 时按既有策略显示 Simplified，设计参数不变。
+- 本机单次性能：400/1000 精确计划+Field+序列化约 8.8/20.0 ms；浏览器约 380/961 总布点预览请求往返约 328/234 ms。Lightweight Fabric 1681 总布点初次请求约 2936 ms，不能声称所有项目均无秒级等待。浏览器三维页实测 1465 个可见实例创建约 20.2 ms。以上均非标准化性能保证。
+- 验证：Fabric Python 定向 **30/30 PASS**；Web **127/127 PASS**；TypeScript/Vite build PASS；五套浏览器预设/预览 Smoke PASS。按本 Gate 明确范围未运行 Python 全量回归。已知：首次 Fabric 请求曾出现一次 `Failed to fetch`，重试命中有效缓存并成功，尚未定位；快速连续改两个间距控件时第二个草稿可能延后提交，等待求值结束后重新确认可恢复，属既有通用编辑节奏问题，未在 F3.5 扩大修改范围。Fabric 最终 STL 仍未开放，原退化面失败仍待现场快照。
+- 完成后停止，不进入 F4。独立提交与稳定备份 `backup/f3-5-fabric-design-final` 在验证后创建，不覆盖先前稳定点。
+
 ## F3 Fabric Field Driven Instances（2026-10-02）
 
 - 状态：**F3 PASS**。仅扩展派生 `FabricInstancePlan` 与 Three.js 实例预览；未进入最终 Fabric Mesh、Boolean、STL 或 F4。F2.5 稳定点 `backup/f2-5-fabric-stabilization-final` 保持不变。

@@ -161,52 +161,57 @@ def parameter_definitions() -> dict[str, Any]:
             "solid": {"label": "连续基底", "parameters": [
                 _size("thickness_mm", "厚度", 0.6) | {
                     "slider_min": 0.1, "slider_max": 3, "slider_step": 0.05},
-                _p("margin_mm", "边距", "number", 0, min=0, max=10000, step=0.1, unit="mm"),
+                _p("margin_mm", "边距", "number", 0, min=0, max=10000, step=0.1, unit="mm") | {
+                    "slider_min": 0, "slider_max": 50, "slider_step": 0.1},
             ]},
             "grid": {"label": "网格基底", "parameters": [
                 _size("thickness_mm", "厚度", 0.6) | {
                     "slider_min": 0.1, "slider_max": 3, "slider_step": 0.05},
-                _size("spacing_x_mm", "水平间距", 5),
-                _size("spacing_y_mm", "垂直间距", 5),
-                _size("line_width_mm", "线宽", 1),
-                _p("margin_mm", "边距", "number", 0, min=0, max=10000, step=0.1, unit="mm"),
+                _size("spacing_x_mm", "水平间距", 5) | {"slider_min": 0.5, "slider_max": 50, "slider_step": 0.1},
+                _size("spacing_y_mm", "垂直间距", 5) | {"slider_min": 0.5, "slider_max": 50, "slider_step": 0.1},
+                _size("line_width_mm", "线宽", 1) | {"slider_min": 0.5, "slider_max": 10, "slider_step": 0.1},
+                _p("margin_mm", "边距", "number", 0, min=0, max=10000, step=0.1, unit="mm") | {
+                    "slider_min": 0, "slider_max": 50, "slider_step": 0.1},
             ]},
         },
         "fabric_cell": {
             kind: {"label": label, "parameters": [
-                _size("width_mm", "单元宽度", 2),
-                _size("depth_mm", "单元深度", 2),
+                _size("width_mm", "单元宽度", 2) | {"slider_min": 0.3, "slider_max": 20, "slider_step": 0.1},
+                _size("depth_mm", "单元深度", 2) | {"slider_min": 0.3, "slider_max": 20, "slider_step": 0.1},
                 _size("height_mm", "单元高度", 3) | {
-                    "slider_min": 0.1, "slider_max": 20, "slider_step": 0.1},
+                    "slider_min": 0.5, "slider_max": 10, "slider_step": 0.1},
             ]} for kind, label in (
                 ("cylinder", "圆柱"), ("cone", "圆锥"), ("pyramid", "方锥"),
                 ("double_tower", "双塔"), ("fin", "鳍片"))
         },
         "fabric_placement": {
             "regular": {"label": "规则布点", "parameters": [
-                _size("spacing_x_mm", "水平间距", 5),
-                _size("spacing_y_mm", "垂直间距", 5),
+                _size("spacing_x_mm", "水平间距", 5) | {"slider_min": 0.5, "slider_max": 50, "slider_step": 0.1},
+                _size("spacing_y_mm", "垂直间距", 5) | {"slider_min": 0.5, "slider_max": 50, "slider_step": 0.1},
             ]},
         },
         "fabric_modifier": {
             "height": {"label": "高度", "parameters": [
                 _size("min_height_mm", "最低高度", 1) | {
-                    "slider_min": 0.1, "slider_max": 20, "slider_step": 0.1},
+                    "slider_min": 0.5, "slider_max": 10, "slider_step": 0.1},
                 _size("max_height_mm", "最高高度", 5) | {
-                    "slider_min": 0.1, "slider_max": 20, "slider_step": 0.1},
+                    "slider_min": 0.5, "slider_max": 10, "slider_step": 0.1},
             ]},
             "scale": {"label": "比例", "parameters": [
                 _p("min_scale", "最小比例", "number", 0.5, min=0.01, max=100, step=0.01) | {
-                    "slider_min": 0.01, "slider_max": 3, "slider_step": 0.01},
+                    "slider_min": 0.3, "slider_max": 3, "slider_step": 0.01},
                 _p("max_scale", "最大比例", "number", 1.5, min=0.01, max=100, step=0.01) | {
-                    "slider_min": 0.01, "slider_max": 3, "slider_step": 0.01},
+                    "slider_min": 0.3, "slider_max": 3, "slider_step": 0.01},
             ]},
             "density": {"label": "密度", "parameters": [
-                _p("threshold", "显示阈值", "number", 0.5, min=0, max=1, step=0.01),
+                _p("threshold", "显示阈值", "number", 0.5, min=0, max=1, step=0.01) | {
+                    "slider_min": 0, "slider_max": 1, "slider_step": 0.01},
             ]},
             "orientation": {"label": "Z 方向", "parameters": [
-                _p("min_angle_deg", "最小角度", "number", -45, min=-360, max=360, step=1, unit="°"),
-                _p("max_angle_deg", "最大角度", "number", 45, min=-360, max=360, step=1, unit="°"),
+                _p("min_angle_deg", "最小角度", "number", -45, min=-360, max=360, step=1, unit="°") | {
+                    "slider_min": -180, "slider_max": 180, "slider_step": 1},
+                _p("max_angle_deg", "最大角度", "number", 45, min=-360, max=360, step=1, unit="°") | {
+                    "slider_min": -180, "slider_max": 180, "slider_step": 1},
             ]},
         },
     }}

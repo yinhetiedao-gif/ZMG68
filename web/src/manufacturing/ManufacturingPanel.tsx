@@ -9,6 +9,8 @@ import { availableFabricFields, fabricFieldModifier, fabricModifierTypes, type F
 import { groupFor, type ParameterCatalog, type ParameterValue } from '../document/parameterSchema'
 import type { PatternDocumentDTO } from '../model/types'
 import type { FabricDesignPreview } from '../api/fabricPreview'
+import { fabricPresets } from '../document/fabricPresets'
+import { fabricDesignWarnings, fabricPreviewSummary } from '../document/fabricDesignSummary'
 
 interface Props {
   heightText: string
@@ -32,6 +34,7 @@ interface Props {
   onFabricModifierEnabled: (type: FabricModifierType, enabled: boolean) => void
   onFabricModifierField: (type: FabricModifierType, fieldId: string) => void
   onFabricModifierParameter: (type: FabricModifierType, key: string, value: ParameterValue) => void
+  onFabricPreset: (presetId: string) => void
   fabricPreviewStatus: 'idle' | 'building' | 'ready' | 'error' | 'stale'
   fabricPreviewResult: FabricDesignPreview | null
   fabricPreviewError: string | null
@@ -52,6 +55,10 @@ export function ManufacturingPanel(props: Props) {
   const cellGroup = cell && groupFor(props.parameterCatalog, 'fabric_cell', cell.type)
   const placementGroup = placement && groupFor(props.parameterCatalog, 'fabric_placement', 'regular')
   const fabricFields = availableFabricFields(props.document)
+  const summary = fabricPreviewSummary(props.document,
+    props.fabricPreviewStatus === 'ready' ? props.fabricPreviewResult : null)
+  const designWarnings = fabricDesignWarnings(props.document)
+  const [presetId, setPresetId] = useState(fabricPresets[0].id)
   const [elapsedSeconds, setElapsedSeconds] = useState(0)
   useEffect(() => {
     if (status !== 'building') return
@@ -74,6 +81,14 @@ export function ManufacturingPanel(props: Props) {
     <div className="manufacturing-heading"><span className="eyebrow">{base ? 'FABRIC DESIGN PREVIEW' : 'FINAL MANUFACTURING MESH'}</span><h1>{base ? 'Fabric 设计预览' : '制造检查'}</h1>
       <p>{base ? '快速查看基底与单元布点；此预览不是可打印制造模型。' : '从当前二维设计生成最终制造网格；此操作不会更改设计或撤销历史。'}</p></div>
     <section className="manufacturing-settings" aria-label="Fabric Base">
+      {props.document && <section aria-label="Fabric Preset">
+        <h2>PRESET</h2>
+        <label htmlFor="fabric-preset">Fabric 预设</label>
+        <select id="fabric-preset" value={presetId} onChange={(event) => setPresetId(event.target.value)}>
+          {fabricPresets.map((preset) => <option key={preset.id} value={preset.id}>{preset.label}</option>)}
+        </select>
+        <button type="button" onClick={() => props.onFabricPreset(presetId)}>应用预设</button>
+      </section>}
       <label htmlFor="fabric-base-type">Fabric Base 类型</label>
       <select id="fabric-base-type" value={base?.type ?? 'none'} onChange={(event) =>
         props.onFabricType(event.target.value as FabricBaseType | 'none')}>
@@ -147,6 +162,20 @@ export function ManufacturingPanel(props: Props) {
       {props.fabricPreviewResult.client_request_ms !== undefined ? ` · 请求往返 ${props.fabricPreviewResult.client_request_ms.toFixed(1)} ms` : ''}
       {props.fabricPreviewResult.cache_hit ? ' · 已复用预览缓存' : ''}</p>}
     {base && props.fabricPreviewResult?.preview_simplified && <p role="note">预览已简化，最终设计参数未改变。</p>}
+    {base && <section className="manufacturing-report" aria-label="Fabric Preview Summary">
+      <h2>FABRIC DESIGN PREVIEW</h2>
+      <dl>
+        <div><dt>Cell</dt><dd>{summary.cell}</dd></div>
+        <div><dt>Instances</dt><dd>{summary.instances ?? '待更新'}</dd></div>
+        <div><dt>Height</dt><dd>{summary.height}</dd></div>
+        <div><dt>Scale</dt><dd>{summary.scale}</dd></div>
+        <div><dt>Placement</dt><dd>{summary.placement}</dd></div>
+        <div><dt>Preview</dt><dd>{summary.preview}</dd></div>
+      </dl>
+      {designWarnings.length > 0 && <div className="manufacturing-notes" role="note">
+        <strong>设计提醒（不阻止预览）</strong><ul>{designWarnings.map((warning) => <li key={warning}>{warning}</li>)}</ul>
+      </div>}
+    </section>}
     {!base && status === 'building' && <p className="manufacturing-progress">
       处理流程：二维几何检查 → 制造几何转换 → 3D 模型生成 → Mesh 检查 · 已用 {elapsedSeconds.toFixed(1)} 秒
     </p>}
