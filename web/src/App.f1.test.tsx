@@ -99,6 +99,7 @@ describe('F1 Web Fabric Base', () => {
     await waitFor(() => expect(calls.mock.calls.filter(([url]) => String(url).endsWith('/evaluate'))).toHaveLength(4))
     fireEvent.change(screen.getByLabelText('Unit Cell 类型'), { target: { value: 'cylinder' } })
     await screen.findByText('revision 4')
+    expect(screen.getByText(/Fabric 单元当前用于设计与 3D 预览；最终 Fabric STL 尚未开放/)).toBeInTheDocument()
     const cellControls = within(screen.getByLabelText('Fabric Unit Cell'))
     fireEvent.change(cellControls.getByLabelText('height_mm'), { target: { value: '4' } })
     fireEvent.blur(cellControls.getByLabelText('height_mm'))

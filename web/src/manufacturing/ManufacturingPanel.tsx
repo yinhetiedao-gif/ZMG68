@@ -11,6 +11,7 @@ import type { PatternDocumentDTO } from '../model/types'
 import type { FabricDesignPreview } from '../api/fabricPreview'
 import { fabricPresets } from '../document/fabricPresets'
 import { fabricDesignWarnings, fabricPreviewSummary } from '../document/fabricDesignSummary'
+import { FABRIC_PREVIEW_NOTICE } from './fabricCopy'
 
 interface Props {
   heightText: string
@@ -143,7 +144,7 @@ export function ManufacturingPanel(props: Props) {
             </section>
           })}
         </section>}
-        {cell && <p>单元阵列仅作设计预览，底部与基底顶面接触；当前 STL 仍只导出 F1 基底，不含单元。</p>}
+        {cell && <p>{FABRIC_PREVIEW_NOTICE}</p>}
       </section>}
     </section>
     <div className="manufacturing-settings">
