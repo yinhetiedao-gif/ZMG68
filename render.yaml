@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: xiaomang-pattern-lab-staging
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/v1/health
+    numInstances: 1
+    envVars:
+      - key: XIAOMANG_ENV
+        value: staging
+      - key: XIAOMANG_DEV_MANUFACTURING_SNAPSHOTS
+        value: "0"

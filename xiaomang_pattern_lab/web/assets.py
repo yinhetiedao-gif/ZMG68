@@ -83,7 +83,10 @@ class TemporaryAssetStore:
             identifier = uuid4().hex
             path = self._root / (identifier + MEDIA_SUFFIX[media_type])
             path.write_bytes(data)
-            item = StoredAsset(identifier, media_type, Path(filename).name[:120], path, monotonic())
+            # The upload header may contain separators from either client OS.
+            # Never echo a Windows absolute path from a Linux staging server.
+            display_name = filename.replace("\\", "/").rsplit("/", 1)[-1][:120]
+            item = StoredAsset(identifier, media_type, display_name, path, monotonic())
             self._items[identifier] = item
             return item
 

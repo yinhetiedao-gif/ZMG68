@@ -13,9 +13,10 @@ from tempfile import TemporaryDirectory
 from typing import Any
 from urllib.parse import unquote
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, Response
+from fastapi.staticfiles import StaticFiles
 from starlette.concurrency import run_in_threadpool
 
 from ppg.foundation import FoundationPipeline
@@ -325,18 +326,20 @@ def _import_asset(item) -> dict[str, Any]:
 def create_app(*, asset_resolver: AssetResolver | None = None,
                result_store: InMemoryManufacturingResultStore | None = None,
                asset_store: TemporaryAssetStore | None = None,
-               failure_snapshot_dir: Path | None = None) -> FastAPI:
+               failure_snapshot_dir: Path | None = None,
+               web_dist: Path | None = None) -> FastAPI:
     """Build an isolated headless server instance; importing does not start it."""
     resolver = asset_resolver if asset_resolver is not None else NullAssetResolver()
     store = result_store if result_store is not None else InMemoryManufacturingResultStore()
     fabric_preview_cache = FabricPreviewCache()
     uploads = asset_store if asset_store is not None else TemporaryAssetStore()
     snapshot_enabled = os.environ.get("XIAOMANG_DEV_MANUFACTURING_SNAPSHOTS") == "1"
-    staging_mode = os.environ.get("XIAOMANG_STAGING") == "1"
+    staging_mode = (os.environ.get("XIAOMANG_STAGING") == "1"
+                    or os.environ.get("XIAOMANG_ENV") == "staging")
     expensive_job_slot = threading.BoundedSemaphore(1) if staging_mode else None
     snapshot_dir = (failure_snapshot_dir if failure_snapshot_dir is not None else
                     Path(__file__).resolve().parents[2] / "work" / "manufacturing-failures")
-    app = FastAPI(title="Xiaomang Pattern Lab API", version="0.3-alpha",
+    app = FastAPI(title="Xiaomang Pattern Lab API", version="0.3-alpha", debug=False,
                   docs_url=None if staging_mode else "/docs",
                   redoc_url=None if staging_mode else "/redoc",
                   openapi_url=None if staging_mode else "/openapi.json")
@@ -539,5 +542,31 @@ def create_app(*, asset_resolver: AssetResolver | None = None,
         payload = stored.fabric_plan.preview_payload()
         payload["manufacturing_result_id"] = manufacturing_result_id
         return JSONResponse(payload, headers={"Cache-Control": "no-store"})
+
+    # Production assets are opt-in; local Vite + FastAPI development is unchanged.
+    dist_setting = web_dist if web_dist is not None else os.environ.get("XIAOMANG_WEB_DIST")
+    if dist_setting:
+        dist = Path(dist_setting).resolve()
+        index = dist / "index.html"
+        assets = dist / "assets"
+        if not index.is_file() or not assets.is_dir():
+            raise RuntimeError("Web build is missing index.html or assets directory")
+        app.mount("/assets", StaticFiles(directory=assets), name="web-assets")
+
+        @app.get("/favicon.svg", include_in_schema=False)
+        def favicon() -> FileResponse:
+            icon = dist / "favicon.svg"
+            if not icon.is_file():
+                raise HTTPException(status_code=404)
+            return FileResponse(icon, media_type="image/svg+xml")
+
+        @app.get("/{frontend_path:path}", include_in_schema=False)
+        def frontend(frontend_path: str) -> FileResponse:
+            # Never turn unknown API or file requests into HTML, nor expose
+            # server files outside the compiled frontend bundle.
+            if (frontend_path in {"api", "docs", "redoc", "openapi.json"}
+                    or frontend_path.startswith("api/") or "." in frontend_path):
+                raise HTTPException(status_code=404)
+            return FileResponse(index, media_type="text/html", headers={"Cache-Control": "no-cache"})
 
     return app
