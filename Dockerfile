@@ -9,7 +9,7 @@ RUN npm run build -- --mode staging
 FROM node:22-bookworm-slim AS vectorizer-build
 WORKDIR /build/vectorizer
 COPY external/imagetosvg-mcp/package.json external/imagetosvg-mcp/package-lock.json ./
-RUN npm ci
+RUN npm ci --ignore-scripts
 COPY external/imagetosvg-mcp/tsconfig.json ./
 COPY external/imagetosvg-mcp/src/ ./src/
 RUN npm run build && npm prune --omit=dev --ignore-scripts
