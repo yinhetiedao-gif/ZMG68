@@ -162,6 +162,12 @@ def materialize_evaluated_elements(document: PatternDocument) -> list[Element]:
     """Refresh the one existing Element collection from the Evaluate pipeline."""
 
     document.elements = evaluate_pattern_document(document)
+    # Imported SVG <g> membership refers to source IDs. A layout conversion
+    # can replace those IDs with generated ones; retain only memberships that
+    # still identify an actual final Element. The source snapshot is untouched.
+    final_ids = {element.id for element in document.elements}
+    for group in document.groups:
+        group.element_ids = [identifier for identifier in group.element_ids if identifier in final_ids]
     document._sync_transforms()
     document.validate()
     return document.elements

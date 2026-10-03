@@ -158,9 +158,11 @@ def _desktop_pattern_action(dto: PatternDocumentDTO, action: str) -> dict[str, A
                        document_revision=dto.document_revision + 1).to_dict()
 
 
-def _manual_layout(dto: PatternDocumentDTO, family: str, raw: dict[str, Any] | None = None):
+def _manual_layout(dto: PatternDocumentDTO, family: str, raw: dict[str, Any] | None = None,
+                   *, recognized_items=None):
     """Supply parameters to existing layout models, never to a second layout engine."""
-    items = [item for item in dto.to_document().elements if item.visible and item.width > 0 and item.height > 0]
+    source = recognized_items if recognized_items is not None else dto.to_document().elements
+    items = [item for item in source if item.visible and item.width > 0 and item.height > 0]
     if not items:
         raise WebError("empty_layout", "没有可用于转换的有效元素。")
     xs, ys = [item.x for item in items], [item.y for item in items]
@@ -225,7 +227,12 @@ def _prepare_pattern(dto: PatternDocumentDTO, family: str, raw: dict[str, Any] |
     if direct:
         proposed = _apply_pattern(dto, family)
         return {"mode": "direct", "proposed_document": proposed, "parameters": {}}
-    model, parameters = _manual_layout(dto, family, raw)
+    # The analyzer already excludes non-pattern shapes such as an SVG's white
+    # background. Use its recognized Grid elements for editable defaults;
+    # otherwise the background is counted as an extra cell during preparation.
+    recognized_items = (candidate.model.generate() if family == "grid" and candidate is not None
+                        and candidate.model is not None else None)
+    model, parameters = _manual_layout(dto, family, raw, recognized_items=recognized_items)
     with TemporaryDirectory(prefix="xiaomang-pattern-preview-") as temporary:
         session = PatternLabSession(FoundationPipeline(None, None), Path(temporary), document=dto.to_document())
         if family == "grid": session.activate_grid(model)
