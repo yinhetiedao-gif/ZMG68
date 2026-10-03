@@ -72,6 +72,10 @@ button { font: inherit; }
 
 .workspace { display: flex; min-width: 0; min-height: 0; flex-direction: column; overflow: hidden; background: #f3f5f7; }
 .workspace-toolbar { height: 52px; flex: 0 0 52px; display: flex; align-items: center; justify-content: space-between; padding: 0 26px; background: #f9fafb; border-bottom: 1px solid #e0e6ea; }
+.draft-restore, .draft-notice { display: flex; align-items: center; gap: 10px; padding: 8px 18px; background: #eaf5ee; border-bottom: 1px solid #bfddca; color: #244c37; font-size: 12px; }
+.draft-restore span { flex: 1; }
+.draft-restore button { white-space: nowrap; }
+.draft-notice { background: #fff2e6; border-color: #eccbac; color: #72461f; }
 .breadcrumb { display: flex; gap: 9px; align-items: center; color: #94a3ae; font-size: 11px; }
 .breadcrumb strong { color: #485e70; font-weight: 700; }
 .crumb-divider { color: #c5d0d8; }

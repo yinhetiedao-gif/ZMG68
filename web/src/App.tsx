@@ -29,6 +29,7 @@ import { setFabricBaseType, updateFabricBase } from './document/fabricBase'
 import { setFabricUnitCellType, updateFabricUnitCell, setFabricPlacementMode } from './document/fabricCell'
 import { setFabricModifierEnabled, setFabricModifierField, updateFabricModifier } from './document/fabricModifiers'
 import { applyFabricPreset } from './document/fabricPresets'
+import { clearDraft, loadDraft, saveDraft, type LocalDraft, type SourceAssetDraft } from './draft/localDraft'
 
 type ConnectionState =
   | { kind: 'checking'; message: string }
@@ -57,6 +58,11 @@ export function App() {
   const manufacturing = useManufacturing(project.currentDocument)
   const fabricPreview = useFabricPreview(project.currentDocument)
   const [projectError, setProjectError] = useState<string | null>(null)
+  const [draftNotice, setDraftNotice] = useState<string | null>(null)
+  const [restorableDraft, setRestorableDraft] = useState<LocalDraft | null>(null)
+  const sourceAssetRef = useRef<SourceAssetDraft | null>(null)
+  const draftTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const draftWrites = useRef<Promise<unknown>>(Promise.resolve())
   const [mapping, setMapping] = useState<{ dto: PatternDocumentDTO; fileName: string; warnings: string[] } | null>(null)
   const [mappingValue, setMappingValue] = useState('')
   const [pendingPreview, setPendingPreview] = useState<{ id: string; dx: number; dy: number } | null>(null)
@@ -121,7 +127,45 @@ export function App() {
   useEffect(() => () => {
     analyzeController.current?.abort()
     if (analyzeTimer.current) clearTimeout(analyzeTimer.current)
+    if (draftTimer.current) clearTimeout(draftTimer.current)
   }, [])
+  useEffect(() => {
+    let active = true
+    void loadDraft().then((draft) => {
+      if (active && !activeDocumentRef.current) setRestorableDraft(draft)
+    }).catch((error: unknown) => {
+      if (active) setDraftNotice(error instanceof Error ? error.message : '无法读取本地草稿。')
+    })
+    return () => { active = false }
+  }, [])
+
+  const persistDraft = useCallback((dto: PatternDocumentDTO, fileName: string | null,
+    sourceAsset: SourceAssetDraft | null): Promise<LocalDraft> => {
+    const next = draftWrites.current.catch(() => undefined).then(() => saveDraft(dto, fileName, sourceAsset))
+    draftWrites.current = next
+    return next
+  }, [])
+
+  useEffect(() => {
+    if (draftTimer.current) clearTimeout(draftTimer.current)
+    const dto = project.currentDocument
+    if (!dto || project.evaluateStatus !== 'ready' || lastValidDocumentRef.current !== dto) return
+    const fileName = project.fileName
+    const sourceAsset = sourceAssetRef.current
+    draftTimer.current = setTimeout(() => {
+      draftTimer.current = null
+      void persistDraft(dto, fileName, sourceAsset).then(() => setDraftNotice(null))
+        .catch((error: unknown) => setDraftNotice(error instanceof Error ? error.message : '本地草稿保存失败。'))
+    }, 450)
+    return () => { if (draftTimer.current) clearTimeout(draftTimer.current) }
+  }, [project.currentDocument, project.evaluateStatus, project.fileName, persistDraft])
+
+  const saveBeforeReplacement = async () => {
+    if (draftTimer.current) clearTimeout(draftTimer.current)
+    draftTimer.current = null
+    const dto = lastValidDocumentRef.current
+    if (dto) await persistDraft(dto, project.fileName, sourceAssetRef.current)
+  }
 
   const invalidatePatternAnalysis = useCallback(() => {
     if (analyzeTimer.current) clearTimeout(analyzeTimer.current)
@@ -206,6 +250,7 @@ export function App() {
   }, [invalidatePatternAnalysis, requestPatternAnalysis])
 
   const acceptProject = (dto: PatternDocumentDTO, fileName: string, warnings: string[]) => {
+    setRestorableDraft(null)
     lastValidDocumentRef.current = null
     setProjectError(null)
     ++layoutSequence.current
@@ -223,13 +268,17 @@ export function App() {
     event.target.value = ''
     if (!file) return
     try {
+      await saveBeforeReplacement()
       const identifier = globalThis.crypto?.randomUUID?.() ?? `web-${Date.now()}-${Math.random().toString(16).slice(2)}`
       const prepared = prepareProject(await file.text(), identifier)
       if (prepared.needsMillimetreMapping) {
         setMapping({ dto: prepared.dto, fileName: file.name, warnings: prepared.warnings })
         setMappingValue('')
         setProjectError(null)
-      } else acceptProject(prepared.dto, file.name, prepared.warnings)
+      } else {
+        sourceAssetRef.current = null
+        acceptProject(prepared.dto, file.name, prepared.warnings)
+      }
     } catch (error) {
       setProjectError(error instanceof Error ? error.message : '无法读取项目。')
     }
@@ -239,7 +288,9 @@ export function App() {
     setImporting(true)
     setProjectError(null)
     try {
+      await saveBeforeReplacement()
       const dto = await importImage(file)
+      sourceAssetRef.current = { blob: file, filename: file.name, media_type: file.type }
       acceptProject(dto, file.name, dto.document.metadata.web_import_scale_unconfirmed
         ? ['导入图案暂按 1 原始单位 = 1 mm 显示；制造前必须确认真实尺寸。'] : [])
     } catch (error) {
@@ -261,6 +312,7 @@ export function App() {
   const confirmMapping = () => {
     if (!mapping) return
     try {
+      sourceAssetRef.current = null
       acceptProject(withMillimetreMapping(mapping.dto, Number(mappingValue)), mapping.fileName, mapping.warnings)
     } catch (error) {
       setProjectError(error instanceof Error ? error.message : '毫米映射无效。')
@@ -444,6 +496,21 @@ export function App() {
       : project.evaluateError || projectError ? 'Error · 修改未完成，可重试或撤销'
         : 'Ready · 就绪'
 
+  const restoreLocalDraft = () => {
+    if (!restorableDraft) return
+    sourceAssetRef.current = restorableDraft.source_asset
+    acceptProject(restorableDraft.dto, restorableDraft.file_name ?? '上次编辑', [])
+  }
+  const startFresh = async () => {
+    try {
+      await clearDraft()
+      setRestorableDraft(null)
+      setDraftNotice(null)
+    } catch (error) {
+      setDraftNotice(error instanceof Error ? error.message : '无法清除本地草稿。')
+    }
+  }
+
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (!(event.ctrlKey || event.metaKey) || event.altKey || event.isComposing || event.repeat) return
@@ -541,6 +608,12 @@ export function App() {
       </aside>
 
       <main className="workspace" aria-label="中央工作区">
+        {restorableDraft && !project.currentDocument && <div className="draft-restore" role="region" aria-label="恢复上次编辑">
+          <span>发现上次编辑：{restorableDraft.file_name ?? '未命名设计'} · {new Date(restorableDraft.saved_at).toLocaleString()}</span>
+          <button type="button" onClick={restoreLocalDraft}>恢复上次编辑</button>
+          <button type="button" onClick={() => void startFresh()}>新建项目</button>
+        </div>}
+        {draftNotice && <div className="draft-notice" role="alert">{draftNotice}</div>}
         <div className="workspace-toolbar">
           <div className="breadcrumb"><span>工作区</span><span className="crumb-divider">/</span><strong>{modeName}</strong></div>
           <div className="workspace-scale">{project.currentDocument ? `CANVAS · ${project.finalGeometry.length} ELEMENTS · mm` : 'CANVAS · 暂无文档'}</div>
