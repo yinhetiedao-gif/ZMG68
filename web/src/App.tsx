@@ -29,7 +29,9 @@ import { setFabricBaseType, updateFabricBase } from './document/fabricBase'
 import { setFabricUnitCellType, updateFabricUnitCell, setFabricPlacementMode } from './document/fabricCell'
 import { setFabricModifierEnabled, setFabricModifierField, updateFabricModifier } from './document/fabricModifiers'
 import { applyFabricPreset } from './document/fabricPresets'
-import { clearDraft, loadDraft, saveDraft, type LocalDraft, type SourceAssetDraft } from './draft/localDraft'
+import { clearDraft, loadBeforeExampleDraft, loadDraft, saveBeforeExampleDraft, saveDraft,
+  type LocalDraft, type SourceAssetDraft } from './draft/localDraft'
+import { createExampleDocument, exampleIdFromDocument, examples, type BuiltInExample, type ExampleId } from './examples/catalog'
 
 type ConnectionState =
   | { kind: 'checking'; message: string }
@@ -49,6 +51,20 @@ const modes: { id: WorkspaceMode; label: string; secondary: string }[] = [
   { id: 'preview', label: '三维预览', secondary: '3D Preview' },
 ]
 
+function ExampleCard({ example, onOpen, disabled }: { example: BuiltInExample; onOpen: (id: ExampleId) => void; disabled: boolean }) {
+  const capabilityLabel = { editable: '可编辑', standard_stl: '支持标准二维 STL', preview_only: '仅预览' }
+  return <button className="example-card" type="button" disabled={disabled} onClick={() => onOpen(example.id)}
+    aria-label={`打开示例：${example.title}`}>
+    <span className={`example-thumbnail ${example.thumbnail}`} aria-hidden="true">
+      {Array.from({ length: 9 }, (_, index) => <i key={index} />)}
+    </span>
+    <span className="example-copy"><strong>{example.title}</strong><small>{example.description}</small>
+      <span className="example-capabilities">{example.capabilities.map((capability) =>
+        <em key={capability}>{capabilityLabel[capability]}</em>)}</span>
+    </span>
+  </button>
+}
+
 export function App() {
   const [connection, setConnection] = useState<ConnectionState>({ kind: 'checking', message: '正在连接后端…' })
   const [parameterCatalog, setParameterCatalog] = useState<ParameterCatalog | null>(null)
@@ -58,8 +74,10 @@ export function App() {
   const manufacturing = useManufacturing(project.currentDocument)
   const fabricPreview = useFabricPreview(project.currentDocument)
   const [projectError, setProjectError] = useState<string | null>(null)
+  const [exampleChooserOpen, setExampleChooserOpen] = useState(false)
   const [draftNotice, setDraftNotice] = useState<string | null>(null)
   const [restorableDraft, setRestorableDraft] = useState<LocalDraft | null>(null)
+  const [preExampleDraft, setPreExampleDraft] = useState<LocalDraft | null>(null)
   const sourceAssetRef = useRef<SourceAssetDraft | null>(null)
   const draftTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const draftWrites = useRef<Promise<unknown>>(Promise.resolve())
@@ -136,6 +154,12 @@ export function App() {
     }).catch((error: unknown) => {
       if (active) setDraftNotice(error instanceof Error ? error.message : '无法读取本地草稿。')
     })
+    return () => { active = false }
+  }, [])
+  useEffect(() => {
+    let active = true
+    void loadBeforeExampleDraft().then((draft) => { if (active) setPreExampleDraft(draft) })
+      .catch((error: unknown) => { if (active) setDraftNotice(error instanceof Error ? error.message : '无法读取示例前的作品。') })
     return () => { active = false }
   }, [])
 
@@ -263,6 +287,28 @@ export function App() {
     setBrowser((current) => ({ ...current, selectedElementIds: [], activeMode: 'design' }))
     runEvaluate(dto, { fileName, warnings, fitOnSuccess: true, analyzeDelayMs: 0 })
   }
+  const openExample = async (id: ExampleId) => {
+    if (importing || !connected) return
+    try {
+      if (project.currentDocument && (project.evaluateStatus !== 'ready' ||
+          lastValidDocumentRef.current !== project.currentDocument)) throw new Error('当前设计仍在计算，请完成后再打开示例。')
+      await saveBeforeReplacement()
+      const previous = project.currentDocument && !exampleIdFromDocument(project.currentDocument)
+        ? { dto: project.currentDocument, fileName: project.fileName, asset: sourceAssetRef.current }
+        : !project.currentDocument && restorableDraft
+          ? { dto: restorableDraft.dto, fileName: restorableDraft.file_name, asset: restorableDraft.source_asset }
+          : null
+      if (previous) setPreExampleDraft(await saveBeforeExampleDraft(previous.dto, previous.fileName, previous.asset))
+      const identifier = globalThis.crypto?.randomUUID?.() ?? `example-${Date.now()}-${Math.random().toString(16).slice(2)}`
+      const dto = createExampleDocument(id, identifier)
+      const example = examples.find((item) => item.id === id)!
+      sourceAssetRef.current = null
+      setExampleChooserOpen(false)
+      acceptProject(dto, example.title, [])
+    } catch (error) {
+      setProjectError(error instanceof Error ? error.message : '无法保存当前草稿，示例未打开。')
+    }
+  }
   const onFile = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     event.target.value = ''
@@ -341,6 +387,17 @@ export function App() {
       setSelectedFamily(currentLayoutFamily(before))
       setLayoutDraft(initialLayoutDraft(before))
     }, analyzeDelayMs: 400 })
+  }
+  const resetExample = () => {
+    const before = project.currentDocument
+    const id = exampleIdFromDocument(before)
+    if (!before || !id || !canEditDocument) return
+    try {
+      const original = createExampleDocument(id, before.document_id)
+      commitDocument(restoreSnapshot(original, before.document_revision), before)
+    } catch (error) {
+      setProjectError(error instanceof Error ? error.message : '无法恢复示例初始状态。')
+    }
   }
   const selectLayout = async (family: PatternFamily) => {
     const dto = project.currentDocument
@@ -501,10 +558,21 @@ export function App() {
     sourceAssetRef.current = restorableDraft.source_asset
     acceptProject(restorableDraft.dto, restorableDraft.file_name ?? '上次编辑', [])
   }
+  const restorePreExampleDraft = async () => {
+    if (!preExampleDraft) return
+    try {
+      await saveBeforeReplacement()
+      sourceAssetRef.current = preExampleDraft.source_asset
+      acceptProject(preExampleDraft.dto, preExampleDraft.file_name ?? '示例前的作品', [])
+    } catch (error) {
+      setProjectError(error instanceof Error ? error.message : '无法恢复示例前的作品。')
+    }
+  }
   const startFresh = async () => {
     try {
       await clearDraft()
       setRestorableDraft(null)
+      setPreExampleDraft(null)
       setDraftNotice(null)
     } catch (error) {
       setDraftNotice(error instanceof Error ? error.message : '无法清除本地草稿。')
@@ -562,6 +630,13 @@ export function App() {
             <button className="side-item" type="button" disabled title="即将开放"><span className="side-item-mark">◯</span>基础形状 Shapes</button>
           </div>
         </section>
+        {project.currentDocument && <section className="side-group" aria-label="内置示例">
+          <div className="group-heading"><span>EX</span><h2>内置示例</h2></div>
+          <button className="side-item" type="button" aria-expanded={exampleChooserOpen}
+            onClick={() => setExampleChooserOpen((open) => !open)}><span className="side-item-mark">◉</span>试用示例</button>
+          {exampleChooserOpen && <div className="sidebar-examples">{examples.map((example) => <ExampleCard
+            key={example.id} example={example} onOpen={(id) => void openExample(id)} disabled={!connected || importing} />)}</div>}
+        </section>}
         <section className="side-group" aria-label="图案结构">
           <div className="group-heading"><span>02</span><h2>图案结构</h2></div>
           <p className="pattern-analysis-status">自动识别仅提供推荐；布局由你选择。</p>
@@ -618,7 +693,11 @@ export function App() {
           <div className="breadcrumb"><span>工作区</span><span className="crumb-divider">/</span><strong>{modeName}</strong></div>
           <div className="workspace-scale">{project.currentDocument ? `CANVAS · ${project.finalGeometry.length} ELEMENTS · mm` : 'CANVAS · 暂无文档'}</div>
           <div className="history-actions"><button type="button" onClick={undo} title="Ctrl+Z" disabled={!historyCount.past || !canEditDocument}>撤销</button>
-            <button type="button" onClick={redo} title="Ctrl+Y / Ctrl+Shift+Z" disabled={!historyCount.future || !canEditDocument}>重做</button></div>
+            <button type="button" onClick={redo} title="Ctrl+Y / Ctrl+Shift+Z" disabled={!historyCount.future || !canEditDocument}>重做</button>
+            {exampleIdFromDocument(project.currentDocument) && <button type="button" onClick={resetExample}
+              disabled={!canEditDocument}>恢复示例初始状态</button>}
+            {exampleIdFromDocument(project.currentDocument) && preExampleDraft && <button type="button"
+              onClick={() => void restorePreExampleDraft()} disabled={!canEditDocument}>恢复示例前的作品</button>}</div>
         </div>
         <div className="canvas-stage" onDragOver={(event) => event.preventDefault()} onDrop={onDrop}>
           {browser.activeMode === 'design' && project.currentDocument && project.evaluateStatus !== 'idle' ? (
@@ -634,10 +713,13 @@ export function App() {
               <div className="orbit-art" aria-hidden="true"><div className="orbit-ring ring-one" /><div className="orbit-ring ring-two" /><div className="orbit-ring ring-three" /><span className="orbit-core" /><i className="orbit-dot dot-one" /><i className="orbit-dot dot-two" /><i className="orbit-dot dot-three" /></div>
               <span className="empty-kicker">A NEW CANVAS AWAITS</span>
               <h1>导入图片开始设计</h1>
-              <p>导入 PNG、JPG 或 SVG，由 Python 转换并计算可编辑几何。</p>
-              <button type="button" className="primary-action" disabled={!connected || importing}
-                onClick={() => imageInputRef.current?.click()}>选择图片开始</button>
-              <span className="empty-hint">WM6 · Parametric Controls MVP</span>
+              <p>导入自己的图案，或打开可编辑示例体验参数化设计。</p>
+              <div className="empty-actions"><button type="button" className="primary-action" disabled={!connected || importing}
+                onClick={() => imageInputRef.current?.click()}>导入自己的图案</button>
+                <button type="button" className="primary-action" disabled={!connected || importing}
+                  aria-expanded={exampleChooserOpen} onClick={() => setExampleChooserOpen((open) => !open)}>试用示例</button></div>
+              {exampleChooserOpen && <div className="empty-examples">{examples.map((example) => <ExampleCard
+                key={example.id} example={example} onOpen={(id) => void openExample(id)} disabled={!connected || importing} />)}</div>}
             </section>
           ) : browser.activeMode === 'manufacture' ? (
             <ManufacturingPanel heightText={manufacturing.heightText} onHeightChange={manufacturing.setHeightText}

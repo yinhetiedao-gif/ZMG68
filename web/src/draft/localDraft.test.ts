@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { clearDraft, loadDraft, saveDraft } from './localDraft'
+import { clearDraft, loadBeforeExampleDraft, loadDraft, saveBeforeExampleDraft, saveDraft } from './localDraft'
 import type { PatternDocumentDTO } from '../model/types'
 import { Blob as NodeBlob } from 'node:buffer'
 
@@ -41,5 +41,16 @@ describe('last working draft', () => {
     large.document.metadata.large = 'x'.repeat(2 * 1024 * 1024)
     await expect(saveDraft(large, 'large.svg', null)).rejects.toThrow(/2 MiB/)
     expect((await loadDraft())?.dto.document_id).toBe('draft-2')
+  })
+
+  it('keeps the pre-example work recoverable after the example becomes the newest draft', async () => {
+    const original = project()
+    await saveDraft(original, 'my-work.svg', null)
+    await saveBeforeExampleDraft(original, 'my-work.svg', null)
+    await saveDraft({ ...project(), document_id: 'example-current' }, '基础圆点阵列', null)
+    expect((await loadDraft())?.dto.document_id).toBe('example-current')
+    expect((await loadBeforeExampleDraft())?.dto).toEqual(original)
+    await clearDraft()
+    expect(await loadBeforeExampleDraft()).toBeNull()
   })
 })

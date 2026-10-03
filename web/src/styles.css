@@ -101,6 +101,22 @@ button { font: inherit; }
 .empty-state p { margin: 12px 0 0; font-size: 12px; color: #8495a1; line-height: 1.8; }
 .primary-disabled { margin-top: 29px; padding: 11px 20px; background: #dfe9ed; color: #6f8a98; border: 1px solid #d5e2e9; border-radius: 8px; font-size: 11px; font-weight: 650; cursor: not-allowed; }
 .primary-action { margin-top: 29px; padding: 11px 20px; background: #e4f1f6; color: #315d76; border: 1px solid #c5dce7; border-radius: 8px; font-size: 11px; font-weight: 700; cursor: pointer; }
+.empty-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+.empty-examples { width: min(470px, 100%); display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 18px; }
+.sidebar-examples { display: grid; gap: 8px; margin: 8px 4px 0; }
+.example-card { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 9px; border: 1px solid #d7e3e9; border-radius: 9px; background: #fff; text-align: left; color: #324b5d; cursor: pointer; }
+.example-card:hover:not(:disabled) { border-color: #86b4c8; background: #f7fbfd; }
+.example-card:disabled { opacity: .6; cursor: not-allowed; }
+.example-thumbnail { flex: 0 0 55px; width: 55px; height: 55px; display: grid; grid-template-columns: repeat(3, 1fr); place-items: center; gap: 2px; padding: 7px; background: #f2f6f8; border-radius: 6px; }
+.example-thumbnail i { width: 8px; height: 8px; display: block; background: #2d5368; border-radius: 50%; }
+.example-thumbnail.gradient i { border-radius: 1px; transform: rotate(25deg); }
+.example-thumbnail.gradient i:nth-child(3n + 1) { width: 5px; height: 5px; transform: rotate(-28deg); }
+.example-thumbnail.gradient i:nth-child(3n) { width: 11px; height: 11px; transform: rotate(40deg); }
+.example-copy { display: grid; gap: 4px; min-width: 0; }
+.example-copy strong { font-size: 12px; }
+.example-copy small { color: #748997; font-size: 10px; line-height: 1.35; }
+.example-capabilities { display: flex; flex-wrap: wrap; gap: 4px; }
+.example-capabilities em { font-size: 9px; font-style: normal; padding: 2px 4px; color: #3b7188; background: #e9f3f7; border-radius: 3px; }
 .empty-hint { color: #b1bec7; font-size: 10px; letter-spacing: .1em; margin-top: 31px; }
 .future-mark { width: 86px; height: 86px; display: grid; place-items: center; border-radius: 24px; border: 1px solid #d4e2e8; background: #f2f7f9; margin-bottom: 27px; color: #8aa9b9; font-size: 38px; }
 .mode-bar { height: 72px; flex: 0 0 72px; display: flex; align-items: center; gap: 6px; padding: 0 22px; overflow-x: auto; overflow-y: hidden; background: #fff; border-top: 1px solid #e0e5e9; }

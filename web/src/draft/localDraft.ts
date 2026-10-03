@@ -3,6 +3,7 @@ import type { PatternDocumentDTO } from '../model/types'
 const DB_NAME = 'xiaomang-pattern-lab-drafts'
 const STORE = 'drafts'
 const KEY = 'last-working-draft'
+const PRE_EXAMPLE_KEY = 'before-example-draft'
 const MAX_REQUEST_BYTES = 2 * 1024 * 1024
 
 export interface SourceAssetDraft {
@@ -12,7 +13,7 @@ export interface SourceAssetDraft {
 }
 
 export interface LocalDraft {
-  key: typeof KEY
+  key: typeof KEY | typeof PRE_EXAMPLE_KEY
   schema_version: '1.0'
   saved_at: string
   dto: PatternDocumentDTO
@@ -70,9 +71,20 @@ export function validateDraftDocument(dto: unknown): asserts dto is PatternDocum
 
 export async function saveDraft(dto: PatternDocumentDTO, fileName: string | null,
   sourceAsset: SourceAssetDraft | null): Promise<LocalDraft> {
+  return writeDraft(KEY, dto, fileName, sourceAsset)
+}
+
+/** One recoverable pre-example work slot; it uses the same canonical DTO, not a template format. */
+export async function saveBeforeExampleDraft(dto: PatternDocumentDTO, fileName: string | null,
+  sourceAsset: SourceAssetDraft | null): Promise<LocalDraft> {
+  return writeDraft(PRE_EXAMPLE_KEY, dto, fileName, sourceAsset)
+}
+
+async function writeDraft(key: LocalDraft['key'], dto: PatternDocumentDTO, fileName: string | null,
+  sourceAsset: SourceAssetDraft | null): Promise<LocalDraft> {
   validateDraftDocument(dto)
   const draft: LocalDraft = {
-    key: KEY, schema_version: '1.0', saved_at: new Date().toISOString(),
+    key, schema_version: '1.0', saved_at: new Date().toISOString(),
     dto, file_name: fileName, source_asset: sourceAsset,
   }
   const db = await database()
@@ -89,11 +101,19 @@ export async function saveDraft(dto: PatternDocumentDTO, fileName: string | null
 }
 
 export async function loadDraft(): Promise<LocalDraft | null> {
+  return readDraft(KEY)
+}
+
+export async function loadBeforeExampleDraft(): Promise<LocalDraft | null> {
+  return readDraft(PRE_EXAMPLE_KEY)
+}
+
+async function readDraft(key: LocalDraft['key']): Promise<LocalDraft | null> {
   const db = await database()
   try {
     const draft = await new Promise<LocalDraft | undefined>((resolve, reject) => {
       const tx = db.transaction(STORE, 'readonly')
-      const request = tx.objectStore(STORE).get(KEY)
+      const request = tx.objectStore(STORE).get(key)
       request.onsuccess = () => resolve(request.result as LocalDraft | undefined)
       request.onerror = () => reject(new LocalDraftError('无法读取本地草稿。'))
     })
@@ -110,6 +130,7 @@ export async function clearDraft(): Promise<void> {
     await new Promise<void>((resolve, reject) => {
       const tx = db.transaction(STORE, 'readwrite')
       tx.objectStore(STORE).delete(KEY)
+      tx.objectStore(STORE).delete(PRE_EXAMPLE_KEY)
       tx.oncomplete = () => resolve()
       tx.onerror = () => reject(new LocalDraftError('无法清除本地草稿。'))
     })
