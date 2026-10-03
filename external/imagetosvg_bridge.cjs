@@ -22,9 +22,10 @@ let settled = false;
 const finish = (value, code = 0) => {
   if (settled) return;
   settled = true;
-  process.stdout.write(JSON.stringify(value) + '\n');
   child.kill();
-  process.exit(code);
+  // A pipe write can still be buffered. Exiting immediately truncated large
+  // tool responses on Linux, leaving Python with incomplete JSON.
+  process.stdout.write(JSON.stringify(value) + '\n', () => process.exit(code));
 };
 const request = (method, params) => {
   const id = nextId++;
