@@ -4,6 +4,7 @@ from __future__ import annotations
 import logging
 import math
 import os
+import threading
 from copy import deepcopy
 from dataclasses import replace
 from pathlib import Path
@@ -331,9 +332,14 @@ def create_app(*, asset_resolver: AssetResolver | None = None,
     fabric_preview_cache = FabricPreviewCache()
     uploads = asset_store if asset_store is not None else TemporaryAssetStore()
     snapshot_enabled = os.environ.get("XIAOMANG_DEV_MANUFACTURING_SNAPSHOTS") == "1"
+    staging_mode = os.environ.get("XIAOMANG_STAGING") == "1"
+    expensive_job_slot = threading.BoundedSemaphore(1) if staging_mode else None
     snapshot_dir = (failure_snapshot_dir if failure_snapshot_dir is not None else
                     Path(__file__).resolve().parents[2] / "work" / "manufacturing-failures")
-    app = FastAPI(title="Xiaomang Pattern Lab API", version="0.3-alpha")
+    app = FastAPI(title="Xiaomang Pattern Lab API", version="0.3-alpha",
+                  docs_url=None if staging_mode else "/docs",
+                  redoc_url=None if staging_mode else "/redoc",
+                  openapi_url=None if staging_mode else "/openapi.json")
     app.add_middleware(CORSMiddleware, allow_origins=list(LOCAL_DEV_ORIGINS),
                        allow_credentials=False, allow_methods=["GET", "POST"],
                        allow_headers=["Content-Type", "X-Filename"])
@@ -451,24 +457,30 @@ def create_app(*, asset_resolver: AssetResolver | None = None,
         cached = store.get(result_id)
         if cached is not None:
             return JSONResponse(cached.response)
-        document = await run_in_threadpool(_resolve_document, dto, resolver)
+        if expensive_job_slot is not None and not expensive_job_slot.acquire(blocking=False):
+            raise WebError("staging_busy", "测试站正在处理另一项三维任务，请稍后重试。")
         try:
-            result_id, stored = await run_in_threadpool(_build, document, dto, parameters.height_mm)
-        except ManufacturingBuildFailure as error:
-            if snapshot_enabled:
-                try:
-                    path = await run_in_threadpool(
-                        save_manufacturing_failure, snapshot_dir, dto, parameters.height_mm,
-                        error.code, error.validation_summary)
-                    error.failure_id = path.stem
-                    logging.getLogger(__name__).info("Manufacturing failure snapshot saved: failure_id=%s", path.stem)
-                except (OSError, ValueError, TypeError, ContractError) as snapshot_error:
-                    logging.getLogger(__name__).warning(
-                        "Manufacturing failure snapshot could not be saved (%s)",
-                        type(snapshot_error).__name__)
-            raise
-        store.put(result_id, stored)
-        return JSONResponse(stored.response)
+            document = await run_in_threadpool(_resolve_document, dto, resolver)
+            try:
+                result_id, stored = await run_in_threadpool(_build, document, dto, parameters.height_mm)
+            except ManufacturingBuildFailure as error:
+                if snapshot_enabled:
+                    try:
+                        path = await run_in_threadpool(
+                            save_manufacturing_failure, snapshot_dir, dto, parameters.height_mm,
+                            error.code, error.validation_summary)
+                        error.failure_id = path.stem
+                        logging.getLogger(__name__).info("Manufacturing failure snapshot saved: failure_id=%s", path.stem)
+                    except (OSError, ValueError, TypeError, ContractError) as snapshot_error:
+                        logging.getLogger(__name__).warning(
+                            "Manufacturing failure snapshot could not be saved (%s)",
+                            type(snapshot_error).__name__)
+                raise
+            store.put(result_id, stored)
+            return JSONResponse(stored.response)
+        finally:
+            if expensive_job_slot is not None:
+                expensive_job_slot.release()
 
     @app.post("/api/v1/fabric/preview", openapi_extra=JSON_DOCUMENT_BODY)
     async def fabric_design_preview(request: Request) -> JSONResponse:
@@ -480,13 +492,19 @@ def create_app(*, asset_resolver: AssetResolver | None = None,
         cached = fabric_preview_cache.get(key)
         if cached is not None:
             return JSONResponse({**cached, "cache_hit": True}, headers={"Cache-Control": "no-store"})
-        document = await run_in_threadpool(_resolve_document, dto, resolver)
+        if expensive_job_slot is not None and not expensive_job_slot.acquire(blocking=False):
+            raise WebError("staging_busy", "测试站正在处理另一项三维任务，请稍后重试。")
         try:
-            result = await run_in_threadpool(build_fabric_preview, document, dto)
-        except (ValueError, TypeError, KeyError) as error:
-            raise WebError("invalid_fabric_preview", str(error)) from error
-        fabric_preview_cache.put(key, result)
-        return JSONResponse(result, headers={"Cache-Control": "no-store"})
+            document = await run_in_threadpool(_resolve_document, dto, resolver)
+            try:
+                result = await run_in_threadpool(build_fabric_preview, document, dto)
+            except (ValueError, TypeError, KeyError) as error:
+                raise WebError("invalid_fabric_preview", str(error)) from error
+            fabric_preview_cache.put(key, result)
+            return JSONResponse(result, headers={"Cache-Control": "no-store"})
+        finally:
+            if expensive_job_slot is not None:
+                expensive_job_slot.release()
 
     @app.get("/api/v1/manufacturing/{manufacturing_result_id}/model.stl")
     def download_stl(manufacturing_result_id: str) -> Response:

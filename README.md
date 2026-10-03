@@ -1,5 +1,12 @@
 # Xiaomang Pattern Lab / 小芒图案实验室（当前活跃项目）
 
+## 临时公网测试站
+
+需要短时交给外部测试者检查时，安装官方 `cloudflared`，在项目根目录执行
+`& .\scripts\start_staging.ps1 -PythonExe 'C:\path\to\python.exe' -CloudflaredExe 'C:\path\to\cloudflared.exe'`。
+脚本构建 staging 页面并启动仅绑定本机的 FastAPI 8766、Web 5175，然后输出一个临时 `trycloudflare.com` 地址；网页与 `/api` 共用该地址。完成后执行 `& .\scripts\stop_staging.ps1`。
+这是无账号认证的临时测试入口，不要上传敏感素材；URL 不保证长期有效。端口、环境变量、日志与常见问题见 [staging 说明](docs/STAGING.md)。Fabric 最终 STL 仍未开放。
+
 ## Web 用户流程与制造失败调试
 
 普通用户的 Web 流程是：导入 PNG/JPG（或已有 SVG）→ 参数化设计 → Fabric/制造 → 3D 预览 → STL。

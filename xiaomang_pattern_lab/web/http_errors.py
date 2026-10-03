@@ -26,6 +26,7 @@ HTTP_STATUS_BY_CODE = {
     "request_too_large": 413,
     "asset_too_large": 413,
     "asset_store_full": 429,
+    "staging_busy": 429,
     "invalid_asset": 422,
     "asset_not_found": 404,
     "import_failed": 422,

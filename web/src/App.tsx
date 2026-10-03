@@ -465,6 +465,7 @@ export function App() {
         <div className="brand-symbol" aria-hidden="true"><span /><span /><span /><span /></div>
         <div className="brand-copy"><strong>Xiaomang Pattern Lab</strong><span>小芒图案实验室</span></div>
         <span className="alpha-tag">WEB ALPHA</span>
+        {import.meta.env.MODE === 'staging' && <span className="alpha-tag">TEST / STAGING</span>}
       </div>
       <div className="project-name" aria-label="当前项目">
         <span>项目</span><strong>{project.fileName ?? 'Untitled'}</strong>
