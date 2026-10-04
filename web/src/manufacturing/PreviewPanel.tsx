@@ -42,6 +42,8 @@ export function PreviewPanel({ result, status, projectName, isCurrentResult, doc
       <StlExportButton result={result} status={status} projectName={projectName}
         isCurrentResult={isCurrentResult} /></div>
     <ThreePreview key={result.manufacturing_result_id} resultId={result.manufacturing_result_id} />
-    <small className="manufacturing-result-id">预览与 STL 共用结果编号：{result.manufacturing_result_id}</small>
+    <details className="diagnostic-details"><summary>诊断详情</summary>
+      <small className="manufacturing-result-id">预览与 STL 共用结果编号：{result.manufacturing_result_id}</small>
+    </details>
   </section>
 }

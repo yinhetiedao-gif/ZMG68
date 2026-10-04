@@ -53,9 +53,17 @@ export function RealSizePanel({ document, bounds, disabled, onConfirm }: {
       <strong>{document && realSizeConfirmed(document, bounds) ? '已确认' : '未确认'}</strong></p>
     <div className="real-size-inputs">
       <label>宽度 mm<input aria-label="真实宽度 mm" type="number" min="0.000001" step="any" value={widthText}
-        disabled={disabled || !bounds} onChange={(event) => change('width', event.target.value)} /></label>
+        disabled={disabled || !bounds} onFocus={() => {
+          if (bounds && widthText === formatMm(bounds.width)) setWidthText(String(bounds.width))
+        }} onBlur={() => {
+          if (bounds && widthText === String(bounds.width)) setWidthText(formatMm(bounds.width))
+        }} onChange={(event) => change('width', event.target.value)} /></label>
       <label>高度 mm<input aria-label="真实高度 mm" type="number" min="0.000001" step="any" value={heightText}
-        disabled={disabled || !bounds} onChange={(event) => change('height', event.target.value)} /></label>
+        disabled={disabled || !bounds} onFocus={() => {
+          if (bounds && heightText === formatMm(bounds.height)) setHeightText(String(bounds.height))
+        }} onBlur={() => {
+          if (bounds && heightText === String(bounds.height)) setHeightText(formatMm(bounds.height))
+        }} onChange={(event) => change('height', event.target.value)} /></label>
     </div>
     <label className="real-size-lock"><input type="checkbox" checked readOnly disabled />锁定比例</label>
     <small>当前文档使用统一毫米映射，暂只支持等比调整。</small>

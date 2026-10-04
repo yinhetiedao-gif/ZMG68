@@ -1,12 +1,14 @@
-import { useId } from 'react'
+import { useId, useState } from 'react'
 import type { ParameterDefinition, ParameterGroup, ParameterValue } from './parameterSchema'
 import { recommendedSlider, validateParameter } from './parameterSchema'
 import { useParameterDraft } from './ParameterInteraction'
+import { formatMm } from '../model/formatMm'
 
 function ParameterInput({ definition, value, onCommit }: {
   definition: ParameterDefinition; value: ParameterValue; onCommit: (value: ParameterValue) => void
 }) {
   const id = useId()
+  const [focused, setFocused] = useState(false)
   const { draft, pending, change, cancel, submit, commitNumber: commit } = useParameterDraft(value, onCommit,
     (next) => validateParameter(definition, next))
   const reset = <button type="button" className="parameter-reset" aria-label={`重置${definition.label}`}
@@ -38,12 +40,14 @@ function ParameterInput({ definition, value, onCommit }: {
           : Math.min(slider.max, Math.max(slider.min, Number(value)))}
         onChange={(event) => change(event.target.value)} onPointerUp={commit} onKeyUp={commit} onBlur={commit}
         onPointerCancel={cancel} />}
-      <input id={id} type="number" min={min} max={max} step={step} value={draft}
+      <input id={id} type="number" min={min} max={max} step={step}
+        value={focused ? draft : pending && draft.trim() === '' ? draft : formatMm(pending ? Number(draft) : Number(value))}
+        onFocus={() => setFocused(true)}
         onChange={(event) => change(event.target.value)}
         onKeyDown={(event) => {
           if (event.key === 'Enter') event.currentTarget.blur()
           if (event.key === 'Escape') cancel()
-        }} onBlur={commit} />
+        }} onBlur={() => { commit(); setFocused(false) }} />
     </div>
     {outOfRange && <small className="parameter-recommended">超出推荐调节范围（{slider.min}–{slider.max}{definition.unit ? ` ${definition.unit}` : ''}）</small>}
     {pending && <small className="parameter-pending">待提交 · 松开滑杆或确认数值</small>}

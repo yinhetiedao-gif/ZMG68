@@ -60,7 +60,7 @@ export function StlExportButton({ result, status, projectName, isCurrentResult, 
   }
 
   return <div className="stl-export-action">
-    <button type="button" onClick={() => void download()} disabled={!enabled || downloading}>
+    <button type="button" className="ui-primary" onClick={() => void download()} disabled={!enabled || downloading}>
       {downloading ? '正在导出…' : label}
     </button>
     {reason && <small className="stl-export-reason">{reason}</small>}

@@ -85,7 +85,7 @@ describe('P1-E continuous parameter editing', () => {
   it('preserves sections and viewport, resets as one history step and handles shortcuts outside inputs', async () => {
     const api = backend()
     const canvas = await open(api)
-    const layoutToggle = screen.getByRole('button', { name: /LAYOUT/ })
+    const layoutToggle = screen.getByRole('button', { name: /布局 ·/ })
     fireEvent.click(layoutToggle)
     fireEvent.click(screen.getByRole('button', { name: '放大' }))
     const view = canvas.querySelector('g')!.getAttribute('transform')

@@ -68,7 +68,7 @@ function ExampleCard({ example, onOpen, disabled }: { example: BuiltInExample; o
     <span className="example-copy"><strong>{example.title}</strong><small>{example.description}</small>
       <span className="example-capabilities">{example.capabilities.map((capability) =>
         <em key={capability}>{capabilityLabel[capability]}</em>)}</span>
-    </span>
+      <span className="example-open">打开示例 →</span></span>
   </button>
 }
 
@@ -675,16 +675,12 @@ export function App() {
             {draftSaveStatus === 'saved' ? '已保存' : draftSaveStatus === 'error' ? '保存失败' : '正在保存…'}
           </span>
           {pendingLayoutFor(project.currentDocument, layoutDraft) && <span className="project-pending">有未应用修改</span>}
-          <span className="visually-hidden" aria-hidden="true">revision {project.documentRevision}</span>
         </> : <span className="project-unsaved">未创建</span>}
       </div>
       <div className="top-status">
         <div className={`backend-badge ${connection.kind}`} role="status" aria-live="polite">
           <span className="status-light" aria-hidden="true" />
-          {connected ? 'Backend Online' : connection.kind === 'checking' ? '正在连接' : connection.kind === 'offline' ? 'Backend Offline' : 'Contract Error'}
-        </div>
-        <div className={`contract-badge ${connected ? 'verified' : ''}`}>
-          <span>CONTRACT</span><strong>{connected ? `v${EXPECTED_SCHEMA_VERSION}` : '待验证'}</strong>
+          {connected ? '已连接' : connection.kind === 'checking' ? '正在连接' : connection.kind === 'offline' ? '连接中断' : '连接不兼容'}
         </div>
       </div>
     </header>
@@ -711,7 +707,6 @@ export function App() {
         </section>}
         <section className="side-group" aria-label="图案结构">
           <div className="group-heading"><span>02</span><h2>图案结构</h2></div>
-          <p className="pattern-analysis-status">自动识别仅提供推荐；布局由你选择。</p>
           <p className="pattern-analysis-status">当前结构：{patternItems.find((item) => item.id === committedFamily)?.label}</p>
           <div className="side-items">{patternItems.map((item) => {
             const available = Boolean(project.currentDocument && connected && !applyingPattern
@@ -742,9 +737,9 @@ export function App() {
             <button type="button" disabled={!hasEditableGeometry} onClick={() => void selectLayout(patternAnalysis.recommended_family!)}>
               使用推荐
             </button>}
-          {selectedFamily && <p className="pattern-analysis-status">已选布局：{patternItems.find((item) => item.id === selectedFamily)?.label}；在右侧调整后应用。</p>}
+          {selectedFamily && <p className="pattern-analysis-status">已选：{patternItems.find((item) => item.id === selectedFamily)?.label}。在右侧调整并应用。</p>}
         </section>
-        <div className="sidebar-footnote"><span className="footnote-icon">i</span><p>拖入 PNG/JPG/SVG 可由 Python 转换为独立元素；制造模式可检查并生成最终网格。</p></div>
+        <div className="sidebar-footnote"><span className="footnote-icon">i</span><p>也可将 PNG、JPG 或 SVG 拖入画布。</p></div>
       </aside>
 
       <main className="workspace" aria-label="中央工作区">
@@ -781,12 +776,11 @@ export function App() {
               <span className="empty-kicker">A NEW CANVAS AWAITS</span>
               <h1>导入图片开始设计</h1>
               <p>导入自己的图案，或打开可编辑示例体验参数化设计。</p>
-              <div className="empty-actions"><button type="button" className="primary-action" disabled={!connected || importing}
+              <div className="empty-actions"><button type="button" className="primary-action ui-primary" disabled={!connected || importing}
                 onClick={() => imageInputRef.current?.click()}>导入自己的图案</button>
-                <button type="button" className="primary-action" disabled={!connected || importing}
-                  aria-expanded={exampleChooserOpen} onClick={() => setExampleChooserOpen((open) => !open)}>试用示例</button></div>
-              {exampleChooserOpen && <div className="empty-examples">{examples.map((example) => <ExampleCard
-                key={example.id} example={example} onOpen={(id) => void openExample(id)} disabled={!connected || importing} />)}</div>}
+              </div>
+              <div className="empty-examples">{examples.map((example) => <ExampleCard
+                key={example.id} example={example} onOpen={(id) => void openExample(id)} disabled={!connected || importing} />)}</div>
             </section>
           ) : browser.activeMode === 'manufacture' ? (
             <ManufacturingPanel heightText={manufacturing.heightText} onHeightChange={manufacturing.setHeightText}
@@ -893,6 +887,10 @@ export function App() {
           <div className="mode-label">模式</div>
           {modes.map((mode) =>
             <button key={mode.id} type="button" className={`mode-button ${browser.activeMode === mode.id ? 'selected' : ''}`}
+              data-step-state={browser.activeMode === mode.id ? 'current' : mode.id === 'design' && project.currentDocument
+                || mode.id === 'manufacture' && manufacturing.result && manufacturing.isCurrentResult(manufacturing.result.manufacturing_result_id)
+                || mode.id === 'preview' && (fabricPreview.result || manufacturing.result && manufacturing.isCurrentResult(manufacturing.result.manufacturing_result_id))
+                ? 'complete' : 'not-ready'}
               aria-label={`${mode.id === 'manufacture' ? '制造' : mode.id === 'preview' ? '三维预览' : '设计'} ${mode.secondary}`}
               aria-current={browser.activeMode === mode.id ? 'page' : undefined}
               onClick={() => setBrowser((current) => ({ ...current, activeMode: mode.id }))}>
@@ -925,10 +923,16 @@ export function App() {
           <p className="inspector-readonly">设计参数位于「① 设计」。当前步骤专注制造结果与导出。</p>}
         <div className={`connection-card ${connection.kind}`}>
           <div className="connection-card-head"><span>连接状态</span><span className="connection-state-text">{connected ? '已连接' : connection.kind === 'checking' ? '检查中' : connection.kind === 'offline' ? '离线' : '协议不兼容'}</span></div>
-          <p>{connected ? 'Python Engine 已就绪，合同 v1.0 · mm 验证通过。' : connection.message}</p>
+          {!connected && <p>{connection.message}</p>}
           {!connected && connection.kind !== 'checking' && <button type="button" onClick={reconnect}>重新检测连接</button>}
           {connected && project.evaluateStatus === 'error' && project.currentDocument &&
             <button type="button" onClick={() => runEvaluate(project.currentDocument!)}>重试二维求值</button>}
+          <details className="diagnostic-details"><summary>诊断详情</summary>
+            <p>Python Engine · Contract <strong>v{EXPECTED_SCHEMA_VERSION}</strong> · mm</p>
+            {!connected && <p>待验证</p>}
+            {project.currentDocument && <p>文档修订：{project.documentRevision}<span className="visually-hidden">revision {project.documentRevision}</span></p>}
+            <p>{connection.message}</p>
+          </details>
         </div>
       </aside>
     </div>

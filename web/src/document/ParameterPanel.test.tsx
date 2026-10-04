@@ -82,6 +82,18 @@ describe('Python-authored generic parameter renderer', () => {
     expect(commit.mock.calls).toEqual([['invert', true], ['mode', 'b']])
   })
 
+  it('shows concise numbers but exposes full precision on focus without rounding the committed value', () => {
+    const commit = vi.fn()
+    render(<ParameterPanel group={group} values={{ radius: 3.842193847263 }} onCommit={commit} />)
+    const numeric = screen.getByLabelText('半径 (mm)')
+    expect(numeric).toHaveValue(3.842)
+    fireEvent.focus(numeric)
+    expect(numeric).toHaveValue(3.842193847263)
+    fireEvent.blur(numeric)
+    expect(commit).not.toHaveBeenCalled()
+    expect(numeric).toHaveValue(3.842)
+  })
+
   it('resets numeric, boolean and select values from the schema without committing a pending draft first', () => {
     const commit = vi.fn()
     render(<ParameterPanel group={group} values={{ radius: 12, invert: true, mode: 'b' }} onCommit={commit} />)

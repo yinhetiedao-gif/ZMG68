@@ -174,7 +174,7 @@ describe('WM6 Inspector and committed-document boundary', () => {
     await waitFor(() => expect(evaluations(mock)).toHaveLength(2))
     expect(lastDocument(mock).modifiers.map((item) => item.id)).toEqual(['size-1'])
     expect(lastDocument(mock).modifiers[0].mapping.max_output).toBe(2.5)
-    fireEvent.click(screen.getByRole('checkbox', { name: /尺寸 · size-1/ }))
+    fireEvent.click(screen.getByRole('checkbox', { name: '尺寸' }))
     await waitFor(() => expect(evaluations(mock)).toHaveLength(3))
     expect(lastDocument(mock).modifiers[0].enabled).toBe(false)
   })

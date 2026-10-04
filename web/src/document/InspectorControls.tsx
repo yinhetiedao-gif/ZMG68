@@ -6,6 +6,7 @@ import { InspectorSection } from './InspectorSection'
 import { ParameterInteraction } from './ParameterInteraction'
 import { groupFor, type ParameterCatalog } from './parameterSchema'
 import { currentLayoutFamily, type LayoutDraft } from './layoutDraft'
+import { formatMm } from '../model/formatMm'
 import type { PatternFamily } from '../api/pattern'
 import {
   asRecord, ELEMENT_SPECS, FIELD_SPECS, fieldRecords, GRID_SPECS,
@@ -97,7 +98,7 @@ export function InspectorControls({ dto, selected, onEdit, disabled, parameterCa
 
   return <ParameterInteraction.Provider value={{ syncToken, onPending }}>
     <fieldset disabled={disabled} className={`inspector-controls ${disabled ? 'controls-busy' : ''}`} aria-label="参数检查器">
-    {layoutSelection && <InspectorSection label="布局参数" title={`LAYOUT / ${stagedGroup?.label ?? '自由布局'}`}
+    {layoutSelection && <InspectorSection label="布局参数" title={`布局 · ${stagedGroup?.label ?? '自由布局'}`}
       activeKey={layoutSelection} defaultExpanded={!gradientExample}>
       <p className="inspector-readonly">布局决定元素如何排列。</p>
       {layoutBusy ? <p className="inspector-readonly">正在由 Python 准备布局参数…</p>
@@ -111,12 +112,12 @@ export function InspectorControls({ dto, selected, onEdit, disabled, parameterCa
       {layoutDraft?.changed && <p className="layout-pending" role="status">有未应用的布局修改</p>}
       <div className="layout-inspector-actions">
         <button type="button" disabled={layoutBusy || layoutActionsDisabled} onClick={onCancelLayout}>取消布局</button>
-        <button type="button" disabled={layoutBusy || layoutActionsDisabled || !layoutDraft ||
+        <button type="button" className="ui-primary" disabled={layoutBusy || layoutActionsDisabled || !layoutDraft ||
           (layoutSelection === currentFamily && !layoutDraft.changed)} onClick={onApplyLayout}>应用布局</button>
       </div>
     </InspectorSection>}
 
-    {!layoutSelection && grid && <InspectorSection label="矩阵结构参数" title="LAYOUT / 矩阵结构">
+    {!layoutSelection && grid && <InspectorSection label="矩阵结构参数" title="布局 · 矩阵结构">
       {groupFor(parameterCatalog, 'layout', 'grid') ? <ParameterPanel group={groupFor(parameterCatalog, 'layout', 'grid')!}
         values={grid} onCommit={(key, value) => { if (typeof value === 'number') onEdit({ kind: 'grid', key, value }) }} />
         : GRID_SPECS.filter((item) => typeof grid[item.key] === 'number').map((item) =>
@@ -127,12 +128,12 @@ export function InspectorControls({ dto, selected, onEdit, disabled, parameterCa
 
     {!layoutSelection && layout && (layout.mode === 'radial' || layout.mode === 'along_curve') &&
       groupFor(parameterCatalog, 'layout', layout.mode) &&
-      <InspectorSection label="布局结构参数" title={`LAYOUT / ${groupFor(parameterCatalog, 'layout', layout.mode)!.label}`}>
+      <InspectorSection label="布局结构参数" title={`布局 · ${groupFor(parameterCatalog, 'layout', layout.mode)!.label}`}>
         <ParameterPanel group={groupFor(parameterCatalog, 'layout', layout.mode)!} values={layout.model}
           onCommit={(key, value) => { if (typeof value !== 'string') onEdit({ kind: 'layout', key, value }) }} />
       </InspectorSection>}
 
-    <InspectorSection label="参数场" title="FIELD / 参数场" activeKey={String(activeField?.id ?? '')}>
+    <InspectorSection label="参数场" title="参数场" activeKey={String(activeField?.id ?? '')}>
       <p className="inspector-readonly">参数场决定变化在空间中的分布。</p>
       <div className="field-create">
         <label htmlFor="field-type">新增参数场类型</label>
@@ -164,7 +165,7 @@ export function InspectorControls({ dto, selected, onEdit, disabled, parameterCa
         return <>
           <label className="parameter-toggle"><input type="checkbox" checked={activeField.enabled !== false}
             onChange={(event) => onEdit({ kind: 'field_enabled', id: String(activeField.id), enabled: event.target.checked })} />启用参数场</label>
-          <button type="button" onClick={() => onEdit({ kind: 'field_remove', id: String(activeField.id) })}>删除参数场</button>
+          <button type="button" className="ui-danger" onClick={() => onEdit({ kind: 'field_remove', id: String(activeField.id) })}>删除参数场</button>
           {controls ?? (group ? <ParameterPanel key={String(activeField.id)} group={group} values={parameters}
           onCommit={(key, value) => onEdit({ kind: 'field', id: String(activeField.id), key, value })} />
             : type === 'image' || !FIELD_SPECS[type] ? <p className="inspector-readonly">该参数场当前只读；图片资产尚未接入网页。</p>
@@ -179,7 +180,7 @@ export function InspectorControls({ dto, selected, onEdit, disabled, parameterCa
       })()}
     </InspectorSection>
 
-    <InspectorSection label="效果堆栈" title="MODIFIERS / 效果堆栈">
+    <InspectorSection label="效果堆栈" title="效果层">
         <p className="inspector-readonly">效果层决定空间变化影响尺寸、旋转还是位置。</p>
         <div className="modifier-actions">
           <button type="button" disabled={!fields.length || !groupFor(parameterCatalog, 'modifier', 'size')}
@@ -190,7 +191,9 @@ export function InspectorControls({ dto, selected, onEdit, disabled, parameterCa
             onClick={() => onEdit({ kind: 'modifier_add', modifierType: 'position' })}>＋ 位置/变形</button>
         </div>
         {!fields.length && <p className="inspector-readonly">先添加参数场，即可新增尺寸或旋转效果层。</p>}
-        <p className="inspector-readonly">求值顺序：场驱动层 → 有序变形层。当前引擎不支持跨组拖动排序。</p>
+        <details className="diagnostic-details"><summary>诊断详情</summary>
+          <p>求值顺序：场驱动层 → 有序变形层。当前引擎不支持跨组拖动排序。</p>
+        </details>
         {scalarModifiers(dto).map((modifier) => {
           const id = String(modifier.id)
           const type = String(modifier.type)
@@ -198,7 +201,7 @@ export function InspectorControls({ dto, selected, onEdit, disabled, parameterCa
           return <div className="modifier-card" key={`scalar-${id}`}>
             <label className="parameter-toggle"><input type="checkbox" checked={modifier.enabled !== false}
               onChange={(event) => onEdit({ kind: 'scalar', id, key: 'enabled', value: event.target.checked })} />
-              {modifierLabel[type] ?? type} · {id}</label>
+              {modifierLabel[type] ?? type}</label>
             {(type === 'size' || type === 'rotation') && <label className="field-picker">驱动参数场
               <select value={String(modifier.field_id ?? '')} onChange={(event) =>
                 onEdit({ kind: 'field_binding', id, fieldId: event.target.value })}>
@@ -219,7 +222,8 @@ export function InspectorControls({ dto, selected, onEdit, disabled, parameterCa
             {type === 'density' && typeof modifier.threshold === 'number' &&
               <NumericControl spec={{ key: 'threshold', label: '阈值', min: 0, max: 1, step: 0.01 }}
                 value={modifier.threshold} onCommit={(next) => onEdit({ kind: 'scalar', id, key: 'threshold', value: next })} />}
-            <button type="button" onClick={() => onEdit({ kind: 'modifier_remove', lane: 'scalar', id })}>删除效果层</button>
+            <button type="button" className="ui-danger" onClick={() => onEdit({ kind: 'modifier_remove', lane: 'scalar', id })}>删除效果层</button>
+            <details className="diagnostic-details"><summary>诊断详情</summary><p>效果层 ID：{id}</p></details>
           </div>
         })}
         {stackModifiers(dto).map((modifier) => {
@@ -229,7 +233,7 @@ export function InspectorControls({ dto, selected, onEdit, disabled, parameterCa
           return <div className="modifier-card" key={`stack-${id}`}>
             <label className="parameter-toggle"><input type="checkbox" checked={modifier.enabled !== false}
               onChange={(event) => onEdit({ kind: 'stack', id, key: 'enabled', value: event.target.checked })} />
-              {modifierLabel[type] ?? type} · {id}</label>
+              {modifierLabel[type] ?? type}</label>
             {type === 'position' && groupFor(parameterCatalog, 'modifier', 'position')
               ? <ParameterPanel group={{ ...groupFor(parameterCatalog, 'modifier', 'position')!,
                 parameters: groupFor(parameterCatalog, 'modifier', 'position')!.parameters.filter((item) =>
@@ -240,7 +244,8 @@ export function InspectorControls({ dto, selected, onEdit, disabled, parameterCa
                 <NumericControl key={item.key} spec={item} value={Number(parameters[item.key])}
                   onCommit={(next) => onEdit({ kind: 'stack', id, key: item.key, value: next })} />)
               : <small>此有序层可启用/停用；详细参数暂由桌面版编辑。</small>}
-            <button type="button" onClick={() => onEdit({ kind: 'modifier_remove', lane: 'stack', id })}>删除效果层</button>
+            <button type="button" className="ui-danger" onClick={() => onEdit({ kind: 'modifier_remove', lane: 'stack', id })}>删除效果层</button>
+            <details className="diagnostic-details"><summary>诊断详情</summary><p>效果层 ID：{id}</p></details>
           </div>
         })}
         {placement && selected && <div className="modifier-card shape-replacement">
@@ -253,13 +258,14 @@ export function InspectorControls({ dto, selected, onEdit, disabled, parameterCa
           <small>形状分配在效果层前执行，仅替换当前选中元素，不修改原始元素。</small>
         </div>}
     </InspectorSection>
-    <InspectorSection label="元素变换" title="ELEMENT / 元素" activeKey={selected?.id}>
+    <InspectorSection label="元素变换" title="元素" activeKey={selected?.id}>
       {selected ? <>
         <div className="inspector-selection">
           <strong>已选元素</strong>
-          <dl><dt>ID</dt><dd>{selected.id}</dd><dt>类型</dt><dd>{selected.type}</dd>
-            <dt>中心</dt><dd>{selected.x.toFixed(2)}, {selected.y.toFixed(2)} mm</dd>
-            <dt>范围</dt><dd>{selected.width.toFixed(2)} × {selected.height.toFixed(2)} mm</dd></dl>
+          <dl><dt>类型</dt><dd>{selected.type}</dd>
+            <dt>中心</dt><dd>{formatMm(selected.x)}, {formatMm(selected.y)} mm</dd>
+            <dt>范围</dt><dd>{formatMm(selected.width)} × {formatMm(selected.height)} mm</dd></dl>
+          <details className="diagnostic-details"><summary>诊断详情</summary><p>元素 ID：<span>{selected.id}</span></p></details>
         </div>
         {editable ? (() => {
           const values = Object.fromEntries(ELEMENT_SPECS.map((spec) => {

@@ -62,7 +62,6 @@ function backend() {
 }
 
 async function openFromEmpty(title: string) {
-  fireEvent.click(screen.getByRole('button', { name: '试用示例' }))
   expect(screen.getAllByText('支持标准二维 STL')).toHaveLength(2)
   fireEvent.click(screen.getByRole('button', { name: `打开示例：${title}` }))
   await screen.findByLabelText('最终二维几何，单位毫米')
@@ -130,11 +129,11 @@ describe('P1 built-in examples', () => {
     await screen.findByText('Backend Online')
     await openFromEmpty('参数渐变')
     expect(screen.getByText('调整线性场的方向和范围，观察尺寸与旋转如何渐变。')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /LAYOUT \/ 规则矩阵/ })).toHaveAttribute('aria-expanded', 'false')
-    expect(screen.getByRole('button', { name: 'FIELD / 参数场' })).toHaveAttribute('aria-expanded', 'true')
-    expect(screen.getByRole('button', { name: 'MODIFIERS / 效果堆栈' })).toHaveAttribute('aria-expanded', 'true')
-    expect(screen.getByText('尺寸 · size-1')).toBeInTheDocument()
-    expect(screen.getByText('旋转 · rotation-1')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /布局 · 规则矩阵/ })).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.getByRole('button', { name: '参数场' })).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('button', { name: '效果层' })).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('checkbox', { name: '尺寸' })).toBeInTheDocument()
+    expect(screen.getByRole('checkbox', { name: '旋转' })).toBeInTheDocument()
   })
 
   it('confirms proportional 60 × 60 mm sizing, then builds from that revision', async () => {

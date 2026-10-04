@@ -28,7 +28,7 @@ describe('WM4 application shell', () => {
     expect(screen.queryByRole('button', { name: '打开项目' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '打开本地项目' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '项目导出' })).not.toBeInTheDocument()
-    await screen.findByText('Backend Online')
+    await screen.findByText('已连接', { selector: '.backend-badge' })
     expect(screen.getByRole('button', { name: /导入 PNG \/ JPG/ })).toBeEnabled()
     expect(screen.getByRole('button', { name: /导入 SVG/ })).toBeEnabled()
   })
@@ -36,7 +36,7 @@ describe('WM4 application shell', () => {
   it('calls WM3 health and contract through one API client', async () => {
     const fetchMock = onlineFetch()
     render(<App />)
-    await screen.findByText('Backend Online')
+    await screen.findByText('已连接', { selector: '.backend-badge' })
     expect(screen.getByText('v1.0')).toBeInTheDocument()
     expect(fetchMock).toHaveBeenCalledTimes(2)
     expect(String(fetchMock.mock.calls[0]?.[0])).toContain('/api/v1/health')
@@ -46,7 +46,7 @@ describe('WM4 application shell', () => {
   it('continues showing the shell when the backend is offline', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')))
     render(<App />)
-    await screen.findByText('Backend Offline')
+    await screen.findByText('连接中断')
     expect(screen.getByText('Xiaomang Pattern Lab')).toBeInTheDocument()
     expect(screen.getByText('待验证')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '重新检测连接' })).toBeEnabled()
@@ -55,8 +55,8 @@ describe('WM4 application shell', () => {
   it('rejects an incompatible health contract version', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ status: 'ok', contract_version: '2.0' })))
     render(<App />)
-    await screen.findByText('Contract Error')
-    expect(screen.getByText(/后端协议版本不匹配/)).toBeInTheDocument()
+    await screen.findByText('连接不兼容')
+    expect(screen.getAllByText(/后端协议版本不匹配/)[0]).toBeInTheDocument()
   })
 
   it('rejects wrong contract units instead of silently continuing', async () => {
@@ -65,14 +65,14 @@ describe('WM4 application shell', () => {
       .mockResolvedValueOnce(jsonResponse({ schema_version: '1.0', units: 'px' }))
     vi.stubGlobal('fetch', mock)
     render(<App />)
-    await screen.findByText('Contract Error')
-    expect(screen.getByText(/需要 v1.0 \/ mm/)).toBeInTheDocument()
+    await screen.findByText('连接不兼容')
+    expect(screen.getAllByText(/需要 v1.0 \/ mm/)[0]).toBeInTheDocument()
   })
 
   it('opens manufacturing and preview while requiring a built result for STL', async () => {
     onlineFetch()
     render(<App />)
-    await screen.findByText('Backend Online')
+    await screen.findByText('已连接', { selector: '.backend-badge' })
     fireEvent.click(screen.getByRole('button', { name: /制造 Manufacture/ }))
     expect(screen.getByRole('heading', { name: '制造检查' })).toBeInTheDocument()
     expect(screen.queryByText('导入图片开始设计')).not.toBeInTheDocument()
@@ -89,7 +89,7 @@ describe('WM4 application shell', () => {
     window.localStorage.setItem('pattern-document', sentinel)
     expect(Object.keys(initialBrowserState)).not.toContain('document')
     render(<App />)
-    await screen.findByText('Backend Online')
+    await screen.findByText('已连接', { selector: '.backend-badge' })
     fireEvent.click(screen.getByRole('button', { name: /制造 Manufacture/ }))
     await waitFor(() => expect(window.localStorage.getItem('pattern-document')).toBe(sentinel))
     expect(fetchMock).toHaveBeenCalledTimes(2)

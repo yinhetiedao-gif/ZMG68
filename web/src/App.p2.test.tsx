@@ -67,7 +67,7 @@ describe('P2 web manufacturing derived workflow', () => {
     expect(await screen.findByText('模型已生成，存在提醒')).toBeInTheDocument()
     expect(screen.getByText('57.217 × 19.899 × 2 mm')).toBeInTheDocument()
     expect(screen.getByText('结果编号：mesh-0')).toBeInTheDocument()
-    expect(screen.getByText('封闭 · Watertight · 0 个错误')).toBeInTheDocument()
+    expect(screen.getByText('封闭 · 0 个错误')).toBeInTheDocument()
     expect(screen.getByText(/3 个独立组件；请确认/)).toBeInTheDocument()
     expect(screen.getByText('revision 0')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '撤销' })).toBeDisabled()

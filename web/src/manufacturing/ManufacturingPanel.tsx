@@ -93,12 +93,12 @@ export function ManufacturingPanel(props: Props) {
       disabled={!props.canEditSize} onConfirm={(width, height) => props.onConfirmRealSize?.(width, height)} />}
     <section className="manufacturing-settings" aria-label="Fabric Base">
       {props.document && <section aria-label="Fabric Preset">
-        <h2>PRESET</h2>
+        <h2>Fabric 预设</h2>
         <label htmlFor="fabric-preset">Fabric 预设</label>
         <select id="fabric-preset" value={presetId} onChange={(event) => setPresetId(event.target.value)}>
           {fabricPresets.map((preset) => <option key={preset.id} value={preset.id}>{preset.label}</option>)}
         </select>
-        <button type="button" onClick={() => props.onFabricPreset(presetId)}>应用预设</button>
+        <button type="button" className="ui-secondary" onClick={() => props.onFabricPreset(presetId)}>应用预设</button>
       </section>}
       <label htmlFor="fabric-base-type">Fabric Base 类型</label>
       <select id="fabric-base-type" value={base?.type ?? 'none'} onChange={(event) =>
@@ -161,7 +161,7 @@ export function ManufacturingPanel(props: Props) {
       {!base && <><label htmlFor="manufacturing-height">厚度 <span>mm</span></label>
         <input id="manufacturing-height" type="number" min="0.01" step="0.1" value={props.heightText}
           onChange={(event) => props.onHeightChange(event.target.value)} /></>}
-      <button type="button" onClick={base ? props.onUpdateFabricPreview : props.onBuild}
+      <button type="button" className="ui-primary" onClick={base ? props.onUpdateFabricPreview : props.onBuild}
         disabled={!props.canBuild || (base ? props.fabricPreviewStatus === 'building' : status === 'building')}>
         {base ? '更新3D预览' : '检查并生成'}</button>
     </div>
@@ -170,14 +170,16 @@ export function ManufacturingPanel(props: Props) {
       {base ? ({ idle: '尚未更新设计预览', building: '正在更新3D预览…', ready: '设计预览已就绪',
         stale: '设计已变化，请更新3D预览', error: '设计预览失败' }[props.fabricPreviewStatus]) : labels[status]}</div>
     {base && props.fabricPreviewError && <p className="manufacturing-error" role="alert">{props.fabricPreviewError}</p>}
-    {base && props.fabricPreviewResult && <p>实例：{props.fabricPreviewResult.active_count} 可见 / {props.fabricPreviewResult.total_count} ·
-      Python evaluate {props.fabricPreviewResult.timings_ms.evaluate.toFixed(1)} ms ·
-      plan {props.fabricPreviewResult.timings_ms.plan_and_prototype.toFixed(1)} ms
-      {props.fabricPreviewResult.client_request_ms !== undefined ? ` · 请求往返 ${props.fabricPreviewResult.client_request_ms.toFixed(1)} ms` : ''}
-      {props.fabricPreviewResult.cache_hit ? ' · 已复用预览缓存' : ''}</p>}
+    {base && props.fabricPreviewResult && <><p>可见单元：{props.fabricPreviewResult.active_count} / {props.fabricPreviewResult.total_count}</p>
+      <details className="diagnostic-details"><summary>诊断详情</summary><p>
+        Python evaluate {props.fabricPreviewResult.timings_ms.evaluate.toFixed(1)} ms ·
+        plan {props.fabricPreviewResult.timings_ms.plan_and_prototype.toFixed(1)} ms
+        {props.fabricPreviewResult.client_request_ms !== undefined ? ` · 请求往返 ${props.fabricPreviewResult.client_request_ms.toFixed(1)} ms` : ''}
+        {props.fabricPreviewResult.cache_hit ? ' · 已复用预览缓存' : ''}
+      </p></details></>}
     {base && props.fabricPreviewResult?.preview_simplified && <p role="note">预览已简化，最终设计参数未改变。</p>}
     {base && <section className="manufacturing-report" aria-label="Fabric Preview Summary">
-      <h2>FABRIC DESIGN PREVIEW</h2>
+      <h2>设计预览摘要</h2>
       <dl>
         <div><dt>Cell</dt><dd>{summary.cell}</dd></div>
         <div><dt>Instances</dt><dd>{summary.instances ?? '待更新'}</dd></div>
@@ -195,17 +197,20 @@ export function ManufacturingPanel(props: Props) {
     </p>}
     {!base && props.error && <p className="manufacturing-error" role="alert">{props.error}</p>}
     {!base && result && <div className="manufacturing-report">
-      <small className="manufacturing-result-id">结果编号：{result.manufacturing_result_id}</small>
       <dl>
         <div><dt>几何检查</dt><dd>{geometry?.error_count ? `${geometry.error_count} 个错误` : `有效 · ${geometry?.checked_count ?? 0} 个元素`}</dd></div>
-        <div><dt>连通性</dt><dd>{result.connectivity_summary.component_count} 个连通组件 · {result.connectivity_summary.isolated_count} 个孤立元素</dd></div>
-        <div><dt>转换结果</dt><dd>{conversion?.converted_count ?? 0} / {conversion?.input_count ?? 0} 个元素转换 · 跳过 {conversion?.skipped_count ?? 0}</dd></div>
-        <div><dt>Mesh 状态</dt><dd>{mesh?.is_watertight ? '封闭 · Watertight' : '未封闭'}{mesh ? ` · ${mesh.error_count} 个错误` : ''}</dd></div>
+        <div><dt>网格检查</dt><dd>{mesh?.is_watertight ? '封闭' : '未封闭'}{mesh ? ` · ${mesh.error_count} 个错误` : ''}</dd></div>
         <div><dt>独立组件</dt><dd>{result.component_count}</dd></div>
         <div><dt>成品尺寸 X / Y / Z</dt><dd>{result.bounds_mm
           ? `${formatMm(result.bounds_mm.size_x)} × ${formatMm(result.bounds_mm.size_y)} × ${formatMm(result.bounds_mm.size_z)} mm`
           : '未取得尺寸'}</dd></div>
       </dl>
+      <details className="diagnostic-details"><summary>诊断详情</summary>
+        <small className="manufacturing-result-id">结果编号：{result.manufacturing_result_id}</small>
+        <p>连通性：{result.connectivity_summary.component_count} 个连通组件 · {result.connectivity_summary.isolated_count} 个孤立元素</p>
+        <p>转换：{conversion?.converted_count ?? 0} / {conversion?.input_count ?? 0} 个元素 · 跳过 {conversion?.skipped_count ?? 0}</p>
+        <p>Gate W / Mesh Validator：{mesh?.is_watertight ? 'watertight' : 'not watertight'}</p>
+      </details>
       {props.designBounds && result.bounds_mm &&
         (Math.abs(props.designBounds.width - result.bounds_mm.size_x) > 0.1 ||
           Math.abs(props.designBounds.height - result.bounds_mm.size_y) > 0.1) &&
@@ -216,7 +221,7 @@ export function ManufacturingPanel(props: Props) {
       {props.projectWarnings.join(' ')}
     </div>}
     <div className="manufacturing-output-actions">
-      <button type="button" onClick={props.onPreview} disabled={base ? !props.fabricPreviewResult : !result || !props.isCurrentResult(result.manufacturing_result_id)}>3D 预览</button>
+      <button type="button" className="ui-secondary" onClick={props.onPreview} disabled={base ? !props.fabricPreviewResult : !result || !props.isCurrentResult(result.manufacturing_result_id)}>3D 预览</button>
       {base ? <button type="button" disabled title="Fabric 最终制造尚未开放">Fabric STL 尚未开放</button>
         : <StlExportButton result={result} status={status} projectName={props.projectName}
           isCurrentResult={props.isCurrentResult} />}

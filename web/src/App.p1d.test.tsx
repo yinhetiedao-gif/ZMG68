@@ -79,7 +79,7 @@ describe('P1-D Web Modifier Stack', () => {
     expect(latest(requests).document.modifiers.map((item) => [item.type, item.field_id]))
       .toEqual([['size', 'wave-1'], ['rotation', 'wave-1']])
     expect(latest(requests).document.elements).toEqual(fixture().elements)
-    fireEvent.click(screen.getByRole('checkbox', { name: /旋转 · rotation-1/ }))
+    fireEvent.click(screen.getByRole('checkbox', { name: '旋转' }))
     await waitFor(() => expect(evaluations(requests)).toHaveLength(4))
     expect(latest(requests).document.modifiers[1].enabled).toBe(false)
     fireEvent.click(screen.getAllByRole('button', { name: '删除效果层' })[0])
@@ -111,7 +111,7 @@ describe('P1-D Web Modifier Stack', () => {
     expect(stack.source_elements).toEqual(fixture().elements)
     expect(latest(requests).document.elements).toEqual(fixture().elements)
     expect(latest(requests).document_revision).toBe(2)
-    fireEvent.click(screen.getByRole('checkbox', { name: /位置\/变形 · position-1/ }))
+    fireEvent.click(screen.getByRole('checkbox', { name: '位置/变形' }))
     await waitFor(() => expect(evaluations(requests)).toHaveLength(4))
     expect(((latest(requests).document.metadata['xiaomang_pattern_lab.shared_modifiers'] as {
       modifiers: Array<{ enabled: boolean }>

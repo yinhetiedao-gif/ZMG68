@@ -79,7 +79,7 @@ describe('P3 preview and STL remain tied to the current build', () => {
     const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
     await openAndBuild()
     fireEvent.click(screen.getByRole('button', { name: /制造 Manufacture/ }))
-    const report = screen.getByText('Mesh 状态').closest('.manufacturing-report')
+    const report = screen.getByText('网格检查').closest('.manufacturing-report')
     expect(report).not.toBeNull()
     expect(screen.getByRole('button', { name: '3D 预览' })).toBeEnabled()
     expect(screen.getByRole('button', { name: '导出 STL' })).toBeEnabled()

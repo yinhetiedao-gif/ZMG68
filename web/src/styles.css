@@ -275,6 +275,66 @@ button { font: inherit; }
 .modifier-actions button:disabled { opacity: .55; cursor: default; }
 .modifier-card small { display: block; margin: 5px 0 9px; color: #8297a3; overflow-wrap: anywhere; }
 .modifier-card .parameter-control:first-of-type { margin-top: 11px; }
+
+/* P2-D: one restrained control hierarchy across the existing workspace. */
+button { min-height: 32px; }
+button:not(:disabled) { cursor: pointer; }
+button:disabled { cursor: not-allowed !important; opacity: .42 !important; filter: grayscale(.35); }
+button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-visible {
+  outline: 2px solid #2d7799; outline-offset: 2px;
+}
+input:not([type=checkbox]):not([type=range]):not([type=file]), select {
+  min-height: 34px; max-width: 100%; border: 1px solid #b9cbd5; border-radius: 7px;
+  background: #fff; color: #253f51; font: inherit;
+}
+input:not([type=checkbox]):not([type=range]):not([type=file]):disabled, select:disabled {
+  background: #eef2f4; color: #8899a3;
+}
+button.ui-primary, .manufacturing-settings button.ui-primary,
+.manufacturing-output-actions button.ui-primary, .stl-export-action button.ui-primary,
+.layout-inspector-actions button.ui-primary {
+  border: 1px solid #285e7b; background: #326e8d; color: #fff; font-weight: 700;
+  border-radius: 7px; padding: 8px 13px;
+}
+button.ui-primary:hover:not(:disabled) { background: #245a78; }
+button.ui-secondary, .manufacturing-settings button.ui-secondary,
+.manufacturing-output-actions button.ui-secondary {
+  border: 1px solid #a9c2d0; background: #f0f7fa; color: #255a75; font-weight: 650;
+  border-radius: 7px; padding: 8px 13px;
+}
+button.ui-secondary:hover:not(:disabled) { background: #e3f0f6; }
+button.ui-danger, .modifier-card button.ui-danger, .inspector-section > button.ui-danger {
+  border: 1px solid #e6c9c4; background: #fff; color: #9b5149;
+  border-radius: 7px; padding: 7px 10px;
+}
+button.ui-danger:hover:not(:disabled) { background: #fff1ef; }
+.side-item:not(:disabled) { border-color: #d1e0e7; background: #fff; color: #34596c; }
+.side-item:not(:disabled):hover { border-color: #90b6c8; background: #f1f8fa; }
+.side-item.selected:not(:disabled) { border-color: #79aec4; background: #e3f1f7; color: #214e67; font-weight: 700; }
+.side-item:disabled { border-color: transparent; background: #f0f3f5; color: #9aa8b0; }
+.empty-actions .primary-action { margin-top: 20px; }
+.empty-examples { width: min(560px, 100%); margin-top: 14px; }
+.example-card { min-height: 100px; border-color: #b6d0dc; box-shadow: 0 3px 12px #28495c0a; }
+.example-open { font-size: 10px; font-weight: 700; color: #286b8a; margin-top: 3px; }
+.example-card:hover:not(:disabled) .example-open { text-decoration: underline; }
+.mode-button[data-step-state="complete"]:not(.selected) { color: #386c60; }
+.mode-button[data-step-state="complete"]:not(.selected) small { color: #658a80; }
+.mode-button[data-step-state="not-ready"]:not(.selected) { color: #7b8993; background: #f5f7f8; }
+.mode-button.selected { border-color: #8db8cc; background: #e1f1f7; color: #20546e; box-shadow: inset 0 -3px #397e9e; }
+.mode-button.selected small { color: #416e81; }
+.parameter-inputs input[type=number] { width: 92px; min-width: 78px; padding: 5px 7px; font-variant-numeric: tabular-nums; }
+.manufacturing-settings h2, .manufacturing-report h2 { font-size: 13px; color: #355a72; letter-spacing: .02em; }
+.diagnostic-details { margin: 10px 0; padding: 8px 10px; border: 1px solid #dce6eb; border-radius: 7px; background: #f8fafb; color: #597181; font-size: 11px; }
+.diagnostic-details summary { width: max-content; max-width: 100%; color: #41687e; cursor: pointer; font-weight: 650; }
+.diagnostic-details p { margin: 7px 0 0; overflow-wrap: anywhere; }
+.diagnostic-details .manufacturing-result-id { margin: 8px 0 0; }
+@media (max-width: 1100px) {
+  .work-area { grid-template-columns: 210px minmax(0, 1fr) 245px; }
+  .topbar { gap: 10px; padding: 0 12px; }
+  .project-name { min-width: 0; }
+  .project-name strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 150px; }
+  .manufacturing-panel { padding: 18px; }
+}
 .shape-replacement { margin: 14px 0 2px; }
 
 @media (max-width: 1100px) {

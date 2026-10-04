@@ -56,7 +56,7 @@ describe('WM5 project → Python Evaluate → 2D workspace', () => {
     fireEvent.pointerDown(canvas.querySelector('[data-element-id="dot-0"]')!, { button: 0, clientX: 200, clientY: 200 })
     expect(screen.getByText('已选元素')).toBeInTheDocument()
     expect(screen.getByText('dot-0')).toBeInTheDocument()
-    expect(screen.getByText('10.00, 10.00 mm')).toBeInTheDocument()
+    expect(screen.getByText('10, 10 mm')).toBeInTheDocument()
   })
 
   it('shows invalid project errors without replacing the workspace', async () => {
@@ -126,7 +126,7 @@ describe('WM5 project → Python Evaluate → 2D workspace', () => {
     fireEvent.pointerMove(canvas, { clientX: 40, clientY: 40, pointerId: 1 })
     fireEvent.pointerCancel(canvas, { pointerId: 1 })
     expect(fetchMock.mock.calls.filter(([url]) => String(url).includes('/evaluate'))).toHaveLength(1)
-    expect(screen.getByText('10.00, 10.00 mm')).toBeInTheDocument()
+    expect(screen.getByText('10, 10 mm')).toBeInTheDocument()
   })
 
   it('does not drag a parameterized result merely because its ID looks like a source ID', async () => {
