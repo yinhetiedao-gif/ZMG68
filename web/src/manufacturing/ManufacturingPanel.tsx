@@ -7,11 +7,13 @@ import { fabricBase, type FabricBaseType } from '../document/fabricBase'
 import { fabricUnitCell, fabricPlacement, type UnitCellType } from '../document/fabricCell'
 import { availableFabricFields, fabricFieldModifier, fabricModifierTypes, type FabricModifierType } from '../document/fabricModifiers'
 import { groupFor, type ParameterCatalog, type ParameterValue } from '../document/parameterSchema'
-import type { PatternDocumentDTO } from '../model/types'
+import type { BoundsMM, PatternDocumentDTO } from '../model/types'
 import type { FabricDesignPreview } from '../api/fabricPreview'
 import { fabricPresets } from '../document/fabricPresets'
 import { fabricDesignWarnings, fabricPreviewSummary } from '../document/fabricDesignSummary'
 import { FABRIC_PREVIEW_NOTICE } from './fabricCopy'
+import { formatMm } from '../model/formatMm'
+import { RealSizePanel } from './RealSizePanel'
 
 interface Props {
   heightText: string
@@ -26,7 +28,11 @@ interface Props {
   projectWarnings: string[]
   isCurrentResult: (resultId: string) => boolean
   onPreview: () => void
+  onBackDesign?: () => void
   document: PatternDocumentDTO | null
+  designBounds?: BoundsMM | null
+  canEditSize?: boolean
+  onConfirmRealSize?: (widthMm: number, heightMm: number) => void
   parameterCatalog: ParameterCatalog | null
   onFabricType: (type: FabricBaseType | 'none') => void
   onFabricParameter: (key: string, value: ParameterValue) => void
@@ -81,7 +87,10 @@ export function ManufacturingPanel(props: Props) {
   ] : []
   return <section className="manufacturing-panel" aria-label="制造检查">
     <div className="manufacturing-heading"><span className="eyebrow">{base ? 'FABRIC DESIGN PREVIEW' : 'FINAL MANUFACTURING MESH'}</span><h1>{base ? 'Fabric 设计预览' : '制造检查'}</h1>
-      <p>{base ? '快速查看基底与单元布点；此预览不是可打印制造模型。' : '从当前二维设计生成最终制造网格；此操作不会更改设计或撤销历史。'}</p></div>
+      <p>{base ? '快速查看基底与单元布点；此预览不是可打印制造模型。' : '从当前二维设计生成最终制造网格；此操作不会更改设计或撤销历史。'}</p>
+      <button type="button" className="workflow-back" onClick={props.onBackDesign}>返回设计</button></div>
+    {props.document && <RealSizePanel document={props.document} bounds={props.designBounds ?? null}
+      disabled={!props.canEditSize} onConfirm={(width, height) => props.onConfirmRealSize?.(width, height)} />}
     <section className="manufacturing-settings" aria-label="Fabric Base">
       {props.document && <section aria-label="Fabric Preset">
         <h2>PRESET</h2>
@@ -193,10 +202,14 @@ export function ManufacturingPanel(props: Props) {
         <div><dt>转换结果</dt><dd>{conversion?.converted_count ?? 0} / {conversion?.input_count ?? 0} 个元素转换 · 跳过 {conversion?.skipped_count ?? 0}</dd></div>
         <div><dt>Mesh 状态</dt><dd>{mesh?.is_watertight ? '封闭 · Watertight' : '未封闭'}{mesh ? ` · ${mesh.error_count} 个错误` : ''}</dd></div>
         <div><dt>独立组件</dt><dd>{result.component_count}</dd></div>
-        <div><dt>XYZ 尺寸</dt><dd>{result.bounds_mm
-          ? `${result.bounds_mm.size_x.toFixed(2)} × ${result.bounds_mm.size_y.toFixed(2)} × ${result.bounds_mm.size_z.toFixed(2)} mm`
+        <div><dt>成品尺寸 X / Y / Z</dt><dd>{result.bounds_mm
+          ? `${formatMm(result.bounds_mm.size_x)} × ${formatMm(result.bounds_mm.size_y)} × ${formatMm(result.bounds_mm.size_z)} mm`
           : '未取得尺寸'}</dd></div>
       </dl>
+      {props.designBounds && result.bounds_mm &&
+        (Math.abs(props.designBounds.width - result.bounds_mm.size_x) > 0.1 ||
+          Math.abs(props.designBounds.height - result.bounds_mm.size_y) > 0.1) &&
+        <p className="manufacturing-notes" role="note">成品外接尺寸与二维预览不同；请以制造结果和 STL 尺寸为准。</p>}
       {notes.length > 0 && <div className="manufacturing-notes"><strong>提醒 / 检查信息</strong><ul>{[...new Set(notes)].map((note) => <li key={note}>{note}</li>)}</ul></div>}
     </div>}
     {props.projectWarnings.length > 0 && <div className="manufacturing-notes" role="note">

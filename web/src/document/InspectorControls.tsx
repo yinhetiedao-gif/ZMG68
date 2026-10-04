@@ -5,7 +5,7 @@ import { ParameterPanel } from './ParameterPanel'
 import { InspectorSection } from './InspectorSection'
 import { ParameterInteraction } from './ParameterInteraction'
 import { groupFor, type ParameterCatalog } from './parameterSchema'
-import type { LayoutDraft } from './layoutDraft'
+import { currentLayoutFamily, type LayoutDraft } from './layoutDraft'
 import type { PatternFamily } from '../api/pattern'
 import {
   asRecord, ELEMENT_SPECS, FIELD_SPECS, fieldRecords, GRID_SPECS,
@@ -57,6 +57,7 @@ const positionParameterKeys: Record<string, string[]> = {
 
 export function InspectorControls({ dto, selected, onEdit, disabled, parameterCatalog = null,
   layoutSelection = null, layoutDraft = null, layoutBusy = false, onLayoutDraftEdit,
+  onApplyLayout, onCancelLayout, layoutActionsDisabled = false, gradientExample = false,
   selectedFieldId = '', onSelectField, syncToken = '', onPending }: {
   dto: PatternDocumentDTO
   selected: FinalGeometry | null
@@ -67,6 +68,10 @@ export function InspectorControls({ dto, selected, onEdit, disabled, parameterCa
   layoutDraft?: LayoutDraft | null
   layoutBusy?: boolean
   onLayoutDraftEdit?: (key: string, value: number | boolean) => void
+  onApplyLayout?: () => void
+  onCancelLayout?: () => void
+  layoutActionsDisabled?: boolean
+  gradientExample?: boolean
   selectedFieldId?: string
   onSelectField?: (id: string) => void
   syncToken?: string
@@ -78,6 +83,7 @@ export function InspectorControls({ dto, selected, onEdit, disabled, parameterCa
   const creatableTypes = Object.keys(parameterCatalog?.definitions.field ?? {})
     .filter((type) => type !== 'image' && type !== 'composite')
   const chosenType = creatableTypes.includes(newFieldType) ? newFieldType : creatableTypes[0] ?? ''
+  const currentFamily = currentLayoutFamily(dto)
   const grid = gridModel(dto)
   const layout = layoutModel(dto)
   const stagedValues = layoutDraft?.proposal ? layoutSelection === 'grid'
@@ -91,7 +97,9 @@ export function InspectorControls({ dto, selected, onEdit, disabled, parameterCa
 
   return <ParameterInteraction.Provider value={{ syncToken, onPending }}>
     <fieldset disabled={disabled} className={`inspector-controls ${disabled ? 'controls-busy' : ''}`} aria-label="参数检查器">
-    {layoutSelection && <InspectorSection label="布局参数" title={`LAYOUT / ${stagedGroup?.label ?? '自由布局'}`} activeKey={layoutSelection}>
+    {layoutSelection && <InspectorSection label="布局参数" title={`LAYOUT / ${stagedGroup?.label ?? '自由布局'}`}
+      activeKey={layoutSelection} defaultExpanded={!gradientExample}>
+      <p className="inspector-readonly">布局决定元素如何排列。</p>
       {layoutBusy ? <p className="inspector-readonly">正在由 Python 准备布局参数…</p>
         : layoutSelection === 'free' ? <p className="inspector-readonly">自由布局保留当前元素位置；点击“应用布局”才会确认。</p>
           : stagedGroup && stagedValues && layoutDraft?.family === layoutSelection
@@ -100,6 +108,12 @@ export function InspectorControls({ dto, selected, onEdit, disabled, parameterCa
                 if (typeof value !== 'string') onLayoutDraftEdit?.(key, value)
               }} />
             : <p className="inspector-readonly">布局参数暂不可用，请重新选择布局。</p>}
+      {layoutDraft?.changed && <p className="layout-pending" role="status">有未应用的布局修改</p>}
+      <div className="layout-inspector-actions">
+        <button type="button" disabled={layoutBusy || layoutActionsDisabled} onClick={onCancelLayout}>取消布局</button>
+        <button type="button" disabled={layoutBusy || layoutActionsDisabled || !layoutDraft ||
+          (layoutSelection === currentFamily && !layoutDraft.changed)} onClick={onApplyLayout}>应用布局</button>
+      </div>
     </InspectorSection>}
 
     {!layoutSelection && grid && <InspectorSection label="矩阵结构参数" title="LAYOUT / 矩阵结构">
@@ -119,8 +133,9 @@ export function InspectorControls({ dto, selected, onEdit, disabled, parameterCa
       </InspectorSection>}
 
     <InspectorSection label="参数场" title="FIELD / 参数场" activeKey={String(activeField?.id ?? '')}>
+      <p className="inspector-readonly">参数场决定变化在空间中的分布。</p>
       <div className="field-create">
-        <label htmlFor="field-type">参数场类型</label>
+        <label htmlFor="field-type">新增参数场类型</label>
         <select id="field-type" value={chosenType} disabled={!chosenType}
           onChange={(event) => setNewFieldType(event.target.value)}>
           {creatableTypes.map((type) => <option key={type} value={type}>
@@ -131,6 +146,7 @@ export function InspectorControls({ dto, selected, onEdit, disabled, parameterCa
           onClick={() => onEdit({ kind: 'field_add', fieldType: chosenType })}>＋ 添加参数场</button>
       </div>
       <p className="inspector-readonly">参数场由下方效果层引用后才会改变图案；同一参数场可驱动多个效果层。</p>
+      {gradientExample && <p className="example-guidance">调整线性场的方向和范围，观察尺寸与旋转如何渐变。</p>}
       {fields.length > 0 && <label className="field-picker">选择已有参数场
         <select value={String(activeField?.id ?? '')} onChange={(event) => onSelectField?.(event.target.value)}>
           {fields.map((field) => <option key={String(field.id)} value={String(field.id)}>
@@ -164,6 +180,7 @@ export function InspectorControls({ dto, selected, onEdit, disabled, parameterCa
     </InspectorSection>
 
     <InspectorSection label="效果堆栈" title="MODIFIERS / 效果堆栈">
+        <p className="inspector-readonly">效果层决定空间变化影响尺寸、旋转还是位置。</p>
         <div className="modifier-actions">
           <button type="button" disabled={!fields.length || !groupFor(parameterCatalog, 'modifier', 'size')}
             onClick={() => onEdit({ kind: 'modifier_add', modifierType: 'size' })}>＋ 尺寸</button>

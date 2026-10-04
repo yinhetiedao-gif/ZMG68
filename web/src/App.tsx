@@ -32,6 +32,7 @@ import { applyFabricPreset } from './document/fabricPresets'
 import { clearDraft, loadBeforeExampleDraft, loadDraft, saveBeforeExampleDraft, saveDraft,
   type LocalDraft, type SourceAssetDraft } from './draft/localDraft'
 import { createExampleDocument, exampleIdFromDocument, examples, type BuiltInExample, type ExampleId } from './examples/catalog'
+import { confirmUniformRealSize } from './document/realSize'
 
 type ConnectionState =
   | { kind: 'checking'; message: string }
@@ -46,9 +47,9 @@ const patternItems = [
   { id: 'free', label: '自由布局 Free', mark: '⌁' },
 ] satisfies { id: PatternFamily; label: string; mark: string }[]
 const modes: { id: WorkspaceMode; label: string; secondary: string }[] = [
-  { id: 'design', label: '设计', secondary: 'Design' },
-  { id: 'manufacture', label: '制造', secondary: 'Manufacture' },
-  { id: 'preview', label: '三维预览', secondary: '3D Preview' },
+  { id: 'design', label: '① 设计', secondary: 'Design' },
+  { id: 'manufacture', label: '② 检查制造', secondary: 'Manufacture' },
+  { id: 'preview', label: '③ 预览与导出', secondary: '3D Preview' },
 ]
 
 function ExampleCard({ example, onOpen, disabled }: { example: BuiltInExample; onOpen: (id: ExampleId) => void; disabled: boolean }) {
@@ -373,7 +374,7 @@ export function App() {
     const source = dto && directSourceElement(dto, item.id, item.x, item.y)
     return canEditDocument && Boolean(source && source.type === item.type)
   }
-  const commitDocument = (next: PatternDocumentDTO, before: PatternDocumentDTO) => {
+  const commitDocument = (next: PatternDocumentDTO, before: PatternDocumentDTO, warnings?: string[]) => {
     if (next === before || project.evaluateStatus === 'idle') return
     const previousHistory = historyRef.current
     publishHistory({ past: [...previousHistory.past, before], future: [] })
@@ -382,7 +383,7 @@ export function App() {
     setSelectedFamily(currentLayoutFamily(next))
     setLayoutDraft(initialLayoutDraft(next))
     setPreparingLayout(false)
-    runEvaluate(next, { rollback: before, onFailure: () => {
+    runEvaluate(next, { rollback: before, warnings, onFailure: () => {
       publishHistory(previousHistory)
       setSelectedFamily(currentLayoutFamily(before))
       setLayoutDraft(initialLayoutDraft(before))
@@ -670,14 +671,7 @@ export function App() {
             <button type="button" disabled={!hasEditableGeometry} onClick={() => void selectLayout(patternAnalysis.recommended_family!)}>
               使用推荐
             </button>}
-          {selectedFamily && <p className="pattern-analysis-status">已选布局：{patternItems.find((item) => item.id === selectedFamily)?.label}；应用前画布和项目不变。</p>}
-          <div className="pattern-actions">
-            <button type="button" disabled={!connected || !hasEditableGeometry || preparingLayout || applyingPattern
-              || !layoutDraft || (selectedFamily === committedFamily && !layoutDraft.changed)}
-              onClick={() => void applyLayout()}>应用布局</button>
-            <button type="button" disabled={!project.currentDocument || preparingLayout || applyingPattern}
-              onClick={cancelLayout}>取消布局</button>
-          </div>
+          {selectedFamily && <p className="pattern-analysis-status">已选布局：{patternItems.find((item) => item.id === selectedFamily)?.label}；在右侧调整后应用。</p>}
         </section>
         <div className="sidebar-footnote"><span className="footnote-icon">i</span><p>拖入 PNG/JPG/SVG 可由 Python 转换为独立元素；制造模式可检查并生成最终网格。</p></div>
       </aside>
@@ -724,7 +718,18 @@ export function App() {
           ) : browser.activeMode === 'manufacture' ? (
             <ManufacturingPanel heightText={manufacturing.heightText} onHeightChange={manufacturing.setHeightText}
               projectWarnings={project.warnings}
-              document={project.currentDocument} parameterCatalog={parameterCatalog}
+              document={project.currentDocument} designBounds={project.bounds} parameterCatalog={parameterCatalog}
+              canEditSize={canEditDocument && project.evaluateStatus === 'ready'}
+              onConfirmRealSize={(width, height) => {
+                const dto = project.currentDocument
+                if (!dto || !project.bounds || !canEditDocument) return
+                try {
+                  commitDocument(confirmUniformRealSize(dto, project.bounds, width, height), dto,
+                    project.warnings.filter((warning) => !warning.includes('制造前必须确认真实尺寸')))
+                } catch (error) {
+                  setProjectError(error instanceof Error ? error.message : '真实尺寸无效。')
+                }
+              }}
               onFabricType={(type) => {
                 const dto = project.currentDocument
                 if (!dto || !canEditDocument) return
@@ -786,10 +791,12 @@ export function App() {
               onBuild={() => void manufacturing.build()} status={manufacturing.status}
               result={manufacturing.result} error={manufacturing.error} projectName={project.fileName}
               isCurrentResult={manufacturing.isCurrentResult}
+              onBackDesign={() => setBrowser((current) => ({ ...current, activeMode: 'design' }))}
               onPreview={() => setBrowser((current) => ({ ...current, activeMode: 'preview' }))} />
           ) : <PreviewPanel result={manufacturing.result} status={manufacturing.status}
             projectName={project.fileName} isCurrentResult={manufacturing.isCurrentResult}
-            document={project.currentDocument} fabricPreview={fabricPreview.result} />}
+            document={project.currentDocument} fabricPreview={fabricPreview.result}
+            onGoManufacture={() => setBrowser((current) => ({ ...current, activeMode: 'manufacture' }))} />}
           {project.evaluateStatus === 'loading' && <div className="viewer-notice" role="status">Python 正在计算最终二维几何…</div>}
           {importing && <div className="viewer-notice" role="status">Python 正在转换图片为可编辑元素…</div>}
           {project.evaluateError && <div className="viewer-error" role="alert">{project.evaluateError}</div>}
@@ -813,7 +820,7 @@ export function App() {
           <div className="mode-label">模式</div>
           {modes.map((mode) =>
             <button key={mode.id} type="button" className={`mode-button ${browser.activeMode === mode.id ? 'selected' : ''}`}
-              aria-label={`${mode.label} ${mode.secondary}`}
+              aria-label={`${mode.id === 'manufacture' ? '制造' : mode.id === 'preview' ? '三维预览' : '设计'} ${mode.secondary}`}
               aria-current={browser.activeMode === mode.id ? 'page' : undefined}
               onClick={() => setBrowser((current) => ({ ...current, activeMode: mode.id }))}>
               <span>{mode.label}</span><small>{mode.secondary}</small>
@@ -825,11 +832,14 @@ export function App() {
       <aside className="inspector" aria-label="右侧检查器">
         <div className="inspector-title"><div><span className="eyebrow">PROPERTIES</span><h2>检查器</h2></div><span className="inspector-dots" aria-hidden="true">•••</span></div>
         {!project.currentDocument && <div className="inspector-empty"><span className="inspect-glyph" aria-hidden="true">⌗</span><strong>未选择对象</strong><p>No selection</p><small>点击元素可查看其世界毫米信息。</small></div>}
-        {project.currentDocument && <InspectorControls key={project.currentDocument.document_id}
+        {project.currentDocument && <div style={{ display: browser.activeMode === 'design' ? undefined : 'none' }}><InspectorControls key={project.currentDocument.document_id}
           syncToken={`${project.documentRevision}:${project.evaluateStatus}:${parameterSyncVersion}`} onPending={onParameterPending}
           dto={project.currentDocument} selected={selected} parameterCatalog={parameterCatalog}
           selectedFieldId={selectedFieldId} onSelectField={setSelectedFieldId}
           layoutSelection={selectedFamily} layoutDraft={layoutDraft} layoutBusy={preparingLayout}
+          onApplyLayout={() => void applyLayout()} onCancelLayout={cancelLayout}
+          layoutActionsDisabled={!connected || !hasEditableGeometry || applyingPattern}
+          gradientExample={exampleIdFromDocument(project.currentDocument) === 'gradient-grid'}
           onLayoutDraftEdit={(key, value) => {
             try { setLayoutDraft((draft) => draft ? editLayoutDraft(draft, key, value, parameterCatalog) : draft) }
             catch (error) {
@@ -837,7 +847,9 @@ export function App() {
               setParameterSyncVersion((version) => version + 1)
             }
           }}
-          onEdit={editParameter} disabled={!canEditDocument} />}
+          onEdit={editParameter} disabled={!canEditDocument} /></div>}
+        {project.currentDocument && browser.activeMode !== 'design' &&
+          <p className="inspector-readonly">设计参数位于「① 设计」。当前步骤专注制造结果与导出。</p>}
         <div className={`connection-card ${connection.kind}`}>
           <div className="connection-card-head"><span>连接状态</span><span className="connection-state-text">{connected ? '已连接' : connection.kind === 'checking' ? '检查中' : connection.kind === 'offline' ? '离线' : '协议不兼容'}</span></div>
           <p>{connected ? 'Python Engine 已就绪，合同 v1.0 · mm 验证通过。' : connection.message}</p>

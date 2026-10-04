@@ -57,6 +57,21 @@ async function openAndBuild() {
 }
 
 describe('P3 preview and STL remain tied to the current build', () => {
+  it('sends a premature preview visit to manufacturing without starting a build', async () => {
+    const api = mockApi()
+    render(<App />)
+    await screen.findByText('Backend Online')
+    const raw = JSON.stringify(source)
+    const file = new File([raw], 'test.pattern.json', { type: 'application/json' })
+    Object.defineProperty(file, 'text', { value: async () => raw })
+    fireEvent.change(screen.getByLabelText('选择 PatternDocument 项目文件'), { target: { files: [file] } })
+    await screen.findByRole('img', { name: '最终二维几何，单位毫米' })
+    fireEvent.click(screen.getByRole('button', { name: /三维预览 3D Preview/ }))
+    fireEvent.click(screen.getByRole('button', { name: '去检查并生成' }))
+    expect(screen.getByRole('button', { name: '检查并生成' })).toBeInTheDocument()
+    expect(api.calls.filter((url) => url.endsWith('/manufacturing/build'))).toHaveLength(0)
+  })
+
   it('offers visible preview and STL export below the manufacturing summary', async () => {
     const api = mockApi()
     const createUrl = vi.fn(() => 'blob:stl')
@@ -81,7 +96,7 @@ describe('P3 preview and STL remain tied to the current build', () => {
     const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
     await openAndBuild()
     expect(screen.getByLabelText('三维模型预览')).toHaveTextContent('mesh-1')
-    expect(screen.getByText(/10.00 × 10.00 × 2.00 mm/)).toBeInTheDocument()
+    expect(screen.getByText(/10 × 10 × 2 mm/)).toBeInTheDocument()
     expect(screen.getByText('revision 0')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: '导出 STL' }))
     await waitFor(() => expect(click).toHaveBeenCalledOnce())

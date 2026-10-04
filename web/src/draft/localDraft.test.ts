@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { clearDraft, loadBeforeExampleDraft, loadDraft, saveBeforeExampleDraft, saveDraft } from './localDraft'
 import type { PatternDocumentDTO } from '../model/types'
 import { Blob as NodeBlob } from 'node:buffer'
+import { confirmUniformRealSize, realSizeConfirmed } from '../document/realSize'
 
 function project(): PatternDocumentDTO {
   return { schema_version: '1.0', document_id: 'draft-1', document_revision: 7, assets: [], document: {
@@ -52,5 +53,16 @@ describe('last working draft', () => {
     expect((await loadBeforeExampleDraft())?.dto).toEqual(original)
     await clearDraft()
     expect(await loadBeforeExampleDraft()).toBeNull()
+  })
+
+  it('restores confirmed physical dimensions across a refresh draft round-trip', async () => {
+    const confirmed = confirmUniformRealSize(project(), { min_x: 0, min_y: 0, max_x: 30, max_y: 30,
+      width: 30, height: 30, units: 'mm' }, 60, 60)
+    await saveDraft(confirmed, 'scaled.svg', null)
+    const restored = await loadDraft()
+    expect(restored?.dto.document.canvas.mm_per_unit).toBe(2)
+    expect(restored?.dto.document_revision).toBe(8)
+    expect(realSizeConfirmed(restored!.dto, { min_x: 0, min_y: 0, max_x: 60, max_y: 60,
+      width: 60, height: 60, units: 'mm' })).toBe(true)
   })
 })

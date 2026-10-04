@@ -64,6 +64,11 @@ button { font: inherit; }
 .pattern-actions { display: grid; gap: 6px; margin: 12px 8px 0; }
 .pattern-actions button { padding: 7px 9px; border: 1px solid #b8d1dd; border-radius: 7px; background: #f7fbfc; color: #315d76; cursor: pointer; }
 .pattern-actions button:disabled { opacity: .55; cursor: not-allowed; }
+.layout-inspector-actions { display: flex; justify-content: flex-end; gap: 8px; margin: 12px 0 4px; }
+.layout-inspector-actions button, .workflow-back, .preview-empty button { padding: 7px 11px; border: 1px solid #b8d1dd; border-radius: 6px; background: #f7fbfc; color: #315d76; cursor: pointer; }
+.layout-inspector-actions button:disabled { opacity: .55; cursor: not-allowed; }
+.layout-pending, .example-guidance { padding: 8px 10px; border-radius: 6px; background: #fff3df; color: #765b26; font-size: 11px; }
+.example-guidance { background: #e9f3f7; color: #315d76; }
 .side-item-mark { width: 20px; text-align: center; color: #7b93a3; font-size: 17px; font-weight: 400; }
 .soon-dot { width: 5px; height: 5px; background: #b8c7d0; border-radius: 50%; margin-left: auto; }
 .sidebar-footnote { margin-top: auto; display: flex; gap: 9px; border: 1px solid #dce8ed; border-radius: 9px; background: #f2f7f8; padding: 12px 10px; }
@@ -135,6 +140,18 @@ button { font: inherit; }
 .manufacturing-panel { position: relative; z-index: 1; box-sizing: border-box; width: min(720px, 100%); max-height: 100%; overflow: auto; padding: 28px; background: #fff; border: 1px solid #dfe8ed; border-radius: 12px; box-shadow: 0 10px 35px #28495c12; color: #2d4353; }
 .manufacturing-heading h1 { margin: 8px 0; font-size: 22px; }
 .manufacturing-heading p { margin: 0 0 22px; color: #718592; font-size: 12px; }
+.workflow-back { margin: 0 0 18px; }
+.real-size-panel { margin: 0 0 18px; padding: 14px; border: 1px solid #d6e4ea; border-radius: 8px; background: #f8fbfc; }
+.real-size-panel h2 { margin: 0 0 7px; font-size: 15px; }
+.real-size-panel p { margin: 0 0 10px; font-size: 12px; }
+.real-size-panel strong { margin-left: 5px; }
+.real-size-inputs { display: flex; flex-wrap: wrap; gap: 9px; }
+.real-size-inputs label { display: grid; gap: 5px; font-size: 12px; }
+.real-size-inputs input { width: 120px; padding: 7px; border: 1px solid #cbdbe3; border-radius: 6px; }
+.real-size-lock { display: flex; align-items: center; gap: 6px; margin-top: 9px; font-size: 12px; }
+.real-size-panel small { display: block; margin: 5px 0 10px; color: #718592; }
+.real-size-panel button { padding: 8px 12px; border: 0; border-radius: 6px; background: #386a83; color: white; cursor: pointer; }
+.real-size-panel button:disabled { opacity: .5; cursor: not-allowed; }
 .manufacturing-settings { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
 .manufacturing-settings label { font-size: 13px; font-weight: 650; }
 .manufacturing-settings label span { color: #8ba0ac; }

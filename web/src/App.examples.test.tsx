@@ -41,14 +41,17 @@ function backend() {
       conversion_summary: { input_count: dto.document.elements.length, converted_count: dto.document.elements.length,
         skipped_count: 0, warnings: [] },
       mesh_validation_summary: { is_watertight: true, component_count: 1, error_count: 0, warning_count: 0, issues: [] },
-      component_count: 1, bounds_mm: { size_x: 50, size_y: 50, size_z: 2, units: 'mm' }, warnings: [],
+      component_count: 1, bounds_mm: { size_x: 40 * Number(dto.document.canvas.mm_per_unit ?? 1),
+        size_y: 40 * Number(dto.document.canvas.mm_per_unit ?? 1), size_z: 2, units: 'mm' }, warnings: [],
     }))
     if (path.endsWith('/analyze-pattern')) return Promise.resolve(response({ document_id: dto.document_id,
       document_revision: dto.document_revision, recommended_family: 'grid', confidence: .98, analysis_status: 'matched' }))
     evaluations.push(dto)
     return Promise.resolve(response({ schema_version: '1.0', document_id: dto.document_id,
       document_revision: dto.document_revision, geometry: dto.document.elements.map((element) => ({ ...element, units: 'mm' })),
-      bounds_mm: { min_x: 10, min_y: 10, max_x: 50, max_y: 50, width: 40, height: 40, units: 'mm' }, warnings: [] }))
+      bounds_mm: { min_x: 10, min_y: 10, max_x: 50, max_y: 50,
+        width: 40 * Number(dto.document.canvas.mm_per_unit ?? 1),
+        height: 40 * Number(dto.document.canvas.mm_per_unit ?? 1), units: 'mm' }, warnings: [] }))
   }))
   return evaluations
 }
@@ -111,6 +114,39 @@ describe('P1 built-in examples', () => {
     expect(payload.document_id).toBe(payload.document.document_id)
     expect(payload.document_revision).toBe(0)
     expect(payload.document.document_revision).toBe(0)
+  })
+
+  it('opens the gradient example with its shared field and modifier controls visible', async () => {
+    backend()
+    render(<App />)
+    await screen.findByText('Backend Online')
+    await openFromEmpty('参数渐变')
+    expect(screen.getByText('调整线性场的方向和范围，观察尺寸与旋转如何渐变。')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /LAYOUT \/ 规则矩阵/ })).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.getByRole('button', { name: 'FIELD / 参数场' })).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('button', { name: 'MODIFIERS / 效果堆栈' })).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByText('尺寸 · size-1')).toBeInTheDocument()
+    expect(screen.getByText('旋转 · rotation-1')).toBeInTheDocument()
+  })
+
+  it('confirms proportional 60 × 60 mm sizing, then builds from that revision', async () => {
+    const evaluations = backend()
+    render(<App />)
+    await screen.findByText('Backend Online')
+    await openFromEmpty('基础圆点阵列')
+    fireEvent.click(screen.getByRole('button', { name: /制造 Manufacture/ }))
+    expect(screen.getByText(/当前尺寸：40 × 40 mm/)).toBeInTheDocument()
+    expect(screen.getByText('未确认')).toBeInTheDocument()
+    fireEvent.change(screen.getByRole('spinbutton', { name: '真实宽度 mm' }), { target: { value: '60' } })
+    expect(screen.getByRole('spinbutton', { name: '真实高度 mm' })).toHaveValue(60)
+    expect(screen.getByText('revision 0')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '确认尺寸' }))
+    await screen.findByText('revision 1')
+    await screen.findByText('已确认')
+    expect(evaluations[1].document.canvas.mm_per_unit).toBe(1.5)
+    fireEvent.click(screen.getByRole('button', { name: '检查并生成' }))
+    expect(await screen.findByText('60 × 60 × 2 mm')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '导出 STL' })).toBeEnabled()
   })
 
   it('manufactures the basic Grid after Apply Layout', async () => {

@@ -6,6 +6,7 @@ import type { PatternDocumentDTO } from '../model/types'
 import type { FabricDesignPreview } from '../api/fabricPreview'
 import { FabricThreePreview } from './FabricThreePreview'
 import { FABRIC_PREVIEW_NOTICE } from './fabricCopy'
+import { formatMm } from '../model/formatMm'
 
 interface Props {
   result: ManufacturingBuildResult | null
@@ -14,9 +15,10 @@ interface Props {
   isCurrentResult: (resultId: string) => boolean
   document?: PatternDocumentDTO | null
   fabricPreview?: FabricDesignPreview | null
+  onGoManufacture?: () => void
 }
 
-export function PreviewPanel({ result, status, projectName, isCurrentResult, document, fabricPreview }: Props) {
+export function PreviewPanel({ result, status, projectName, isCurrentResult, document, fabricPreview, onGoManufacture }: Props) {
   const isFabric = Boolean(document?.document.metadata.fabric_config)
   if (isFabric) return <section className="preview-panel" aria-label="Fabric 设计预览">
     <div className="preview-header"><div><span className="eyebrow">FABRIC DESIGN PREVIEW</span><h1>3D 设计预览</h1>
@@ -28,13 +30,14 @@ export function PreviewPanel({ result, status, projectName, isCurrentResult, doc
     <h1>3D 模型</h1>
     <p>{status === 'stale' ? '设计或厚度已变化，旧预览与 STL 已失效。请返回制造模式重新检查并生成。'
       : '请先在制造模式点击「检查并生成」，再查看最终模型和下载 STL。'}</p>
+    <button type="button" onClick={onGoManufacture}>去检查并生成</button>
     <StlExportButton result={result} status={status} projectName={projectName}
       isCurrentResult={isCurrentResult} />
   </section>
 
   return <section className="preview-panel" aria-label="最终模型与导出">
     <div className="preview-header"><div><span className="eyebrow">VALIDATED MANUFACTURING RESULT</span><h1>3D 模型</h1>
-      <p>XYZ：{result.bounds_mm?.size_x.toFixed(2)} × {result.bounds_mm?.size_y.toFixed(2)} × {result.bounds_mm?.size_z.toFixed(2)} mm
+      <p>XYZ：{result.bounds_mm ? `${formatMm(result.bounds_mm.size_x)} × ${formatMm(result.bounds_mm.size_y)} × ${formatMm(result.bounds_mm.size_z)}` : '—'} mm
         {' · '}组件：{result.component_count}</p></div>
       <StlExportButton result={result} status={status} projectName={projectName}
         isCurrentResult={isCurrentResult} /></div>

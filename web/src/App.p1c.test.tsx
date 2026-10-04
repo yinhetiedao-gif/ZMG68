@@ -72,7 +72,7 @@ describe('P1-C Web Field System', () => {
   it('adds, binds, edits, disables and protects a field in single commits', async () => {
     const calls = backend()
     await open()
-    fireEvent.change(screen.getByLabelText('参数场类型'), { target: { value: 'noise' } })
+    fireEvent.change(screen.getByLabelText('新增参数场类型'), { target: { value: 'noise' } })
     fireEvent.click(screen.getByRole('button', { name: '＋ 添加参数场' }))
     await waitFor(() => expect(screen.getByText('revision 1')).toBeInTheDocument())
     expect(evaluations(calls)).toHaveLength(2)

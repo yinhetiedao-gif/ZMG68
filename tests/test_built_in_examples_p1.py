@@ -69,6 +69,34 @@ class BuiltInExamplesTests(unittest.TestCase):
                         self.assertEqual(exported.status_code, 200, exported.text)
                         self.assertGreater(len(exported.content), 84)
 
+    def test_real_60_by_60_mm_document_matches_manufacturing_and_stl(self):
+        payload = json.loads((FIXTURES / "basic-grid.pattern.json").read_text(encoding="utf-8"))
+        payload["canvas"]["mm_per_unit"] = 1.5  # The existing 40 × 40 world-unit result becomes 60 × 60 mm.
+        payload["metadata"]["web_real_size_confirmation"] = {
+            "width_mm": 60.0, "height_mm": 60.0, "mm_per_unit": 1.5,
+        }
+        self.assertEqual(PatternDocument.from_dict(payload).to_dict(), payload)
+        with TestClient(create_app()) as client:
+            dto = {"schema_version": "1.0", "document_id": "confirmed-60mm",
+                   "document_revision": 1, "document": payload, "assets": []}
+            body = {"schema_version": "1.0", "document_id": dto["document_id"],
+                    "document_revision": 1, "height_mm": 2.0, "document": dto}
+            built = client.post("/api/v1/manufacturing/build", json=body)
+            self.assertEqual(built.status_code, 200, built.text)
+            result = built.json()
+            self.assertAlmostEqual(result["bounds_mm"]["size_x"], 60, places=5)
+            self.assertAlmostEqual(result["bounds_mm"]["size_y"], 60, places=5)
+            self.assertAlmostEqual(result["bounds_mm"]["size_z"], 2, places=5)
+            exported = client.get("/api/v1/manufacturing/%s/model.stl" % result["manufacturing_result_id"])
+            self.assertEqual(exported.status_code, 200, exported.text)
+            raw = exported.content
+            count = struct.unpack_from("<I", raw, 80)[0]
+            coordinates = [struct.unpack_from("<fff", raw, 84 + face * 50 + 12 + vertex * 12)
+                           for face in range(count) for vertex in range(3)]
+            for axis, expected in enumerate((60.0, 60.0, 2.0)):
+                extent = max(point[axis] for point in coordinates) - min(point[axis] for point in coordinates)
+                self.assertAlmostEqual(extent, expected, places=4)
+
     def _manufactures(self, document: PatternDocument):
         before = document.to_dict()
         session = PatternLabSession(FoundationPipeline(None, None), ROOT / "work", document=document)

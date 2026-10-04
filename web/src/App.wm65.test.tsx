@@ -138,6 +138,8 @@ describe('Web/Desktop parameterization semantics', () => {
     const rows = await screen.findByRole('spinbutton', { name: '行数' })
     fireEvent.change(rows, { target: { value: '5' } })
     fireEvent.blur(rows)
+    expect(screen.getByText('有未应用的布局修改')).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: '布局参数' }).contains(screen.getByRole('button', { name: '应用布局' }))).toBe(true)
     expect(screen.getByText('revision 0')).toBeInTheDocument()
     expect(calls.filter((item) => item.path.endsWith('/evaluate'))).toHaveLength(1)
     fireEvent.click(screen.getByRole('button', { name: '应用布局' }))
@@ -146,6 +148,20 @@ describe('Web/Desktop parameterization semantics', () => {
     expect(evaluations).toHaveLength(2)
     const evaluated = evaluations[1].body.document as { document: { metadata: Record<string, { grid: { rows: number } }> } }
     expect(evaluated.document.metadata['xiaomang_pattern_lab.parametric'].grid.rows).toBe(5)
+  })
+
+  it('cancels pending Grid parameters inside the inspector without committing', async () => {
+    const calls = backend()
+    await importSvg()
+    fireEvent.click(screen.getByRole('button', { name: /规则矩阵 Grid/ }))
+    const rows = await screen.findByRole('spinbutton', { name: '行数' })
+    fireEvent.change(rows, { target: { value: '5' } })
+    fireEvent.blur(rows)
+    expect(screen.getByText('有未应用的布局修改')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '取消布局' }))
+    expect(screen.queryByText('有未应用的布局修改')).not.toBeInTheDocument()
+    expect(screen.getByText('revision 0')).toBeInTheDocument()
+    expect(calls.filter((item) => item.path.endsWith('/evaluate'))).toHaveLength(1)
   })
 
   it('returns from an applied Grid to Free only on explicit Apply', async () => {
