@@ -33,6 +33,16 @@ function backend() {
     if (path.endsWith('/health')) return Promise.resolve(response({ status: 'ok', contract_version: '1.0' }))
     if (path.endsWith('/contract')) return Promise.resolve(response({ schema_version: '1.0', units: 'mm', parameter_definitions: catalog }))
     const dto = (JSON.parse(String(init?.body)) as { document: PatternDocumentDTO }).document
+    if (path.endsWith('/manufacturing/build')) return Promise.resolve(response({
+      schema_version: '1.0', status: 'completed', manufacturing_result_id: `mesh-${dto.document_revision}`,
+      document_id: dto.document_id, document_revision: dto.document_revision,
+      geometry_validation_summary: { checked_count: dto.document.elements.length, error_count: 0, warning_count: 0, issues: [] },
+      connectivity_summary: { component_count: 1, isolated_count: 0 },
+      conversion_summary: { input_count: dto.document.elements.length, converted_count: dto.document.elements.length,
+        skipped_count: 0, warnings: [] },
+      mesh_validation_summary: { is_watertight: true, component_count: 1, error_count: 0, warning_count: 0, issues: [] },
+      component_count: 1, bounds_mm: { size_x: 50, size_y: 50, size_z: 2, units: 'mm' }, warnings: [],
+    }))
     if (path.endsWith('/analyze-pattern')) return Promise.resolve(response({ document_id: dto.document_id,
       document_revision: dto.document_revision, recommended_family: 'grid', confidence: .98, analysis_status: 'matched' }))
     evaluations.push(dto)
@@ -84,6 +94,65 @@ describe('P1 built-in examples', () => {
     fireEvent.click(screen.getByRole('button', { name: '重做' }))
     await waitFor(() => expect(evaluations).toHaveLength(5))
     expect((evaluations[4].document.metadata['xiaomang_pattern_lab.parametric'] as { grid: { rows: number } }).grid.rows).toBe(3)
+  })
+
+  it.each(['基础圆点阵列', '参数渐变'])('manufactures the unchanged %s example through the standard Web flow', async (title) => {
+    backend()
+    render(<App />)
+    await screen.findByText('Backend Online')
+    await openFromEmpty(title)
+    fireEvent.click(screen.getByRole('button', { name: /制造 Manufacture/ }))
+    fireEvent.click(screen.getByRole('button', { name: '检查并生成' }))
+    expect(await screen.findByText('模型已生成')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '导出 STL' })).toBeEnabled()
+    const call = vi.mocked(fetch).mock.calls.find(([url]) => String(url).endsWith('/manufacturing/build'))!
+    const payload = JSON.parse(String(call[1]?.body)) as { document_id: string; document_revision: number;
+      document: PatternDocumentDTO }
+    expect(payload.document_id).toBe(payload.document.document_id)
+    expect(payload.document_revision).toBe(0)
+    expect(payload.document.document_revision).toBe(0)
+  })
+
+  it('manufactures the basic Grid after Apply Layout', async () => {
+    backend()
+    render(<App />)
+    await screen.findByText('Backend Online')
+    await openFromEmpty('基础圆点阵列')
+    const rows = screen.getByLabelText('行数')
+    fireEvent.change(rows, { target: { value: '4' } })
+    fireEvent.blur(rows)
+    fireEvent.click(screen.getByRole('button', { name: '应用布局' }))
+    await screen.findByText('revision 1')
+    fireEvent.click(screen.getByRole('button', { name: /制造 Manufacture/ }))
+    fireEvent.click(screen.getByRole('button', { name: '检查并生成' }))
+    expect(await screen.findByText('模型已生成')).toBeInTheDocument()
+    const call = vi.mocked(fetch).mock.calls.find(([url]) => String(url).endsWith('/manufacturing/build'))!
+    const payload = JSON.parse(String(call[1]?.body)) as { document_revision: number; document: PatternDocumentDTO }
+    expect(payload.document_revision).toBe(1)
+    expect(payload.document.document_revision).toBe(1)
+    expect((payload.document.document.metadata['xiaomang_pattern_lab.parametric'] as { grid: { rows: number } }).grid.rows).toBe(4)
+  })
+
+  it('manufactures the original gradient after an edit and Reset Example commit', async () => {
+    backend()
+    render(<App />)
+    await screen.findByText('Backend Online')
+    await openFromEmpty('参数渐变')
+    const angle = screen.getByRole('spinbutton', { name: /^角度/ })
+    fireEvent.change(angle, { target: { value: '25' } })
+    fireEvent.blur(angle)
+    await screen.findByText('revision 1')
+    fireEvent.click(screen.getByRole('button', { name: '恢复示例初始状态' }))
+    await screen.findByText('revision 2')
+    fireEvent.click(screen.getByRole('button', { name: /制造 Manufacture/ }))
+    fireEvent.click(screen.getByRole('button', { name: '检查并生成' }))
+    expect(await screen.findByText('模型已生成')).toBeInTheDocument()
+    const calls = vi.mocked(fetch).mock.calls.filter(([url]) => String(url).endsWith('/manufacturing/build'))
+    expect(calls).toHaveLength(1)
+    const payload = JSON.parse(String(calls[0][1]?.body)) as { document_revision: number; document: PatternDocumentDTO }
+    expect(payload.document_revision).toBe(2)
+    expect(payload.document.document_revision).toBe(2)
+    expect(screen.getByRole('button', { name: '导出 STL' })).toBeEnabled()
   })
 
   it('protects the current draft before opening a second example and blocks on save failure', async () => {

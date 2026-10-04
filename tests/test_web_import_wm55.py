@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
@@ -60,6 +61,25 @@ class WebImportWM55Tests(unittest.TestCase):
         self.assertIn("ring", [item["id"] for item in dto["document"]["elements"]])
         ring = next(item for item in evaluated["geometry"] if item["id"] == "ring")
         self.assertEqual(ring["style"]["fill-rule"], "evenodd")
+
+    def test_png_and_svg_imports_still_build_standard_stl(self):
+        assets = (
+            (self.fixtures["regular_dot_matrix"].read_bytes(), "image/png", "regular_dot_matrix.png"),
+            ((Path(__file__).parent / "fixtures" / "qa_grid_no_background.svg").read_bytes(),
+             "image/svg+xml", "qa_grid_no_background.svg"),
+        )
+        for data, media_type, name in assets:
+            with self.subTest(name=name):
+                dto, _ = self.imported(self.upload(data, media_type, name))
+                built = self.client.post("/api/v1/manufacturing/build", json={
+                    "schema_version": "1.0", "document_id": dto["document_id"],
+                    "document_revision": dto["document_revision"], "height_mm": 2.0, "document": dto,
+                })
+                self.assertEqual(built.status_code, 200, built.text)
+                exported = self.client.get("/api/v1/manufacturing/%s/model.stl" %
+                                           built.json()["manufacturing_result_id"])
+                self.assertEqual(exported.status_code, 200, exported.text)
+                self.assertGreater(len(exported.content), 84)
 
     def test_rejects_invalid_oversized_missing_and_expired(self):
         self.assertEqual(self.upload(b"nonsense", "text/plain", "x.txt").status_code, 422)

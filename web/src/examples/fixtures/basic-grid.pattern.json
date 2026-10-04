@@ -1,25 +1,232 @@
 {
   "schema_version": 1,
-  "canvas": { "width": 60, "height": 60, "unit": "mm", "mm_per_unit": 1, "origin_x": 0, "origin_y": 0 },
-  "reference": { "source_path": "", "visible": false, "preprocessing": {}, "metadata": {} },
+  "canvas": {
+    "width": 60,
+    "height": 60,
+    "unit": "mm",
+    "mm_per_unit": 1,
+    "origin_x": 0,
+    "origin_y": 0
+  },
+  "reference": {
+    "source_path": "",
+    "visible": false,
+    "preprocessing": {},
+    "metadata": {}
+  },
   "elements": [
-    { "id": "grid:r0:c0", "type": "circle", "x": 14, "y": 14, "width": 8, "height": 8, "rotation": 0, "visible": true },
-    { "id": "grid:r0:c1", "type": "circle", "x": 30, "y": 14, "width": 8, "height": 8, "rotation": 0, "visible": true },
-    { "id": "grid:r0:c2", "type": "circle", "x": 46, "y": 14, "width": 8, "height": 8, "rotation": 0, "visible": true },
-    { "id": "grid:r1:c0", "type": "circle", "x": 14, "y": 30, "width": 8, "height": 8, "rotation": 0, "visible": true },
-    { "id": "grid:r1:c1", "type": "circle", "x": 30, "y": 30, "width": 8, "height": 8, "rotation": 0, "visible": true },
-    { "id": "grid:r1:c2", "type": "circle", "x": 46, "y": 30, "width": 8, "height": 8, "rotation": 0, "visible": true },
-    { "id": "grid:r2:c0", "type": "circle", "x": 14, "y": 46, "width": 8, "height": 8, "rotation": 0, "visible": true },
-    { "id": "grid:r2:c1", "type": "circle", "x": 30, "y": 46, "width": 8, "height": 8, "rotation": 0, "visible": true },
-    { "id": "grid:r2:c2", "type": "circle", "x": 46, "y": 46, "width": 8, "height": 8, "rotation": 0, "visible": true }
+    {
+      "id": "grid:r0:c0",
+      "type": "circle",
+      "x": 14,
+      "y": 14,
+      "width": 8,
+      "height": 8,
+      "rotation": 0,
+      "visible": true,
+      "style": {},
+      "group_id": null,
+      "metadata": {}
+    },
+    {
+      "id": "grid:r0:c1",
+      "type": "circle",
+      "x": 30,
+      "y": 14,
+      "width": 8,
+      "height": 8,
+      "rotation": 0,
+      "visible": true,
+      "style": {},
+      "group_id": null,
+      "metadata": {}
+    },
+    {
+      "id": "grid:r0:c2",
+      "type": "circle",
+      "x": 46,
+      "y": 14,
+      "width": 8,
+      "height": 8,
+      "rotation": 0,
+      "visible": true,
+      "style": {},
+      "group_id": null,
+      "metadata": {}
+    },
+    {
+      "id": "grid:r1:c0",
+      "type": "circle",
+      "x": 14,
+      "y": 30,
+      "width": 8,
+      "height": 8,
+      "rotation": 0,
+      "visible": true,
+      "style": {},
+      "group_id": null,
+      "metadata": {}
+    },
+    {
+      "id": "grid:r1:c1",
+      "type": "circle",
+      "x": 30,
+      "y": 30,
+      "width": 8,
+      "height": 8,
+      "rotation": 0,
+      "visible": true,
+      "style": {},
+      "group_id": null,
+      "metadata": {}
+    },
+    {
+      "id": "grid:r1:c2",
+      "type": "circle",
+      "x": 46,
+      "y": 30,
+      "width": 8,
+      "height": 8,
+      "rotation": 0,
+      "visible": true,
+      "style": {},
+      "group_id": null,
+      "metadata": {}
+    },
+    {
+      "id": "grid:r2:c0",
+      "type": "circle",
+      "x": 14,
+      "y": 46,
+      "width": 8,
+      "height": 8,
+      "rotation": 0,
+      "visible": true,
+      "style": {},
+      "group_id": null,
+      "metadata": {}
+    },
+    {
+      "id": "grid:r2:c1",
+      "type": "circle",
+      "x": 30,
+      "y": 46,
+      "width": 8,
+      "height": 8,
+      "rotation": 0,
+      "visible": true,
+      "style": {},
+      "group_id": null,
+      "metadata": {}
+    },
+    {
+      "id": "grid:r2:c2",
+      "type": "circle",
+      "x": 46,
+      "y": 46,
+      "width": 8,
+      "height": 8,
+      "rotation": 0,
+      "visible": true,
+      "style": {},
+      "group_id": null,
+      "metadata": {}
+    }
   ],
   "groups": [],
-  "transforms": {},
+  "transforms": {
+    "grid:r0:c0": {
+      "element_id": "grid:r0:c0",
+      "x": 14,
+      "y": 14,
+      "rotation": 0,
+      "scale_x": 1.0,
+      "scale_y": 1.0
+    },
+    "grid:r0:c1": {
+      "element_id": "grid:r0:c1",
+      "x": 30,
+      "y": 14,
+      "rotation": 0,
+      "scale_x": 1.0,
+      "scale_y": 1.0
+    },
+    "grid:r0:c2": {
+      "element_id": "grid:r0:c2",
+      "x": 46,
+      "y": 14,
+      "rotation": 0,
+      "scale_x": 1.0,
+      "scale_y": 1.0
+    },
+    "grid:r1:c0": {
+      "element_id": "grid:r1:c0",
+      "x": 14,
+      "y": 30,
+      "rotation": 0,
+      "scale_x": 1.0,
+      "scale_y": 1.0
+    },
+    "grid:r1:c1": {
+      "element_id": "grid:r1:c1",
+      "x": 30,
+      "y": 30,
+      "rotation": 0,
+      "scale_x": 1.0,
+      "scale_y": 1.0
+    },
+    "grid:r1:c2": {
+      "element_id": "grid:r1:c2",
+      "x": 46,
+      "y": 30,
+      "rotation": 0,
+      "scale_x": 1.0,
+      "scale_y": 1.0
+    },
+    "grid:r2:c0": {
+      "element_id": "grid:r2:c0",
+      "x": 14,
+      "y": 46,
+      "rotation": 0,
+      "scale_x": 1.0,
+      "scale_y": 1.0
+    },
+    "grid:r2:c1": {
+      "element_id": "grid:r2:c1",
+      "x": 30,
+      "y": 46,
+      "rotation": 0,
+      "scale_x": 1.0,
+      "scale_y": 1.0
+    },
+    "grid:r2:c2": {
+      "element_id": "grid:r2:c2",
+      "x": 46,
+      "y": 46,
+      "rotation": 0,
+      "scale_x": 1.0,
+      "scale_y": 1.0
+    }
+  },
   "metadata": {
     "xiaomang_pattern_lab.example_id": "basic-grid",
     "xiaomang_pattern_lab.parametric": {
       "mode": "grid",
-      "grid": { "rows": 3, "columns": 3, "spacing_x": 16, "spacing_y": 16, "element_width": 8, "element_height": 8, "rotation": 0, "offset_x": 30, "offset_y": 30, "lock_aspect": true, "prototype": { "kind": "circle" } },
+      "grid": {
+        "rows": 3,
+        "columns": 3,
+        "spacing_x": 16,
+        "spacing_y": 16,
+        "element_width": 8,
+        "element_height": 8,
+        "rotation": 0,
+        "offset_x": 30,
+        "offset_y": 30,
+        "lock_aspect": true,
+        "prototype": {
+          "kind": "circle"
+        }
+      },
       "source_elements": []
     }
   },

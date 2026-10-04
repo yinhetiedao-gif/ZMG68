@@ -23,6 +23,7 @@ interface Props {
   result: ManufacturingBuildResult | null
   error: string | null
   projectName: string | null
+  projectWarnings: string[]
   isCurrentResult: (resultId: string) => boolean
   onPreview: () => void
   document: PatternDocumentDTO | null
@@ -197,6 +198,9 @@ export function ManufacturingPanel(props: Props) {
           : '未取得尺寸'}</dd></div>
       </dl>
       {notes.length > 0 && <div className="manufacturing-notes"><strong>提醒 / 检查信息</strong><ul>{[...new Set(notes)].map((note) => <li key={note}>{note}</li>)}</ul></div>}
+    </div>}
+    {props.projectWarnings.length > 0 && <div className="manufacturing-notes" role="note">
+      {props.projectWarnings.join(' ')}
     </div>}
     <div className="manufacturing-output-actions">
       <button type="button" onClick={props.onPreview} disabled={base ? !props.fabricPreviewResult : !result || !props.isCurrentResult(result.manufacturing_result_id)}>3D 预览</button>

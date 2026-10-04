@@ -723,6 +723,7 @@ export function App() {
             </section>
           ) : browser.activeMode === 'manufacture' ? (
             <ManufacturingPanel heightText={manufacturing.heightText} onHeightChange={manufacturing.setHeightText}
+              projectWarnings={project.warnings}
               document={project.currentDocument} parameterCatalog={parameterCatalog}
               onFabricType={(type) => {
                 const dto = project.currentDocument
@@ -793,7 +794,8 @@ export function App() {
           {importing && <div className="viewer-notice" role="status">Python 正在转换图片为可编辑元素…</div>}
           {project.evaluateError && <div className="viewer-error" role="alert">{project.evaluateError}</div>}
           {projectError && <div className="viewer-error" role="alert">{projectError}</div>}
-          {project.warnings.length > 0 && <div className="viewer-warning" role="note">{project.warnings.join(' ')}</div>}
+          {browser.activeMode === 'design' && project.warnings.length > 0 &&
+            <div className="viewer-warning" role="note">{project.warnings.join(' ')}</div>}
           {mapping && <div className="mapping-overlay" role="dialog" aria-label="设置毫米映射">
             <div className="mapping-card">
               <h2>项目缺少毫米映射</h2>
