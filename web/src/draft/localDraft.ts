@@ -1,5 +1,6 @@
 import type { PatternDocumentDTO } from '../model/types'
 import { currentLayoutFamily, type LayoutDraft } from '../document/layoutDraft'
+import type { ImageSources } from '../api/imageAssets'
 
 const DB_NAME = 'xiaomang-pattern-lab-drafts'
 const STORE = 'drafts'
@@ -22,11 +23,13 @@ export interface LocalDraft {
   source_asset: SourceAssetDraft | null
   pending_layout?: LayoutDraft | null
   example_session_active?: boolean
+  image_sources?: ImageSources
 }
 
 export interface DraftUiState {
   pending_layout: LayoutDraft | null
   example_session_active: boolean
+  image_sources?: ImageSources
 }
 
 export class LocalDraftError extends Error {}
@@ -61,7 +64,10 @@ export function validateDraftDocument(dto: unknown): asserts dto is PatternDocum
       || !Number.isFinite(doc.canvas.width) || !Number.isFinite(doc.canvas.height)
       || doc.canvas.width <= 0 || doc.canvas.height <= 0
       || !Array.isArray(doc.elements) || !Array.isArray(doc.fields) || !Array.isArray(doc.modifiers)
-      || !doc.metadata || !Array.isArray(value.assets) || value.assets.length !== 0) {
+      || !doc.metadata || !Array.isArray(value.assets) || value.assets.some((asset) =>
+        typeof asset.asset_id !== 'string' || !asset.asset_id ||
+        !['image/png', 'image/jpeg'].includes(asset.media_type) ||
+        !doc.fields.some((field) => field.type === 'image' && asset.role === `field:${field.id}`))) {
     throw new LocalDraftError('本地草稿与当前项目协议不兼容。')
   }
   const ids = new Set<string>()
@@ -91,6 +97,7 @@ export async function saveBeforeExampleDraft(dto: PatternDocumentDTO, fileName: 
 async function writeDraft(key: LocalDraft['key'], dto: PatternDocumentDTO, fileName: string | null,
   sourceAsset: SourceAssetDraft | null, uiState?: DraftUiState): Promise<LocalDraft> {
   validateDraftDocument(dto)
+  validateImageSources(dto, uiState?.image_sources)
   const pending = uiState?.pending_layout
   if (pending && (pending.sourceRevision !== dto.document_revision ||
       (!pending.changed && pending.family === currentLayoutFamily(dto)) ||
@@ -103,6 +110,7 @@ async function writeDraft(key: LocalDraft['key'], dto: PatternDocumentDTO, fileN
     dto, file_name: fileName, source_asset: sourceAsset,
     pending_layout: pending ?? null,
     example_session_active: uiState?.example_session_active ?? false,
+    image_sources: uiState?.image_sources ?? {},
   }
   const db = await database()
   try {
@@ -137,6 +145,7 @@ async function readDraft(key: LocalDraft['key']): Promise<LocalDraft | null> {
     if (!draft) return null
     if (draft.schema_version !== '1.0') throw new LocalDraftError('本地草稿版本不受支持。')
     validateDraftDocument(draft.dto)
+    validateImageSources(draft.dto, draft.image_sources)
     if (draft.pending_layout) {
       const pending = draft.pending_layout
       if ((!pending.changed && pending.family === currentLayoutFamily(draft.dto)) ||
@@ -160,4 +169,12 @@ export async function clearDraft(): Promise<void> {
       tx.onerror = () => reject(new LocalDraftError('无法清除本地草稿。'))
     })
   } finally { db.close() }
+}
+
+function validateImageSources(dto: PatternDocumentDTO, sources?: ImageSources): void {
+  for (const asset of dto.assets) {
+    const source = sources?.[asset.asset_id]
+    if (!source?.blob?.size || source.media_type !== asset.media_type)
+      throw new LocalDraftError('图片场源图片缺失，无法安全保存或恢复草稿。')
+  }
 }

@@ -24,7 +24,7 @@ describe('Fabric preview revision lifecycle', () => {
     vi.mocked(requestFabricPreview).mockResolvedValue(preview(16))
     const { result } = renderHook(() => useFabricPreview(dto(16)))
     await act(async () => { await result.current.update() })
-    expect(requestFabricPreview).toHaveBeenCalledWith(expect.objectContaining({ document_revision: 16 }), expect.any(AbortSignal))
+    expect(requestFabricPreview).toHaveBeenCalledWith(expect.objectContaining({ document_revision: 16 }), expect.any(AbortSignal), fetch)
     expect(result.current.status).toBe('ready')
     expect(result.current.result?.document_revision).toBe(16)
   })

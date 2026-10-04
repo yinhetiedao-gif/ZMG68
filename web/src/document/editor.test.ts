@@ -37,6 +37,27 @@ function fixture(): PatternDocumentDTO {
 }
 
 describe('WM6 centralized immutable document edits', () => {
+  it('edits newly schema-defined image settings in legacy documents without changing legacy polarity', () => {
+    const initial = fixture()
+    initial.document.fields = [{ id: 'legacy', type: 'image', parameters: { image_path: '', invert: false } }]
+    const catalog: ParameterCatalog = { schema_version: '1.0', units: 'mm', definitions: {
+      layout: {}, modifier: {}, field: { image: { label: '图片场', parameters: [
+        { id: 'threshold', label: '遮罩阈值', type: 'number', default: .5, value: .5,
+          min: 0, max: 1, step: .01, unit: '', options: [] },
+        { id: 'sampling_mode', label: '采样', type: 'select', default: 'grayscale', value: 'grayscale',
+          min: null, max: null, step: null, unit: '',
+          options: [{ value: 'grayscale', label: '灰度' }, { value: 'mask', label: '遮罩' }] },
+      ] } },
+    } }
+    const updated = updateField(initial, 'legacy', 'threshold', .7, catalog)
+    expect(updated.document_revision).toBe(1)
+    expect(updated.document.fields[0].parameters).toEqual({ image_path: '', invert: false, threshold: .7 })
+    const mask = updateField(updated, 'legacy', 'sampling_mode', 'mask', catalog)
+    expect(mask.document.fields[0].parameters).toMatchObject({ sampling_mode: 'mask', threshold: .7 })
+    expect(() => updateField(initial, 'legacy', 'threshold', 2, catalog)).toThrow()
+    expect(() => updateField(initial, 'legacy', 'sampling_mode', 'svg', catalog)).toThrow()
+    expect(() => updateField(initial, 'legacy', 'made_up', 1, catalog)).toThrow()
+  })
   it('adds and removes schema-defined fields without changing layout, modifiers or source', () => {
     const initial = fixture()
     const catalog: ParameterCatalog = { schema_version: '1.0', units: 'mm', definitions: {

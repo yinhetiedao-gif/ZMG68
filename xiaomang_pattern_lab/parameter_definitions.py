@@ -86,6 +86,18 @@ def parameter_definitions() -> dict[str, Any]:
             ]},
         },
         "field": {
+            "image": {"label": "图片场", "parameters": [
+                _p("black_is_one", "黑色为 1（白色为 0）", "boolean", True), invert,
+                _p("sampling_mode", "采样模式", "select", "grayscale", options=[
+                    {"value": "grayscale", "label": "连续灰度"},
+                    {"value": "mask", "label": "阈值遮罩"}]),
+                _p("threshold", "遮罩阈值", "number", .5, min=0, max=1, step=.01),
+                _p("out_of_bounds", "超出图片范围", "select", "zero", options=[
+                    {"value": "zero", "label": "输出 0"}, {"value": "clamp", "label": "边界采样"}]),
+                _p("contrast", "对比度", "number", 1, min=.01, max=20, step=.01),
+                _p("black_point", "黑场", "number", 0, min=0, max=1, step=.01),
+                _p("white_point", "白场", "number", 1, min=0, max=1, step=.01),
+            ]},
             "constant": {"label": "固定场", "parameters": [
                 _p("value", "固定值", "number", .5, min=0, max=1, step=.01)]},
             "linear": {"label": "线性场", "parameters": [angle("angle", "方向角度"),

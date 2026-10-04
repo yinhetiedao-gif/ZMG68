@@ -1,4 +1,17 @@
-# Gate 状态（2026-10-02）
+# Gate 状态（2026-10-04）
+
+## F4-A Image Driven Fabric（2026-10-04）
+
+- 状态：**PASS（本地定向与真实浏览器验收）**。稳定基线 `2c9caa76f2973852d99175b4c106ac5b55b8a63b` / `backup/p2d-ui-polish-final`；分支 `feature/f4-image-driven-fabric`，预变更保护 `backup/pre-f4a-image-driven-fabric`。未部署 Render，未进入 F4-B/F5；Fabric 最终制造/STL 仍关闭。
+- 复用既有 `shared_fields.ImageField` 的 Pillow 灰度与双线性采样、Shared Field Registry、Composite 和 F3 Height/Scale/Density 消费器。没有 FabricImageField 或第二套图片算法。新 Web 图片场显式默认黑=1、白=0、范围外=0；可反转、连续灰度/阈值遮罩。旧桌面文档缺少新参数时仍保留白=1、clamp 和原中心范围语义。
+- Web 创建时注册图片的文档世界范围 `sample_bounds`；Fabric 按 `mm_per_unit` 转为 mm，再由现有采样器计算 UV。范围不依赖屏幕、Zoom/Pan 或布局候选点的包围盒。Pattern Points 继续取 Final Geometry 的 XY/二维比例/Z 旋转；Fabric 图片比例只叠乘一次。图片及包含图片的 Composite 暂不开放 Orientation。
+- 资产走既有上传边界，仅 PNG/JPEG 可作为图片场，后端核实登记文件类型，SVG 伪装 PNG 被拒绝。默认 FastAPI 现在解析自身上传存储；客户端使用稳定浏览器 token 引用 IndexedDB Blob，每次会话首次上传后仅在传输 DTO 中换成服务器 asset_id。刷新重传；TTL/服务器重启导致 `unresolved_asset` 时自动重传并重试一次，不改变文档/revision/history。不允许缺失源图片的草稿假装保存成功；预览缓存命中前仍核实资产存活。
+- Python 环境先恢复 pytest，修改前相关 22 测试与 13 子测试通过。最终受影响 Python **146/146 PASS，72 子测试 PASS，退出码 0**（含 Image/Shared Fields/Composite/Noise、F1/F2/F2.5/F3/F3.5、169 Shared Field 制造矩阵、API/部署）。首次相关测试因独立 Python 找不到 Tcl 库导致一项 Noise Tk UI 初始化错误；仅补环境的 TCL_LIBRARY/TK_LIBRARY 后完整定向重跑通过，没有修改 Tk 或跳过该测试。按本轮范围未运行无关全量 Tk suite。
+- Web **171/171 PASS**（完整 41 文件，最终 `--maxWorkers=2`），TypeScript/Vite production build PASS。全部 worker 并行时一次既有 SVG 导出模拟测试在等待下载点击处超时；单独测试和限制并发后的全部用例通过，未改该测试断言/超时。新测试验证资产重传、一次并发上传、旧文档参数编辑、同图多 Modifier、Orientation 边界和草稿 Blob 恢复。
+- 实际生产 UI Smoke：无项目 JSON loader，圆点示例→图片场 PNG→Height+Scale+Density→Pattern Points 9 候选、1 可见，高度 1–5 mm；High Contrast 显示正常，PNG 原图可直接作为新图片场源。无 API 错误或致命浏览器错误。独立测试构建通过已有内部 loader 加载性能项目，400/1000/5000 均真实调用 API 和现有 Three.js；400 刷新恢复后 Blob 重传、revision 与实例结果不变。截图复核可见中央高大/外围低小；vision-skills 的 glance 未安装，使用内置图片预览，未借此修改产品逻辑。
+- 实际性能：Python 5 次暖缓存中位数 400/1000/5000 总计约 **6.45/14.40/71.12 ms**；采样 **0.94/2.32/11.22 ms**，Field 应用 **3.99/8.79/43.52 ms**，计划/原型含 Field **4.72/10.72/53.58 ms**，序列化 **0.97/2.49/12.52 ms**。采样和 Field 是计划内包含阶段，不可相加。浏览器单次创建 **19/21/22 ms**，按钮到 ready **457/130/211 ms**；首个 400 请求含冷原型约 329 ms，不代表规模越大越快。证据见 `work/f4a/`，可通过 `tools/profile_image_fabric_f4a.py` 与两个 Smoke 脚本重现，非跨设备性能保证。
+- 标准二维制造保持旧通道：带图片 Size Modifier 的 20 元素 API build 与 STL 下载/重读 watertight PASS、Z=2 mm；未降低 MeshValidator、未改制造几何。已知非阻塞：前端大 bundle warning、测试客户端弃用提示与既有 Tk 环境/生命周期风险。视觉/性能验证均为本地，未声称公网或物理打印验收。
+
 
 ## P2-C Project Continuity（2026-10-04，NOT VALIDATED）
 

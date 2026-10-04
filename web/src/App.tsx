@@ -4,6 +4,7 @@ import {
 } from './api/client'
 import { evaluateDocument } from './api/evaluate'
 import { importImage } from './api/import'
+import { bindImageSource, imageAssetFetcher, type ImageSources } from './api/imageAssets'
 import { analyzePattern, preparePattern, runPatternAction, type PatternAnalysis, type PatternFamily } from './api/pattern'
 import { Workspace2D } from './geometry/Workspace2D'
 import { InspectorControls, type EditAction } from './document/InspectorControls'
@@ -78,8 +79,10 @@ export function App() {
   const [retry, setRetry] = useState(0)
   const [browser, setBrowser] = useState(initialBrowserState)
   const [project, setProject] = useState(initialDocumentState)
-  const manufacturing = useManufacturing(project.currentDocument)
-  const fabricPreview = useFabricPreview(project.currentDocument)
+  const imageSourcesRef = useRef<ImageSources>({})
+  const [assetFetch] = useState(() => imageAssetFetcher(() => imageSourcesRef.current))
+  const manufacturing = useManufacturing(project.currentDocument, assetFetch)
+  const fabricPreview = useFabricPreview(project.currentDocument, assetFetch)
   const [projectError, setProjectError] = useState<string | null>(null)
   const [exampleChooserOpen, setExampleChooserOpen] = useState(false)
   const [draftNotice, setDraftNotice] = useState<string | null>(null)
@@ -101,6 +104,8 @@ export function App() {
   const inputRef = useRef<HTMLInputElement>(null)
   const imageInputRef = useRef<HTMLInputElement>(null)
   const svgInputRef = useRef<HTMLInputElement>(null)
+  const fieldImageInputRef = useRef<HTMLInputElement>(null)
+  const fieldImageTarget = useRef('')
   const [importing, setImporting] = useState(false)
   const evaluateController = useRef<AbortController | null>(null)
   const evaluateSequence = useRef(0)
@@ -178,7 +183,8 @@ export function App() {
     sourceAsset: SourceAssetDraft | null, uiState: DraftUiState): Promise<LocalDraft> => {
     const sequence = ++draftSaveSequence.current
     setDraftSaveStatus('saving')
-    const next = draftWrites.current.catch(() => undefined).then(() => saveDraft(dto, fileName, sourceAsset, uiState))
+    const metadata = { ...uiState, image_sources: imageSourcesRef.current }
+    const next = draftWrites.current.catch(() => undefined).then(() => saveDraft(dto, fileName, sourceAsset, metadata))
     draftWrites.current = next
     return next.then((saved) => {
       if (sequence === draftSaveSequence.current) setDraftSaveStatus('saved')
@@ -281,7 +287,7 @@ export function App() {
       evaluateStatus: 'loading', evaluateError: null,
       ...(options.fitOnSuccess ? { finalGeometry: [], bounds: null } : {}),
     }))
-    void evaluateDocument(dto, controller.signal).then((result) => {
+    void evaluateDocument(dto, controller.signal, assetFetch).then((result) => {
       if (sequence !== evaluateSequence.current) return
       lastValidDocumentRef.current = dto
       setProject((current) => ({
@@ -310,7 +316,7 @@ export function App() {
       setPendingPreview(null)
       if (options.rollback) requestPatternAnalysis(options.rollback, 400)
     })
-  }, [invalidatePatternAnalysis, requestPatternAnalysis])
+  }, [invalidatePatternAnalysis, requestPatternAnalysis, assetFetch])
 
   const acceptProject = (dto: PatternDocumentDTO, fileName: string, warnings: string[], options: {
     pendingLayout?: LayoutDraft | null; exampleSessionActive?: boolean; restored?: boolean
@@ -349,11 +355,13 @@ export function App() {
             pending: restorableDraft.pending_layout ?? null }
           : null
       if (previous) setPreExampleDraft(await saveBeforeExampleDraft(previous.dto, previous.fileName, previous.asset,
-        { pending_layout: previous.pending, example_session_active: false }))
+        { pending_layout: previous.pending, example_session_active: false,
+          image_sources: project.currentDocument ? imageSourcesRef.current : restorableDraft?.image_sources }))
       const identifier = globalThis.crypto?.randomUUID?.() ?? `example-${Date.now()}-${Math.random().toString(16).slice(2)}`
       const dto = createExampleDocument(id, identifier)
       const example = examples.find((item) => item.id === id)!
       sourceAssetRef.current = null
+      imageSourcesRef.current = {}
       setExampleChooserOpen(false)
       acceptProject(dto, example.title, [], { exampleSessionActive: activeExampleSession || Boolean(previous) })
     } catch (error) {
@@ -387,6 +395,7 @@ export function App() {
     try {
       await saveBeforeReplacement()
       const dto = await importImage(file)
+      imageSourcesRef.current = {}
       sourceAssetRef.current = { blob: file, filename: file.name, media_type: file.type }
       acceptProject(dto, file.name, dto.document.metadata.web_import_scale_unconfirmed
         ? ['导入图案暂按 1 原始单位 = 1 mm 显示；制造前必须确认真实尺寸。'] : [])
@@ -534,7 +543,17 @@ export function App() {
       if (action.kind === 'field_add') {
         const added = addField(dto, action.fieldType, parameterCatalog)
         next = added.dto
+        const source = sourceAssetRef.current
+        if (action.fieldType === 'image' && source && ['image/png', 'image/jpeg'].includes(source.media_type)) {
+          const token = `image-${crypto.randomUUID()}`
+          imageSourcesRef.current = { ...imageSourcesRef.current, [token]: source }
+          next = bindImageSource(next, added.id, token, source.media_type, false)
+        }
         setSelectedFieldId(added.id)
+      } else if (action.kind === 'image_source') {
+        fieldImageTarget.current = action.id
+        fieldImageInputRef.current?.click()
+        return
       } else if (action.kind === 'modifier_add') next = addModifier(dto, action.modifierType, parameterCatalog)
       else if (action.kind === 'modifier_remove') next = removeModifier(dto, action.lane, action.id)
       else if (action.kind === 'field_remove') {
@@ -616,6 +635,7 @@ export function App() {
   const restoreLocalDraft = () => {
     if (!restorableDraft) return
     sourceAssetRef.current = restorableDraft.source_asset
+    imageSourcesRef.current = restorableDraft.image_sources ?? {}
     acceptProject(restorableDraft.dto, restorableDraft.file_name ?? '上次编辑', [], {
       pendingLayout: restorableDraft.pending_layout,
       exampleSessionActive: restorableDraft.example_session_active,
@@ -627,6 +647,7 @@ export function App() {
     try {
       await saveBeforeReplacement()
       sourceAssetRef.current = preExampleDraft.source_asset
+      imageSourcesRef.current = preExampleDraft.image_sources ?? {}
       acceptProject(preExampleDraft.dto, preExampleDraft.file_name ?? '示例前的作品', [], {
         pendingLayout: preExampleDraft.pending_layout, restored: true,
       })
@@ -907,6 +928,8 @@ export function App() {
           syncToken={`${project.documentRevision}:${project.evaluateStatus}:${parameterSyncVersion}`} onPending={onParameterPending}
           dto={project.currentDocument} selected={selected} parameterCatalog={parameterCatalog}
           selectedFieldId={selectedFieldId} onSelectField={setSelectedFieldId}
+          imageSourceNames={Object.fromEntries(project.currentDocument.assets.map((asset) =>
+            [asset.role.slice(6), imageSourcesRef.current[asset.asset_id]?.filename ?? '源图片待恢复']))}
           layoutSelection={selectedFamily} layoutDraft={layoutDraft} layoutBusy={preparingLayout}
           onApplyLayout={() => void applyLayout()} onCancelLayout={cancelLayout}
           layoutActionsDisabled={!connected || !hasEditableGeometry || applyingPattern}
@@ -943,5 +966,21 @@ export function App() {
       aria-label="选择 PNG 或 JPG 图片" onChange={onImageFile} />
     <input ref={svgInputRef} type="file" accept=".svg,image/svg+xml" className="visually-hidden"
       aria-label="选择 SVG 图片" onChange={onImageFile} />
+    <input ref={fieldImageInputRef} type="file" accept=".png,.jpg,.jpeg,image/png,image/jpeg"
+      className="visually-hidden" aria-label="选择图片场源文件" onChange={(event) => {
+        const file = event.target.files?.[0]
+        event.target.value = ''
+        const dto = project.currentDocument
+        if (!file || !dto || !canEditDocument) return
+        try {
+          const mediaType = /\.png$/i.test(file.name) ? 'image/png' : /\.jpe?g$/i.test(file.name) ? 'image/jpeg' : ''
+          if (!mediaType || !file.size || file.size > 8 * 1024 * 1024) throw new Error('请选择 8 MiB 内的 PNG/JPG 图片。')
+          const token = `image-${crypto.randomUUID()}`
+          const next = bindImageSource(dto, fieldImageTarget.current, token, mediaType)
+          imageSourcesRef.current = { ...imageSourcesRef.current,
+            [token]: { blob: file, filename: file.name, media_type: mediaType } }
+          commitDocument(next, dto)
+        } catch (error) { setProjectError(error instanceof Error ? error.message : '图片场源文件无法载入。') }
+      }} />
   </div>
 }

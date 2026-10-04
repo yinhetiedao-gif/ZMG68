@@ -7,7 +7,7 @@ Coordinates and linear start/end distances use the document's world units
 from __future__ import annotations
 
 from copy import deepcopy
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field as runtime_field
 import math
 from pathlib import Path
 from typing import Iterable, Protocol
@@ -335,6 +335,13 @@ class ImageField:
     white_point: float = 1.0
     invert: bool = False
     out_of_bounds: str = "clamp"
+    # Optional image registration in document world units. Legacy fields keep
+    # their center-bounds mapping and brightness polarity unchanged.
+    sample_bounds: tuple[float, float, float, float] | None = None
+    black_is_one: bool = False
+    sampling_mode: str = "grayscale"
+    threshold: float = 0.5
+    _prepared_pixels: tuple | None = runtime_field(default=None, init=False, repr=False, compare=False)
 
     def __post_init__(self):
         if not isinstance(self.id, str) or not self.id:
@@ -351,9 +358,33 @@ class ImageField:
         object.__setattr__(self, "white_point", white)
         if self.out_of_bounds not in ("clamp", "zero"):
             raise ValueError("图片场超出范围策略只能是 clamp 或 zero。")
+        if self.sample_bounds is not None:
+            bounds = FieldContext(tuple(self.sample_bounds)).bounds
+            if bounds[2] <= bounds[0] or bounds[3] <= bounds[1]:
+                raise ValueError("图片场映射范围必须有正面积。")
+            object.__setattr__(self, "sample_bounds", bounds)
+        if self.sampling_mode not in ("grayscale", "mask"):
+            raise ValueError("图片场采样只能是 grayscale 或 mask。")
+        if type(self.invert) is not bool or type(self.black_is_one) is not bool:
+            raise ValueError("图片场反转/黑白语义必须是布尔值。")
+        threshold = _finite(self.threshold)
+        if not 0 <= threshold <= 1:
+            raise ValueError("图片场阈值必须在 0～1 之间。")
+        object.__setattr__(self, "threshold", threshold)
 
     def available(self) -> bool:
         return bool(self.image_path) and Path(self.image_path).is_file()
+
+    def prepare_sampling(self) -> None:
+        """Pin one read-only pixel snapshot for this request's field registry.
+
+        Subsequent requests build a new registry and recheck file mtime/size;
+        legacy single-sample callers keep their existing invalidation behavior.
+        """
+        image = self._pixels()
+        if image is None:
+            raise ValueError("图片场源图片无法读取。")
+        object.__setattr__(self, "_prepared_pixels", image)
 
     def _pixels(self) -> tuple[int, int, tuple[int, ...]] | None:
         path = Path(self.image_path)
@@ -383,13 +414,13 @@ class ImageField:
             return None
 
     def evaluate(self, element: Element, context: FieldContext) -> float:
-        image = self._pixels()
+        image = self._prepared_pixels or self._pixels()
         if image is None:
             # Missing Reference is a safe neutral scalar; the caller can expose
             # ``available()`` in diagnostics without breaking project loading.
             return 0.5
         width, height, pixels = image
-        x0, y0, x1, y1 = context.bounds
+        x0, y0, x1, y1 = self.sample_bounds or context.bounds
         span_x, span_y = max(x1 - x0, 1e-9), max(y1 - y0, 1e-9)
         u = (float(element.x) - x0) / span_x
         v = (float(element.y) - y0) / span_y
@@ -408,13 +439,18 @@ class ImageField:
         value = (p00 * (1 - tx) + p10 * tx) * (1 - ty) + (p01 * (1 - tx) + p11 * tx) * ty
         value = _unit((value - self.black_point) / max(self.white_point - self.black_point, 1e-9))
         value = _unit((value - 0.5) * self.contrast + 0.5)
-        return _unit(1.0 - value if self.invert else value)
+        if self.black_is_one:
+            value = 1.0 - value
+        value = _unit(1.0 - value if self.invert else value)
+        return float(value >= self.threshold) if self.sampling_mode == "mask" else value
 
     def to_dict(self) -> dict:
         return {"id": self.id, "type": "image", "parameters": {
             "image_path": self.image_path, "contrast": self.contrast,
             "black_point": self.black_point, "white_point": self.white_point,
-            "invert": self.invert, "out_of_bounds": self.out_of_bounds}}
+            "invert": self.invert, "out_of_bounds": self.out_of_bounds,
+            "sample_bounds": self.sample_bounds, "black_is_one": self.black_is_one,
+            "sampling_mode": self.sampling_mode, "threshold": self.threshold}}
 
 
 @dataclass(frozen=True)

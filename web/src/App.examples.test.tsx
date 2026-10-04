@@ -207,7 +207,7 @@ describe('P1 built-in examples', () => {
     fireEvent.click(screen.getByRole('button', { name: '打开示例：参数渐变' }))
     await waitFor(() => expect(evaluations).toHaveLength(2))
     expect(draftMocks.save).toHaveBeenCalledWith(evaluations[0], '基础圆点阵列', null,
-      { pending_layout: null, example_session_active: false })
+      { pending_layout: null, example_session_active: false, image_sources: {} })
     expect(evaluations[1].document.fields[0].type).toBe('linear')
     expect(evaluations[1].document.modifiers.map((item) => item.type)).toEqual(['size', 'rotation'])
     draftMocks.save.mockRejectedValueOnce(new Error('草稿写入失败'))
@@ -254,9 +254,9 @@ describe('P1 built-in examples', () => {
     fireEvent.click(screen.getByRole('button', { name: '打开示例：基础圆点阵列' }))
     await waitFor(() => expect(evaluations).toHaveLength(2))
     expect(draftMocks.save).toHaveBeenCalledWith(evaluations[0], 'my-work.pattern.json', null,
-      { pending_layout: null, example_session_active: false })
+      { pending_layout: null, example_session_active: false, image_sources: {} })
     expect(draftMocks.saveBefore).toHaveBeenCalledWith(evaluations[0], 'my-work.pattern.json', null,
-      { pending_layout: null, example_session_active: false })
+      { pending_layout: null, example_session_active: false, image_sources: {} })
     fireEvent.click(screen.getByRole('button', { name: '← 返回之前作品' }))
     await waitFor(() => expect(evaluations).toHaveLength(3))
     expect(evaluations[2].document.elements[0].id).toBe('work-1')

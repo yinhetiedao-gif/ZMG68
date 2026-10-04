@@ -36,7 +36,7 @@ from xiaomang_pattern_lab.parametric_families import AlongCurveParametricModel, 
 from xiaomang_pattern_lab.session import PatternLabSession
 from xiaomang_pattern_lab.stl_export import STLExporter
 
-from .assets import AssetResolver, MAX_ASSET_BYTES, NullAssetResolver, TemporaryAssetStore
+from .assets import AssetResolver, MAX_ASSET_BYTES, TemporaryAssetStore
 from .http_errors import (
     WebError, contract_error_handler, internal_error_handler, web_error_handler,
 )
@@ -88,6 +88,8 @@ def _resolve_document(dto: PatternDocumentDTO, resolver: AssetResolver):
         source = resolver.resolve(identifier)
         if not source or not Path(source).is_file():
             raise WebError("unresolved_asset", "资产尚未在服务器端登记或已失效。")
+        if asset.get("role", "").startswith("field:") and Path(source).suffix.lower() not in (".png", ".jpg", ".jpeg"):
+            raise WebError("invalid_asset", "图片场只支持 PNG/JPG 栅格源；SVG 只用于二维图案。")
         sources[identifier] = source
     return dto.to_document(asset_sources=sources)
 
@@ -336,10 +338,10 @@ def create_app(*, asset_resolver: AssetResolver | None = None,
                failure_snapshot_dir: Path | None = None,
                web_dist: Path | None = None) -> FastAPI:
     """Build an isolated headless server instance; importing does not start it."""
-    resolver = asset_resolver if asset_resolver is not None else NullAssetResolver()
     store = result_store if result_store is not None else InMemoryManufacturingResultStore()
     fabric_preview_cache = FabricPreviewCache()
     uploads = asset_store if asset_store is not None else TemporaryAssetStore()
+    resolver = asset_resolver if asset_resolver is not None else uploads
     snapshot_enabled = os.environ.get("XIAOMANG_DEV_MANUFACTURING_SNAPSHOTS") == "1"
     staging_mode = (os.environ.get("XIAOMANG_STAGING") == "1"
                     or os.environ.get("XIAOMANG_ENV") == "staging")
@@ -498,6 +500,9 @@ def create_app(*, asset_resolver: AssetResolver | None = None,
         dto = PatternDocumentDTO.from_dict(_document_payload(payload))
         if payload.get("document_revision") != dto.document_revision:
             raise ContractError("stale_revision", "文档已更改，请重新更新 Fabric 预览。")
+        # Check asset liveness before cache reuse so expiry triggers normal
+        # browser Blob re-upload instead of indefinitely serving a stale image.
+        document = await run_in_threadpool(_resolve_document, dto, resolver)
         key = await run_in_threadpool(preview_key, dto)
         cached = fabric_preview_cache.get(key)
         if cached is not None:
@@ -505,7 +510,6 @@ def create_app(*, asset_resolver: AssetResolver | None = None,
         if expensive_job_slot is not None and not expensive_job_slot.acquire(blocking=False):
             raise WebError("staging_busy", "测试站正在处理另一项三维任务，请稍后重试。")
         try:
-            document = await run_in_threadpool(_resolve_document, dto, resolver)
             try:
                 result = await run_in_threadpool(build_fabric_preview, document, dto)
             except (ValueError, TypeError, KeyError) as error:

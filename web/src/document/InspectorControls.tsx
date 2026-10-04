@@ -22,6 +22,7 @@ export type EditAction =
   | { kind: 'field_remove'; id: string }
   | { kind: 'field_enabled'; id: string; enabled: boolean }
   | { kind: 'field_binding'; id: string; fieldId: string }
+  | { kind: 'image_source'; id: string }
   | { kind: 'modifier_add'; modifierType: 'size' | 'rotation' | 'position' }
   | { kind: 'modifier_remove'; lane: 'scalar' | 'stack'; id: string }
 
@@ -59,7 +60,7 @@ const positionParameterKeys: Record<string, string[]> = {
 export function InspectorControls({ dto, selected, onEdit, disabled, parameterCatalog = null,
   layoutSelection = null, layoutDraft = null, layoutBusy = false, onLayoutDraftEdit,
   onApplyLayout, onCancelLayout, layoutActionsDisabled = false, gradientExample = false,
-  selectedFieldId = '', onSelectField, syncToken = '', onPending }: {
+  selectedFieldId = '', onSelectField, syncToken = '', onPending, imageSourceNames = {} }: {
   dto: PatternDocumentDTO
   selected: FinalGeometry | null
   onEdit: (action: EditAction) => void
@@ -77,12 +78,13 @@ export function InspectorControls({ dto, selected, onEdit, disabled, parameterCa
   onSelectField?: (id: string) => void
   syncToken?: string
   onPending?: (id: string, pending: boolean) => void
+  imageSourceNames?: Record<string, string>
 }) {
   const [newFieldType, setNewFieldType] = useState('')
   const fields = fieldRecords(dto)
   const activeField = fields.find((field) => field.id === selectedFieldId) ?? fields[0]
   const creatableTypes = Object.keys(parameterCatalog?.definitions.field ?? {})
-    .filter((type) => type !== 'image' && type !== 'composite')
+    .filter((type) => type !== 'composite')
   const chosenType = creatableTypes.includes(newFieldType) ? newFieldType : creatableTypes[0] ?? ''
   const currentFamily = currentLayoutFamily(dto)
   const grid = gridModel(dto)
@@ -166,7 +168,14 @@ export function InspectorControls({ dto, selected, onEdit, disabled, parameterCa
           <label className="parameter-toggle"><input type="checkbox" checked={activeField.enabled !== false}
             onChange={(event) => onEdit({ kind: 'field_enabled', id: String(activeField.id), enabled: event.target.checked })} />启用参数场</label>
           <button type="button" className="ui-danger" onClick={() => onEdit({ kind: 'field_remove', id: String(activeField.id) })}>删除参数场</button>
-          {controls ?? (group ? <ParameterPanel key={String(activeField.id)} group={group} values={parameters}
+          {type === 'image' && <div className="image-field-source">
+            <p>源图片：{imageSourceNames[String(activeField.id)] ?? '未选择'}</p>
+            <button type="button" onClick={() => onEdit({ kind: 'image_source', id: String(activeField.id) })}>选择图片场 PNG/JPG</button>
+            <p className="inspector-readonly">按图像世界范围采样；不随缩放/平移变化。可同时绑定 Fabric 高度、比例和密度。</p>
+          </div>}
+          {controls ?? (group ? <ParameterPanel key={String(activeField.id)} group={group}
+            values={type === 'image' ? { ...Object.fromEntries(group.parameters.map((item) => [item.id, item.default])),
+              black_is_one: false, out_of_bounds: 'clamp', ...parameters } : parameters}
           onCommit={(key, value) => onEdit({ kind: 'field', id: String(activeField.id), key, value })} />
             : type === 'image' || !FIELD_SPECS[type] ? <p className="inspector-readonly">该参数场当前只读；图片资产尚未接入网页。</p>
               : <>{FIELD_SPECS[type].filter((item) => typeof parameters[item.key] === 'number').map((item) =>

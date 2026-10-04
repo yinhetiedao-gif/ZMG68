@@ -6,18 +6,19 @@ change that plan; they never edit PatternDocument or create manufacturing mesh.
 from __future__ import annotations
 
 from dataclasses import replace
+from copy import deepcopy
 import math
 from typing import Any, Mapping
 
 from ppg.foundation.models import Element
 
 from .fabric_plan import FabricInstancePlan
-from .shared_fields import CompositeField, FieldContext, FieldRegistry
+from .shared_fields import CompositeField, FieldContext, FieldRegistry, ImageField
 
 
 MODIFIER_TYPES = ("height", "scale", "density", "orientation")
 ALLOWED_FIELD_TYPES = frozenset(("constant", "linear", "wave", "ring", "stripe",
-                                 "checker", "spiral", "noise", "composite"))
+                                 "checker", "spiral", "noise", "composite", "image"))
 
 
 def _number(raw: Mapping[str, Any], key: str, *, positive: bool = False,
@@ -33,13 +34,19 @@ def _number(raw: Mapping[str, Any], key: str, *, positive: bool = False,
 
 
 def _check_field(registry: FieldRegistry, field_id: str,
-                 seen: frozenset[str] = frozenset()) -> None:
+                 seen: frozenset[str] = frozenset(), *, allow_image: bool = True) -> None:
     if field_id in seen:
         raise ValueError("Fabric 组合场存在循环引用。")
     field = registry.get(field_id)
     kind = field.to_dict()["type"]
     if kind not in ALLOWED_FIELD_TYPES:
         raise ValueError(f"Fabric 预览暂不支持 {kind} 参数场。")
+    if isinstance(field, ImageField) and not allow_image:
+        raise ValueError("图片驱动方向留待 F4-B；当前图片场只支持高度、比例和密度。")
+    if isinstance(field, ImageField) and not field.available():
+        raise ValueError("图片场源图片失效，请重新上传或恢复本地草稿。")
+    if isinstance(field, ImageField):
+        field.prepare_sampling()
     if isinstance(field, CompositeField):
         # Missing composite inputs retain the existing FieldRegistry neutral
         # fallback. Present inputs must not smuggle in an unsupported field.
@@ -48,7 +55,7 @@ def _check_field(registry: FieldRegistry, field_id: str,
                 registry.get(child)
             except ValueError:
                 continue
-            _check_field(registry, child, seen | {field_id})
+            _check_field(registry, child, seen | {field_id}, allow_image=allow_image)
 
 
 def apply_fabric_field_modifiers(plan: FabricInstancePlan, document,
@@ -85,14 +92,23 @@ def apply_fabric_field_modifiers(plan: FabricInstancePlan, document,
     if not active or not plan.instances:
         return plan
 
-    registry = FieldRegistry.from_list(document.fields)
-    for field_id, _ in active.values():
-        _check_field(registry, field_id)
+    fields = deepcopy(document.fields)
+    factor = document.canvas.mm_per_unit or 1.0
+    for field in fields:
+        if field.get("type") == "image":
+            parameters = field.setdefault("parameters", {})
+            if not parameters.get("image_path"):
+                parameters["image_path"] = document.reference.source_path
+            if parameters.get("sample_bounds") is not None:
+                parameters["sample_bounds"] = [value * factor for value in parameters["sample_bounds"]]
+    registry = FieldRegistry.from_list(fields)
+    for kind, (field_id, _) in active.items():
+        _check_field(registry, field_id, allow_image=kind != "orientation")
     elements = [Element(item.id, "rect", item.x_mm, item.y_mm, 1.0, 1.0)
                 for item in plan.instances]
     context = FieldContext.from_elements(elements)
     values = {field_id: tuple(registry.evaluate(field_id, item, context) for item in elements)
-              for field_id, _ in active.values()}
+              for field_id in {field_id for field_id, _ in active.values()}}
     derived = []
     for index, item in enumerate(plan.instances):
         height, scale, rotation, enabled = item.height_mm, item.scale, item.rotation_deg, item.enabled

@@ -135,18 +135,19 @@ export function ManufacturingPanel(props: Props) {
           <p>使用当前设计的 Shared Field 控制单元实例；此设置只影响 3D 设计预览。</p>
           {!fabricFields.length && <p>请先在设计界面添加参数场。</p>}
           {fabricModifierTypes.map((type) => {
+            const modifierFields = availableFabricFields(props.document, type)
             const group = groupFor(props.parameterCatalog, 'fabric_modifier', type)
             const modifier = fabricFieldModifier(props.document, type)
             return <section key={type} aria-label={`Fabric ${group?.label ?? type}`}>
               <label><input type="checkbox" checked={modifier?.enabled === true}
-                disabled={!modifier && (!group || !fabricFields.length)}
+                disabled={!modifier && (!group || !modifierFields.length)}
                 onChange={(event) => props.onFabricModifierEnabled(type, event.target.checked)} />
                 {group?.label ?? type}</label>
               {modifier?.enabled && <>
                 <label htmlFor={`fabric-${type}-field`}>驱动参数场</label>
                 <select id={`fabric-${type}-field`} value={modifier.field_id}
                   onChange={(event) => props.onFabricModifierField(type, event.target.value)}>
-                  {fabricFields.map((field) => <option key={field.id} value={field.id}>{field.id} · {field.type}</option>)}
+                  {modifierFields.map((field) => <option key={field.id} value={field.id}>{field.id} · {field.type}</option>)}
                 </select>
                 {group && <ParameterPanel group={group} values={{ ...modifier }}
                   onCommit={(key, value) => props.onFabricModifierParameter(type, key, value)} />}

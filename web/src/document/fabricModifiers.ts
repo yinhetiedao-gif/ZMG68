@@ -9,11 +9,21 @@ export interface FabricFieldModifier {
   [key: string]: ParameterValue
 }
 export const fabricModifierTypes: FabricModifierType[] = ['height', 'scale', 'density', 'orientation']
-const supportedFields = new Set(['constant', 'linear', 'wave', 'ring', 'stripe', 'checker', 'spiral', 'noise', 'composite'])
+const supportedFields = new Set(['constant', 'linear', 'wave', 'ring', 'stripe', 'checker', 'spiral', 'noise', 'composite', 'image'])
 
-export function availableFabricFields(dto: PatternDocumentDTO | null): { id: string; type: string }[] {
+export function availableFabricFields(dto: PatternDocumentDTO | null, modifierType?: FabricModifierType): { id: string; type: string }[] {
+  const containsImage = (id: string, seen = new Set<string>()): boolean => {
+    if (seen.has(id)) return false
+    seen.add(id)
+    const field = dto?.document.fields.find((item) => item.id === id)
+    if (field?.type === 'image') return true
+    if (field?.type !== 'composite') return false
+    const parameters = field.parameters as Record<string, unknown> | undefined
+    return ['input_a_field_id', 'input_b_field_id'].some((key) => containsImage(String(parameters?.[key]), seen))
+  }
   return dto?.document.fields.filter((raw) => typeof raw.id === 'string' &&
-    typeof raw.type === 'string' && supportedFields.has(raw.type)).map((raw) =>
+    typeof raw.type === 'string' && supportedFields.has(raw.type) &&
+    (modifierType !== 'orientation' || !containsImage(raw.id))).map((raw) =>
       ({ id: raw.id as string, type: raw.type as string })) ?? []
 }
 
@@ -39,7 +49,7 @@ export function setFabricModifierEnabled(dto: PatternDocumentDTO, type: FabricMo
   if (!current && !enabled) return dto
   if (current?.enabled === enabled) return dto
   if (current) return changed(dto, type, { ...current, enabled })
-  const fields = availableFabricFields(dto)
+  const fields = availableFabricFields(dto, type)
   if (!fields.length) throw new Error('请先在设计界面添加一个受支持的参数场。')
   const group = groupFor(catalog, 'fabric_modifier', type)
   if (!group) throw new Error('Python 参数定义尚未提供 Fabric Modifier。')
@@ -51,7 +61,7 @@ export function setFabricModifierField(dto: PatternDocumentDTO, type: FabricModi
   fieldId: string): PatternDocumentDTO {
   const current = fabricFieldModifier(dto, type)
   if (!current?.enabled) throw new Error('请先启用 Fabric Modifier。')
-  if (!availableFabricFields(dto).some((field) => field.id === fieldId))
+  if (!availableFabricFields(dto, type).some((field) => field.id === fieldId))
     throw new Error('Fabric 参数场引用无效。')
   return current.field_id === fieldId ? dto : changed(dto, type, { ...current, field_id: fieldId })
 }

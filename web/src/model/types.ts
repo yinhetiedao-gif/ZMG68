@@ -40,7 +40,7 @@ export interface PatternDocumentDTO {
   document_id: string
   document_revision: number
   document: PatternDocument
-  assets: []
+  assets: { role: string; asset_id: string; media_type: string }[]
 }
 
 export interface BoundsMM {

@@ -6,7 +6,7 @@ import { fabricBase } from '../document/fabricBase'
 export type ManufacturingStatus = 'idle' | 'building' | 'ready' | 'warning' | 'error' | 'stale'
 type BuildState = { key: string | null; status: ManufacturingStatus; result: ManufacturingBuildResult | null; error: string | null }
 
-export function useManufacturing(dto: PatternDocumentDTO | null) {
+export function useManufacturing(dto: PatternDocumentDTO | null, fetcher: typeof fetch = fetch) {
   const [heightText, setHeightText] = useState('2.0')
   const [buildState, setBuildState] = useState<BuildState>({ key: null, status: 'idle', result: null, error: null })
   const controller = useRef<AbortController | null>(null)
@@ -42,7 +42,7 @@ export function useManufacturing(dto: PatternDocumentDTO | null) {
     const sequence = ++requestSequence.current
     setBuildState({ key, status: 'building', result: null, error: null })
     try {
-      const response = await buildManufacturing(dto, heightMm, next.signal)
+      const response = await buildManufacturing(dto, heightMm, next.signal, fetcher)
       if (next.signal.aborted || sequence !== requestSequence.current || keyRef.current !== key) return
       const warning = response.component_count > 1 || response.warnings.length > 0
         || response.geometry_validation_summary.warning_count > 0
@@ -52,7 +52,7 @@ export function useManufacturing(dto: PatternDocumentDTO | null) {
       if (next.signal.aborted || sequence !== requestSequence.current || keyRef.current !== key) return
       setBuildState({ key, status: 'error', result: null, error: error instanceof Error ? error.message : '制造检查失败。' })
     }
-  }, [dto, heightMm, key, validHeight])
+  }, [dto, heightMm, key, validHeight, fetcher])
 
   return { heightText: base ? String(base.thickness_mm) : heightText, setHeightText, validHeight, status, result, isCurrentResult,
     error: status === 'stale' ? null : buildState.error, build }

@@ -24,6 +24,19 @@ const dto = { schema_version: '1.0', document_id: 'f3', document_revision: 4, as
   } } as PatternDocumentDTO
 
 describe('F3 Fabric field binding', () => {
+  it('allows image consumers but keeps image-derived Orientation out of F4-A', () => {
+    const composed = structuredClone(dto)
+    composed.document.fields.push({ id: 'image-composite', type: 'composite', parameters: {
+      input_a_field_id: 'image', input_b_field_id: 'wave', operator: 'multiply' } })
+    expect(availableFabricFields(composed, 'height').map(f => f.id)).toContain('image-composite')
+    expect(availableFabricFields(composed, 'orientation').map(f => f.id)).toEqual(['wave', 'linear'])
+    const orientation = setFabricModifierEnabled(composed, 'orientation', true, catalog)
+    expect(() => setFabricModifierField(orientation, 'orientation', 'image')).toThrow()
+    const height = setFabricModifierField(setFabricModifierEnabled(dto, 'height', true, catalog), 'height', 'image')
+    const scale = setFabricModifierField(setFabricModifierEnabled(height, 'scale', true, catalog), 'scale', 'image')
+    expect(fabricFieldModifier(scale, 'height')?.field_id).toBe('image')
+    expect(fabricFieldModifier(scale, 'scale')?.field_id).toBe('image')
+  })
   it('allows one shared field to drive multiple modifiers without mutating input', () => {
     const height = setFabricModifierEnabled(dto, 'height', true, catalog)
     const scale = setFabricModifierEnabled(height, 'scale', true, catalog)
@@ -31,7 +44,7 @@ describe('F3 Fabric field binding', () => {
     expect(fabricFieldModifier(scale, 'height')).toMatchObject({ field_id: 'wave', min_height_mm: 1 })
     expect(fabricFieldModifier(scale, 'scale')).toMatchObject({ field_id: 'wave', max_scale: 1.5 })
     expect(dto.document.metadata.fabric_config).not.toHaveProperty('field_modifiers')
-    expect(availableFabricFields(dto).map((field) => field.id)).toEqual(['wave', 'linear'])
+    expect(availableFabricFields(dto).map((field) => field.id)).toEqual(['wave', 'linear', 'image'])
     expect(() => removeField(scale, 'wave')).toThrow(/Fabric/)
   })
 

@@ -59,13 +59,13 @@ export function updateField(dto: PatternDocumentDTO, id: string, key: string, va
     if (field.id !== id) return field
     found = true
     const type = String(field.type)
-    if (type === 'image' || type === 'composite' || (!FIELD_SPECS[type] && !groupFor(catalog, 'field', type))) throw new DocumentEditError('此参数场目前只读。')
+    if (type === 'composite' || (!FIELD_SPECS[type] && !groupFor(catalog, 'field', type))) throw new DocumentEditError('此参数场目前只读。')
     const parameters = asRecord(field.parameters) ?? {}
     if (key === 'invert') {
-      if (typeof value !== 'boolean' || !('invert' in parameters)) throw new DocumentEditError('该场不支持反转。')
+      if (typeof value !== 'boolean' || (!('invert' in parameters) && type !== 'image')) throw new DocumentEditError('该场不支持反转。')
       catalogValue(catalog, 'field', type, key, value)
     } else {
-      if (!(key in parameters)) throw new DocumentEditError('该参数不存在。')
+      if (!(key in parameters) && type !== 'image') throw new DocumentEditError('该参数不存在。')
       if (!catalogValue(catalog, 'field', type, key, value)) {
         if (typeof value !== 'number') throw new DocumentEditError('该参数需要数字。')
         numeric(value, key, FIELD_SPECS[type])
@@ -79,6 +79,11 @@ export function updateField(dto: PatternDocumentDTO, id: string, key: string, va
     // Python's SpiralField stores direction as ±1; its UI schema presents
     // these as two choices without changing the persisted numeric model.
     const stored = type === 'spiral' && key === 'direction' ? Number(value) : value
+    if (type === 'image') {
+      const next = { ...parameters, [key]: stored }
+      if (Number(next.white_point ?? 1) <= Number(next.black_point ?? 0))
+        throw new DocumentEditError('图片场白场必须大于黑场。')
+    }
     return { ...field, parameters: { ...parameters, [key]: stored } }
   })
   if (!found) throw new DocumentEditError('参数场不存在。')
@@ -90,18 +95,24 @@ export function addField(dto: PatternDocumentDTO, type: string, catalog: Paramet
   dto: PatternDocumentDTO; id: string
 } {
   const group = groupFor(catalog, 'field', type)
-  if (!group || type === 'image' || type === 'composite') throw new DocumentEditError('此参数场暂不能从网页创建。')
-  const parameters: Record<string, number | boolean> = {}
+  if (!group || type === 'composite') throw new DocumentEditError('此参数场暂不能从网页创建。')
+  const parameters: Record<string, number | boolean | string | number[]> = {}
   for (const definition of group.parameters) {
     if (!validateParameter(definition, definition.default)) throw new DocumentEditError('Python 参数场默认值无效。')
     const value = definition.default
     parameters[definition.id] = type === 'spiral' && definition.id === 'direction'
-      ? Number(value) : value as number | boolean
+      ? Number(value) : value
   }
   const existing = new Set(dto.document.fields.map((field) => String(field.id)))
   let index = 1
   while (existing.has(`field-${index}`)) index++
   const id = `field-${index}`
+  if (type === 'image') {
+    const canvas = dto.document.canvas
+    parameters.sample_bounds = [canvas.origin_x ?? 0, canvas.origin_y ?? 0,
+      (canvas.origin_x ?? 0) + canvas.width, (canvas.origin_y ?? 0) + canvas.height]
+    parameters.image_path = ''
+  }
   return { id, dto: changed(dto, { ...dto.document,
     fields: [...dto.document.fields, { id, type, parameters, enabled: true }],
   }) }
@@ -126,7 +137,8 @@ export function removeField(dto: PatternDocumentDTO, id: string): PatternDocumen
   if (dto.document.fields.some((item) => item.type === 'composite' &&
       Object.values(asRecord(item.parameters) ?? {}).some((value) => value === id)))
     throw new DocumentEditError('该参数场仍被组合场引用，不能删除。')
-  return changed(dto, { ...dto.document, fields: dto.document.fields.filter((item) => item.id !== id) })
+  return { ...changed(dto, { ...dto.document, fields: dto.document.fields.filter((item) => item.id !== id) }),
+    assets: dto.assets.filter((item) => item.role !== `field:${id}`) }
 }
 
 export function bindScalarModifierField(dto: PatternDocumentDTO, modifierId: string, fieldId: string): PatternDocumentDTO {
