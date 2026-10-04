@@ -226,9 +226,10 @@ class ImageFabricF4ATests(unittest.TestCase):
             self.assertTrue(mesh.is_watertight)
             self.assertAlmostEqual(mesh.extents[2], 2)
 
-    def test_image_orientation_is_not_silently_enabled_in_f4a(self):
+    def test_image_value_orientation_is_explicitly_supported_in_f4b(self):
         doc = image_document(self.path)
         doc.metadata['fabric_config']['field_modifiers'] = {
             'orientation': {'enabled': True, 'field_id': 'image', 'min_angle_deg': 0, 'max_angle_deg': 90}}
-        with self.assertRaisesRegex(ValueError, 'F4-B'):
-            run_preview(doc)
+        result = run_preview(doc)
+        self.assertEqual(result['instances'][0]['rotation_deg'], 0)
+        self.assertEqual(max(item['rotation_deg'] for item in result['instances']), 90)

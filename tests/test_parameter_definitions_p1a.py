@@ -13,7 +13,7 @@ class ParameterDefinitionTests(unittest.TestCase):
         definitions = catalog["definitions"]
         self.assertEqual(set(definitions["layout"]), {"free", "grid", "radial", "along_curve"})
         self.assertEqual(set(definitions["field"]), {
-            "constant", "linear", "ring", "wave", "stripe", "checker", "spiral", "noise", "image"})
+            "constant", "linear", "ring", "wave", "stripe", "checker", "spiral", "noise", "image", "distance"})
         self.assertEqual(set(definitions["modifier"]), {"size", "rotation", "position"})
         for category in definitions.values():
             for group in category.values():

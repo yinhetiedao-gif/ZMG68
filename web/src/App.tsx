@@ -544,7 +544,7 @@ export function App() {
         const added = addField(dto, action.fieldType, parameterCatalog)
         next = added.dto
         const source = sourceAssetRef.current
-        if (action.fieldType === 'image' && source && ['image/png', 'image/jpeg'].includes(source.media_type)) {
+        if (['image', 'distance'].includes(action.fieldType) && source && ['image/png', 'image/jpeg'].includes(source.media_type)) {
           const token = `image-${crypto.randomUUID()}`
           imageSourcesRef.current = { ...imageSourcesRef.current, [token]: source }
           next = bindImageSource(next, added.id, token, source.media_type, false)

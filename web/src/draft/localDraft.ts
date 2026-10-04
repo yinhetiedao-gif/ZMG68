@@ -67,7 +67,7 @@ export function validateDraftDocument(dto: unknown): asserts dto is PatternDocum
       || !doc.metadata || !Array.isArray(value.assets) || value.assets.some((asset) =>
         typeof asset.asset_id !== 'string' || !asset.asset_id ||
         !['image/png', 'image/jpeg'].includes(asset.media_type) ||
-        !doc.fields.some((field) => field.type === 'image' && asset.role === `field:${field.id}`))) {
+        !doc.fields.some((field) => ['image', 'distance'].includes(String(field.type)) && asset.role === `field:${field.id}`))) {
     throw new LocalDraftError('本地草稿与当前项目协议不兼容。')
   }
   const ids = new Set<string>()

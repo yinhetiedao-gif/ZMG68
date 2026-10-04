@@ -86,6 +86,11 @@ def parameter_definitions() -> dict[str, Any]:
             ]},
         },
         "field": {
+            "distance": {"label": "距离场", "parameters": [
+                _p("threshold", "遮罩阈值", "number", .5, min=0, max=1, step=.01), invert,
+                _p("auto_normalize", "自动归一化", "boolean", True),
+                _size("max_distance_mm", "最大距离", 10) | {"description": "关闭自动归一化时使用的毫米距离上限。"},
+            ]},
             "image": {"label": "图片场", "parameters": [
                 _p("black_is_one", "黑色为 1（白色为 0）", "boolean", True), invert,
                 _p("sampling_mode", "采样模式", "select", "grayscale", options=[
@@ -223,6 +228,11 @@ def parameter_definitions() -> dict[str, Any]:
                     "slider_min": 0, "slider_max": 1, "slider_step": 0.01},
             ]},
             "orientation": {"label": "Z 方向", "parameters": [
+                _p("direction_mode", "方向模式", "select", "value", options=[
+                    {"value": "value", "label": "数值 Value"}, {"value": "gradient", "label": "梯度 Gradient"}]),
+                _p("alignment", "对齐方式", "select", "normal", options=[
+                    {"value": "normal", "label": "法向 Normal"}, {"value": "tangent", "label": "切向 Tangent"}]),
+                angle("angle_offset_deg", "角度偏移"),
                 _p("min_angle_deg", "最小角度", "number", -45, min=-360, max=360, step=1, unit="°") | {
                     "slider_min": -180, "slider_max": 180, "slider_step": 1},
                 _p("max_angle_deg", "最大角度", "number", 45, min=-360, max=360, step=1, unit="°") | {

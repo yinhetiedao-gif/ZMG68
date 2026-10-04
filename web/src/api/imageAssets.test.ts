@@ -16,6 +16,25 @@ const response = (body: unknown, status = 200) => new Response(JSON.stringify(bo
 const body = () => ({ method: 'POST', body: JSON.stringify({ document: project(), document_revision: 1 }) })
 
 describe('ImageField asset lifecycle', () => {
+  it('restores Distance Field with the same Blob/reupload path and unchanged revision', async () => {
+    const dto = project()
+    dto.document.fields[0].type = 'distance'
+    dto.document.fields[0].parameters = { image_path: '', sample_bounds: [0, 0, 60, 60],
+      threshold: .5, invert: false, auto_normalize: true, max_distance_mm: 10 }
+    await saveDraft(dto, 'example', null, { pending_layout: null, example_session_active: false, image_sources: sources() })
+    const restored = await loadDraft()
+    expect(restored?.dto).toEqual(dto)
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(response({ asset_id: 'expired' }))
+      .mockResolvedValueOnce(response({ code: 'unresolved_asset' }, 422))
+      .mockResolvedValueOnce(response({ asset_id: 'fresh' })).mockResolvedValueOnce(response({ ok: true }))
+    const before = structuredClone(dto)
+    const result = await imageAssetFetcher(() => restored!.image_sources!, fetcher)('/api/v1/fabric/preview', {
+      method: 'POST', body: JSON.stringify({ document: bindImageSource(dto, 'image', 'browser-token', 'image/png', false) }) })
+    expect(result.ok).toBe(true)
+    expect(dto).toEqual(before)
+    expect(fetcher).toHaveBeenCalledTimes(4)
+    await clearDraft()
+  })
   it('uploads once for repeated evaluate/preview requests without mutating the design or revision', async () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(response({ asset_id: 'server-1' }))
       .mockResolvedValueOnce(response({ ok: true })).mockResolvedValueOnce(response({ ok: true }))

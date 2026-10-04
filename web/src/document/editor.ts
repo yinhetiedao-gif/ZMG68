@@ -62,10 +62,10 @@ export function updateField(dto: PatternDocumentDTO, id: string, key: string, va
     if (type === 'composite' || (!FIELD_SPECS[type] && !groupFor(catalog, 'field', type))) throw new DocumentEditError('此参数场目前只读。')
     const parameters = asRecord(field.parameters) ?? {}
     if (key === 'invert') {
-      if (typeof value !== 'boolean' || (!('invert' in parameters) && type !== 'image')) throw new DocumentEditError('该场不支持反转。')
+      if (typeof value !== 'boolean' || (!('invert' in parameters) && !['image', 'distance'].includes(type))) throw new DocumentEditError('该场不支持反转。')
       catalogValue(catalog, 'field', type, key, value)
     } else {
-      if (!(key in parameters) && type !== 'image') throw new DocumentEditError('该参数不存在。')
+      if (!(key in parameters) && !['image', 'distance'].includes(type)) throw new DocumentEditError('该参数不存在。')
       if (!catalogValue(catalog, 'field', type, key, value)) {
         if (typeof value !== 'number') throw new DocumentEditError('该参数需要数字。')
         numeric(value, key, FIELD_SPECS[type])
@@ -107,7 +107,7 @@ export function addField(dto: PatternDocumentDTO, type: string, catalog: Paramet
   let index = 1
   while (existing.has(`field-${index}`)) index++
   const id = `field-${index}`
-  if (type === 'image') {
+  if (['image', 'distance'].includes(type)) {
     const canvas = dto.document.canvas
     parameters.sample_bounds = [canvas.origin_x ?? 0, canvas.origin_y ?? 0,
       (canvas.origin_x ?? 0) + canvas.width, (canvas.origin_y ?? 0) + canvas.height]

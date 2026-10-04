@@ -1,5 +1,15 @@
 # Gate 状态（2026-10-04）
 
+## F4-B Distance Field & Gradient Orientation（2026-10-04）
+
+- **PASS（本地定向及生产构建真实浏览器验收）**。从 `7d0afef3bd0802d8c9087f54d7106b315f3d7cc7` / `backup/f4a-image-driven-fabric-final` 实施；保护引用 `backup/pre-f4b-distance-orientation`，稳定冻结引用 `backup/f4b-distance-orientation-final`。
+- Distance 复用 ImageField / 资产边界 / UV，按 world mm 求内部边界距离，外部始终 0；支持 threshold、invert、自动归一化或毫米上限。缓存距离栅格，不按实例重复计算，未新增依赖。
+- Orientation 保留 Value，新增 Gradient + Normal/Tangent + offset；平坦梯度保留原旋转。Pattern Points 的 Final Geometry 位置/比例/旋转继承与 Fabric 变换只组合一次。共享参数输出仍是 scalar 0..1。
+- 圆形中心/反转边缘、环形 Fin 切线/法线、Height/Scale/Gradient 组合、Pattern Points、刷新 Blob 重传均通过。生产页面使用既有示例和真实图片上传，Generic Renderer 正常、64 实例可见、无致命 Console 错误。
+- 受影响 Python 两组分别 **116 PASS + 67 子测试**、**43 PASS**，其中 12 重叠，总计 **147 不重复测试**；Web **173/173 PASS**，production build PASS。普通制造/API/STL 回归通过；未运行无关全量 Tk 回归。
+- 400/1000/5000 实例 Python 暖缓存中位数 **12.75/30.34/147.15 ms**；浏览器暖预览 **94/88/126 ms**。完整阶段、冷缓存及边界分辨率限制见 `docs/F4B_DISTANCE_ORIENTATION.md`，阶段含嵌套关系不能相加。
+- 未部署 Render；已有 bundle/TestClient warning 保留。未改 MeshValidator 或制造几何、未实现 Fabric 最终 STL、未进入 F5。
+
 ## F4-A Image Driven Fabric（2026-10-04）
 
 - 状态：**PASS（本地定向与真实浏览器验收）**。稳定基线 `2c9caa76f2973852d99175b4c106ac5b55b8a63b` / `backup/p2d-ui-polish-final`；分支 `feature/f4-image-driven-fabric`，预变更保护 `backup/pre-f4a-image-driven-fabric`。未部署 Render，未进入 F4-B/F5；Fabric 最终制造/STL 仍关闭。

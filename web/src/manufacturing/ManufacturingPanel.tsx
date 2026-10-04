@@ -149,7 +149,10 @@ export function ManufacturingPanel(props: Props) {
                   onChange={(event) => props.onFabricModifierField(type, event.target.value)}>
                   {modifierFields.map((field) => <option key={field.id} value={field.id}>{field.id} · {field.type}</option>)}
                 </select>
-                {group && <ParameterPanel group={group} values={{ ...modifier }}
+                {group && <ParameterPanel group={{ ...group, parameters: group.parameters.filter((parameter) =>
+                  type !== 'orientation' || parameter.id === 'direction_mode' || parameter.id === 'angle_offset_deg' ||
+                  ((modifier.direction_mode ?? 'value') === 'gradient' ? parameter.id === 'alignment' : parameter.id !== 'alignment')) }}
+                  values={{ ...Object.fromEntries(group.parameters.map((parameter) => [parameter.id, parameter.default])), ...modifier }}
                   onCommit={(key, value) => props.onFabricModifierParameter(type, key, value)} />}
               </>}
             </section>

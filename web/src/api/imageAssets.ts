@@ -52,7 +52,7 @@ export function imageAssetFetcher(getSources: () => ImageSources, fetcher: typeo
 
 export function bindImageSource(dto: PatternDocumentDTO, fieldId: string, token: string,
   mediaType: string, increment = true): PatternDocumentDTO {
-  if (!dto.document.fields.some((field) => field.id === fieldId && field.type === 'image'))
+  if (!dto.document.fields.some((field) => field.id === fieldId && ['image', 'distance'].includes(String(field.type))))
     throw new Error('图片场不存在。')
   if (!['image/png', 'image/jpeg'].includes(mediaType)) throw new Error('图片场只支持 PNG/JPG，不支持 SVG。')
   return { ...dto, document_revision: dto.document_revision + (increment ? 1 : 0), assets: [

@@ -18,7 +18,7 @@ from .shared_fields import CompositeField, FieldContext, FieldRegistry, ImageFie
 
 MODIFIER_TYPES = ("height", "scale", "density", "orientation")
 ALLOWED_FIELD_TYPES = frozenset(("constant", "linear", "wave", "ring", "stripe",
-                                 "checker", "spiral", "noise", "composite", "image"))
+                                 "checker", "spiral", "noise", "composite", "image", "distance"))
 
 
 def _number(raw: Mapping[str, Any], key: str, *, positive: bool = False,
@@ -34,15 +34,13 @@ def _number(raw: Mapping[str, Any], key: str, *, positive: bool = False,
 
 
 def _check_field(registry: FieldRegistry, field_id: str,
-                 seen: frozenset[str] = frozenset(), *, allow_image: bool = True) -> None:
+                 seen: frozenset[str] = frozenset()) -> None:
     if field_id in seen:
         raise ValueError("Fabric 组合场存在循环引用。")
     field = registry.get(field_id)
     kind = field.to_dict()["type"]
     if kind not in ALLOWED_FIELD_TYPES:
         raise ValueError(f"Fabric 预览暂不支持 {kind} 参数场。")
-    if isinstance(field, ImageField) and not allow_image:
-        raise ValueError("图片驱动方向留待 F4-B；当前图片场只支持高度、比例和密度。")
     if isinstance(field, ImageField) and not field.available():
         raise ValueError("图片场源图片失效，请重新上传或恢复本地草稿。")
     if isinstance(field, ImageField):
@@ -55,7 +53,7 @@ def _check_field(registry: FieldRegistry, field_id: str,
                 registry.get(child)
             except ValueError:
                 continue
-            _check_field(registry, child, seen | {field_id}, allow_image=allow_image)
+            _check_field(registry, child, seen | {field_id})
 
 
 def apply_fabric_field_modifiers(plan: FabricInstancePlan, document,
@@ -83,6 +81,11 @@ def apply_fabric_field_modifiers(plan: FabricInstancePlan, document,
             lo, hi = _number(item, "min_scale", positive=True), _number(item, "max_scale", positive=True)
         elif kind == "orientation":
             lo, hi = _number(item, "min_angle_deg"), _number(item, "max_angle_deg")
+            if item.get("direction_mode", "value") not in ("value", "gradient"):
+                raise ValueError("Fabric 方向模式无效。")
+            if item.get("alignment", "normal") not in ("normal", "tangent"):
+                raise ValueError("Fabric 梯度对齐方式无效。")
+            _number({"angle_offset_deg": item.get("angle_offset_deg", 0)}, "angle_offset_deg")
         else:
             _number(item, "threshold", unit_interval=True)
             lo = hi = 0.0
@@ -95,20 +98,24 @@ def apply_fabric_field_modifiers(plan: FabricInstancePlan, document,
     fields = deepcopy(document.fields)
     factor = document.canvas.mm_per_unit or 1.0
     for field in fields:
-        if field.get("type") == "image":
+        if field.get("type") in ("image", "distance"):
             parameters = field.setdefault("parameters", {})
             if not parameters.get("image_path"):
                 parameters["image_path"] = document.reference.source_path
             if parameters.get("sample_bounds") is not None:
                 parameters["sample_bounds"] = [value * factor for value in parameters["sample_bounds"]]
     registry = FieldRegistry.from_list(fields)
-    for kind, (field_id, _) in active.items():
-        _check_field(registry, field_id, allow_image=kind != "orientation")
+    for field_id, _ in active.values():
+        _check_field(registry, field_id)
     elements = [Element(item.id, "rect", item.x_mm, item.y_mm, 1.0, 1.0)
                 for item in plan.instances]
     context = FieldContext.from_elements(elements)
     values = {field_id: tuple(registry.evaluate(field_id, item, context) for item in elements)
               for field_id in {field_id for field_id, _ in active.values()}}
+    directions = None
+    if "orientation" in active and active["orientation"][1].get("direction_mode", "value") == "gradient":
+        from .field_gradient import gradient_angles
+        directions = gradient_angles(registry, active["orientation"][0], elements, context)
     derived = []
     for index, item in enumerate(plan.instances):
         height, scale, rotation, enabled = item.height_mm, item.scale, item.rotation_deg, item.enabled
@@ -120,7 +127,11 @@ def apply_fabric_field_modifiers(plan: FabricInstancePlan, document,
             scale *= config["min_scale"] + (config["max_scale"] - config["min_scale"]) * values[field_id][index]
         if "orientation" in active:
             field_id, config = active["orientation"]
-            rotation += config["min_angle_deg"] + (config["max_angle_deg"] - config["min_angle_deg"]) * values[field_id][index]
+            if directions is None:
+                rotation += config["min_angle_deg"] + (config["max_angle_deg"] - config["min_angle_deg"]) * values[field_id][index]
+                rotation += config.get("angle_offset_deg", 0)
+            elif directions[index] is not None:
+                rotation += directions[index] + (90 if config.get("alignment", "normal") == "tangent" else 0) + config.get("angle_offset_deg", 0)
         if "density" in active:
             field_id, config = active["density"]
             enabled = enabled and values[field_id][index] >= config["threshold"]

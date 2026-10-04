@@ -454,6 +454,64 @@ class ImageField:
 
 
 @dataclass(frozen=True)
+class DistanceField(ImageField):
+    """Image-backed interior distance scalar; source loading is ImageField's."""
+    max_distance_mm: float = 10.0
+    auto_normalize: bool = True
+    world_mm_per_unit: float = 1.0
+    _distance_pixels: tuple | None = runtime_field(default=None, init=False, repr=False, compare=False)
+    _distance_bounds: tuple | None = runtime_field(default=None, init=False, repr=False, compare=False)
+
+    def __post_init__(self):
+        super().__post_init__()
+        if type(self.auto_normalize) is not bool:
+            raise ValueError("距离场自动归一化必须是布尔值。")
+        for name in ("max_distance_mm", "world_mm_per_unit"):
+            if type(getattr(self, name)) not in (int, float):
+                raise ValueError("距离场距离及世界毫米比例必须是数字。")
+            value = _finite(getattr(self, name))
+            if value <= 0:
+                raise ValueError("距离场距离及世界毫米比例必须大于 0。")
+            object.__setattr__(self, name, value)
+
+    def prepare_distance(self, bounds):
+        from .distance_raster import distance_raster
+        if self._distance_pixels is not None and self._distance_bounds == bounds:
+            return
+        if self._prepared_pixels is None:
+            self.prepare_sampling()
+        world = tuple(value*self.world_mm_per_unit for value in bounds)
+        result = distance_raster(self._prepared_pixels, world, self.threshold,
+                                 0 if self.auto_normalize else self.max_distance_mm, self.invert)
+        object.__setattr__(self, "_distance_pixels", result)
+        object.__setattr__(self, "_distance_bounds", bounds)
+
+    def evaluate(self, element, context):
+        bounds = self.sample_bounds or context.bounds
+        self.prepare_distance(bounds)
+        x0, y0, x1, y1 = bounds
+        u, v = (element.x-x0)/max(x1-x0, 1e-9), (element.y-y0)/max(y1-y0, 1e-9)
+        if not 0 <= u <= 1 or not 0 <= v <= 1:
+            return 0.0
+        width, height, pixels, mask = self._distance_pixels
+        x, y = u*(width-1), v*(height-1)
+        if not mask[min(int(y+.5), height-1)*width+min(int(x+.5), width-1)]:
+            return 0.0
+        left, top = int(x), int(y)
+        right, bottom = min(left+1, width-1), min(top+1, height-1)
+        tx, ty = x-left, y-top
+        value = ((pixels[top*width+left]*(1-tx)+pixels[top*width+right]*tx)*(1-ty)
+                 +(pixels[bottom*width+left]*(1-tx)+pixels[bottom*width+right]*tx)*ty)
+        return _unit(1-float(value) if self.invert else float(value))
+
+    def to_dict(self):
+        return {"id": self.id, "type": "distance", "parameters": {
+            "image_path": self.image_path, "sample_bounds": self.sample_bounds,
+            "threshold": self.threshold, "invert": self.invert,
+            "auto_normalize": self.auto_normalize, "max_distance_mm": self.max_distance_mm}}
+
+
+@dataclass(frozen=True)
 class StripeField:
     """Periodic banded scalar field with an optional soft edge."""
 
@@ -701,7 +759,7 @@ class FieldRegistry:
         constructors = {"constant": ConstantField, "linear": LinearField, "ring": RingField,
                         "wave": WaveField, "stripe": StripeField, "checker": CheckerField,
                         "spiral": SpiralField, "image": ImageField, "noise": NoiseField,
-                        "composite": CompositeField}
+                        "composite": CompositeField, "distance": DistanceField}
         fields = []
         for raw in payload:
             constructor = constructors.get(raw.get("type"))

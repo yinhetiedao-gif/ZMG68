@@ -43,7 +43,7 @@ function NumericControl({ spec, value, onCommit, unit: explicitUnit }: {
 const fieldLabel: Record<string, string> = {
   constant: '固定场', linear: '线性场', ring: '环形场', wave: '波浪场',
   stripe: '条纹场', checker: '棋盘场', spiral: '螺旋场', noise: '有机噪声',
-  image: '图片场', composite: '组合场',
+  image: '图片场', distance: '距离场', composite: '组合场',
 }
 const modifierLabel: Record<string, string> = {
   size: '尺寸', rotation: '旋转', position: '位置/变形', field_position: '场位移', density: '密度',
@@ -168,10 +168,12 @@ export function InspectorControls({ dto, selected, onEdit, disabled, parameterCa
           <label className="parameter-toggle"><input type="checkbox" checked={activeField.enabled !== false}
             onChange={(event) => onEdit({ kind: 'field_enabled', id: String(activeField.id), enabled: event.target.checked })} />启用参数场</label>
           <button type="button" className="ui-danger" onClick={() => onEdit({ kind: 'field_remove', id: String(activeField.id) })}>删除参数场</button>
-          {type === 'image' && <div className="image-field-source">
+          {['image', 'distance'].includes(type) && <div className="image-field-source">
             <p>源图片：{imageSourceNames[String(activeField.id)] ?? '未选择'}</p>
             <button type="button" onClick={() => onEdit({ kind: 'image_source', id: String(activeField.id) })}>选择图片场 PNG/JPG</button>
-            <p className="inspector-readonly">按图像世界范围采样；不随缩放/平移变化。可同时绑定 Fabric 高度、比例和密度。</p>
+            <p className="inspector-readonly">{type === 'distance'
+              ? '前景边缘为 0，内部按毫米距离增大；反转不改变背景 0。可绑定高度、比例、密度和梯度方向。'
+              : '按图像世界范围采样；不随缩放/平移变化。可同时绑定 Fabric 高度、比例、密度和方向。'}</p>
           </div>}
           {controls ?? (group ? <ParameterPanel key={String(activeField.id)} group={group}
             values={type === 'image' ? { ...Object.fromEntries(group.parameters.map((item) => [item.id, item.default])),

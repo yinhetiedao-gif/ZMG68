@@ -197,7 +197,7 @@ class PatternDocumentDTO:
                            "media_type": "image/svg+xml"})
             payload["metadata"]["source_svg"] = ""
         for index, field in enumerate(payload.get("fields", [])):
-            if field.get("type") == "image":
+            if field.get("type") in ("image", "distance"):
                 parameters = field.get("parameters", {})
                 path = parameters.get("image_path", "")
                 if path:
@@ -248,7 +248,7 @@ class PatternDocumentDTO:
                 payload["metadata"]["source_svg"] = path
             elif role.startswith("field:"):
                 field_id = role[6:]
-                matches = [field for field in payload.get("fields", []) if field.get("id") == field_id and field.get("type") == "image"]
+                matches = [field for field in payload.get("fields", []) if field.get("id") == field_id and field.get("type") in ("image", "distance")]
                 if len(matches) != 1:
                     raise ContractError("invalid_document", "图片场资产引用无法对应唯一 Field。")
                 matches[0]["parameters"]["image_path"] = path
@@ -470,7 +470,7 @@ class ManufacturingBuildResponseDTO:
             elif asset["role"].startswith("field:"):
                 field_id = asset["role"][6:]
                 for field in snapshot.get("fields", []):
-                    if field.get("id") == field_id and field.get("type") == "image":
+                    if field.get("id") == field_id and field.get("type") in ("image", "distance"):
                         field["parameters"]["image_path"] = ""
         if _safe(snapshot) != document_dto.document:
             raise ContractError("stale_revision", "制造结果与指定文档内容不一致。")

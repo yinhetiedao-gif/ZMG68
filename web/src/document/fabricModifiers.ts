@@ -9,21 +9,12 @@ export interface FabricFieldModifier {
   [key: string]: ParameterValue
 }
 export const fabricModifierTypes: FabricModifierType[] = ['height', 'scale', 'density', 'orientation']
-const supportedFields = new Set(['constant', 'linear', 'wave', 'ring', 'stripe', 'checker', 'spiral', 'noise', 'composite', 'image'])
+const supportedFields = new Set(['constant', 'linear', 'wave', 'ring', 'stripe', 'checker', 'spiral', 'noise', 'composite', 'image', 'distance'])
 
 export function availableFabricFields(dto: PatternDocumentDTO | null, modifierType?: FabricModifierType): { id: string; type: string }[] {
-  const containsImage = (id: string, seen = new Set<string>()): boolean => {
-    if (seen.has(id)) return false
-    seen.add(id)
-    const field = dto?.document.fields.find((item) => item.id === id)
-    if (field?.type === 'image') return true
-    if (field?.type !== 'composite') return false
-    const parameters = field.parameters as Record<string, unknown> | undefined
-    return ['input_a_field_id', 'input_b_field_id'].some((key) => containsImage(String(parameters?.[key]), seen))
-  }
+  void modifierType
   return dto?.document.fields.filter((raw) => typeof raw.id === 'string' &&
-    typeof raw.type === 'string' && supportedFields.has(raw.type) &&
-    (modifierType !== 'orientation' || !containsImage(raw.id))).map((raw) =>
+    typeof raw.type === 'string' && supportedFields.has(raw.type)).map((raw) =>
       ({ id: raw.id as string, type: raw.type as string })) ?? []
 }
 
@@ -71,7 +62,7 @@ export function updateFabricModifier(dto: PatternDocumentDTO, type: FabricModifi
   const current = fabricFieldModifier(dto, type)
   if (!current?.enabled) throw new Error('请先启用 Fabric Modifier。')
   const definition = groupFor(catalog, 'fabric_modifier', type)?.parameters.find((item) => item.id === key)
-  if (!definition || !validateParameter(definition, value) || typeof value !== 'number')
+  if (!definition || !validateParameter(definition, value))
     throw new Error(`Fabric ${type} 参数 ${key} 无效。`)
   if (current[key] === value) return dto
   const next = { ...current, [key]: value }

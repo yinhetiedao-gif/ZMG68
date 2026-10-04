@@ -88,10 +88,12 @@ def field_engine_from_document(document: PatternDocument) -> SharedFieldEngine |
         if isinstance(raw, dict) and raw.get("field_id") in disabled:
             raw["enabled"] = False
     for raw in fields:
-        if isinstance(raw, dict) and raw.get("type") == "image":
+        if isinstance(raw, dict) and raw.get("type") in ("image", "distance"):
             parameters = raw.setdefault("parameters", {})
             if not parameters.get("image_path"):
                 parameters["image_path"] = document.reference.source_path
+            if raw.get("type") == "distance":
+                parameters["world_mm_per_unit"] = document.canvas.mm_per_unit or 1.0
     return SharedFieldEngine.from_dict({"version": 1, "fields": fields,
                                         "modifiers": modifiers})
 
