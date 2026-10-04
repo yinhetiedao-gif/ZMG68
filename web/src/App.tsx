@@ -30,7 +30,7 @@ import { setFabricUnitCellType, updateFabricUnitCell, setFabricPlacementMode } f
 import { setFabricModifierEnabled, setFabricModifierField, updateFabricModifier } from './document/fabricModifiers'
 import { applyFabricPreset } from './document/fabricPresets'
 import { clearDraft, loadBeforeExampleDraft, loadDraft, saveBeforeExampleDraft, saveDraft,
-  type LocalDraft, type SourceAssetDraft } from './draft/localDraft'
+  type DraftUiState, type LocalDraft, type SourceAssetDraft } from './draft/localDraft'
 import { createExampleDocument, exampleIdFromDocument, examples, type BuiltInExample, type ExampleId } from './examples/catalog'
 import { confirmUniformRealSize } from './document/realSize'
 
@@ -51,6 +51,12 @@ const modes: { id: WorkspaceMode; label: string; secondary: string }[] = [
   { id: 'manufacture', label: '② 检查制造', secondary: 'Manufacture' },
   { id: 'preview', label: '③ 预览与导出', secondary: '3D Preview' },
 ]
+
+function pendingLayoutFor(dto: PatternDocumentDTO, draft: LayoutDraft | null): LayoutDraft | null {
+  return draft && (draft.changed || draft.family !== currentLayoutFamily(dto)) &&
+    draft.sourceRevision === dto.document_revision &&
+    (draft.family === 'free' || draft.proposal?.document_id === dto.document_id) ? draft : null
+}
 
 function ExampleCard({ example, onOpen, disabled }: { example: BuiltInExample; onOpen: (id: ExampleId) => void; disabled: boolean }) {
   const capabilityLabel = { editable: '可编辑', standard_stl: '支持标准二维 STL', preview_only: '仅预览' }
@@ -77,11 +83,15 @@ export function App() {
   const [projectError, setProjectError] = useState<string | null>(null)
   const [exampleChooserOpen, setExampleChooserOpen] = useState(false)
   const [draftNotice, setDraftNotice] = useState<string | null>(null)
+  const [restoreNotice, setRestoreNotice] = useState<string | null>(null)
+  const [draftSaveStatus, setDraftSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const [activeExampleSession, setActiveExampleSession] = useState(false)
   const [restorableDraft, setRestorableDraft] = useState<LocalDraft | null>(null)
   const [preExampleDraft, setPreExampleDraft] = useState<LocalDraft | null>(null)
   const sourceAssetRef = useRef<SourceAssetDraft | null>(null)
   const draftTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const draftWrites = useRef<Promise<unknown>>(Promise.resolve())
+  const draftSaveSequence = useRef(0)
   const [mapping, setMapping] = useState<{ dto: PatternDocumentDTO; fileName: string; warnings: string[] } | null>(null)
   const [mappingValue, setMappingValue] = useState('')
   const [pendingPreview, setPendingPreview] = useState<{ id: string; dx: number; dy: number } | null>(null)
@@ -165,10 +175,18 @@ export function App() {
   }, [])
 
   const persistDraft = useCallback((dto: PatternDocumentDTO, fileName: string | null,
-    sourceAsset: SourceAssetDraft | null): Promise<LocalDraft> => {
-    const next = draftWrites.current.catch(() => undefined).then(() => saveDraft(dto, fileName, sourceAsset))
+    sourceAsset: SourceAssetDraft | null, uiState: DraftUiState): Promise<LocalDraft> => {
+    const sequence = ++draftSaveSequence.current
+    setDraftSaveStatus('saving')
+    const next = draftWrites.current.catch(() => undefined).then(() => saveDraft(dto, fileName, sourceAsset, uiState))
     draftWrites.current = next
-    return next
+    return next.then((saved) => {
+      if (sequence === draftSaveSequence.current) setDraftSaveStatus('saved')
+      return saved
+    }, (error: unknown) => {
+      if (sequence === draftSaveSequence.current) setDraftSaveStatus('error')
+      throw error
+    })
   }, [])
 
   useEffect(() => {
@@ -177,19 +195,39 @@ export function App() {
     if (!dto || project.evaluateStatus !== 'ready' || lastValidDocumentRef.current !== dto) return
     const fileName = project.fileName
     const sourceAsset = sourceAssetRef.current
+    const uiState: DraftUiState = { pending_layout: pendingLayoutFor(dto, layoutDraft),
+      example_session_active: activeExampleSession }
+    setDraftSaveStatus('saving')
     draftTimer.current = setTimeout(() => {
       draftTimer.current = null
-      void persistDraft(dto, fileName, sourceAsset).then(() => setDraftNotice(null))
+      void persistDraft(dto, fileName, sourceAsset, uiState).then(() => setDraftNotice(null))
         .catch((error: unknown) => setDraftNotice(error instanceof Error ? error.message : '本地草稿保存失败。'))
     }, 450)
     return () => { if (draftTimer.current) clearTimeout(draftTimer.current) }
-  }, [project.currentDocument, project.evaluateStatus, project.fileName, persistDraft])
+  }, [project.currentDocument, project.evaluateStatus, project.fileName, layoutDraft,
+    activeExampleSession, persistDraft])
+
+  useEffect(() => {
+    if (draftSaveStatus !== 'saving' && draftSaveStatus !== 'error') return
+    const guard = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = '' }
+    window.addEventListener('beforeunload', guard)
+    return () => window.removeEventListener('beforeunload', guard)
+  }, [draftSaveStatus])
 
   const saveBeforeReplacement = async () => {
     if (draftTimer.current) clearTimeout(draftTimer.current)
     draftTimer.current = null
-    const dto = lastValidDocumentRef.current
-    if (dto) await persistDraft(dto, project.fileName, sourceAssetRef.current)
+    const dto = project.currentDocument
+    if (!dto) return
+    if (project.evaluateStatus !== 'ready' || lastValidDocumentRef.current !== dto)
+      throw new Error('当前设计仍在计算或修改未完成，已取消切换。')
+    try {
+      await persistDraft(dto, project.fileName, sourceAssetRef.current, {
+        pending_layout: pendingLayoutFor(dto, layoutDraft), example_session_active: activeExampleSession,
+      })
+    } catch (error) {
+      throw new Error(`当前作品保存失败，已取消切换：${error instanceof Error ? error.message : '本地草稿无法写入。'}`)
+    }
   }
 
   const invalidatePatternAnalysis = useCallback(() => {
@@ -274,16 +312,25 @@ export function App() {
     })
   }, [invalidatePatternAnalysis, requestPatternAnalysis])
 
-  const acceptProject = (dto: PatternDocumentDTO, fileName: string, warnings: string[]) => {
+  const acceptProject = (dto: PatternDocumentDTO, fileName: string, warnings: string[], options: {
+    pendingLayout?: LayoutDraft | null; exampleSessionActive?: boolean; restored?: boolean
+  } = {}) => {
+    const pending = pendingLayoutFor(dto, options.pendingLayout ?? null)
     setRestorableDraft(null)
     lastValidDocumentRef.current = null
     setProjectError(null)
     ++layoutSequence.current
-    setSelectedFamily(currentLayoutFamily(dto))
+    setSelectedFamily(pending?.family ?? currentLayoutFamily(dto))
     setSelectedFieldId('')
-    setLayoutDraft(initialLayoutDraft(dto))
+    setLayoutDraft(pending ?? initialLayoutDraft(dto))
     setPreparingLayout(false)
     setMapping(null)
+    setActiveExampleSession(options.exampleSessionActive ?? false)
+    if (!options.exampleSessionActive) setPreExampleDraft(null)
+    setDraftSaveStatus(options.restored ? 'saved' : 'saving')
+    setRestoreNotice(options.restored ? pending
+      ? '已恢复上次编辑及未应用的布局参数。刷新后撤销历史不会保留。'
+      : '已恢复上次编辑。刷新后撤销历史不会保留。' : null)
     publishHistory({ past: [], future: [] })
     setBrowser((current) => ({ ...current, selectedElementIds: [], activeMode: 'design' }))
     runEvaluate(dto, { fileName, warnings, fitOnSuccess: true, analyzeDelayMs: 0 })
@@ -294,18 +341,21 @@ export function App() {
       if (project.currentDocument && (project.evaluateStatus !== 'ready' ||
           lastValidDocumentRef.current !== project.currentDocument)) throw new Error('当前设计仍在计算，请完成后再打开示例。')
       await saveBeforeReplacement()
-      const previous = project.currentDocument && !exampleIdFromDocument(project.currentDocument)
-        ? { dto: project.currentDocument, fileName: project.fileName, asset: sourceAssetRef.current }
-        : !project.currentDocument && restorableDraft
-          ? { dto: restorableDraft.dto, fileName: restorableDraft.file_name, asset: restorableDraft.source_asset }
+      const previous = !activeExampleSession && project.currentDocument && !exampleIdFromDocument(project.currentDocument)
+        ? { dto: project.currentDocument, fileName: project.fileName, asset: sourceAssetRef.current,
+          pending: pendingLayoutFor(project.currentDocument, layoutDraft) }
+        : !activeExampleSession && !project.currentDocument && restorableDraft
+          ? { dto: restorableDraft.dto, fileName: restorableDraft.file_name, asset: restorableDraft.source_asset,
+            pending: restorableDraft.pending_layout ?? null }
           : null
-      if (previous) setPreExampleDraft(await saveBeforeExampleDraft(previous.dto, previous.fileName, previous.asset))
+      if (previous) setPreExampleDraft(await saveBeforeExampleDraft(previous.dto, previous.fileName, previous.asset,
+        { pending_layout: previous.pending, example_session_active: false }))
       const identifier = globalThis.crypto?.randomUUID?.() ?? `example-${Date.now()}-${Math.random().toString(16).slice(2)}`
       const dto = createExampleDocument(id, identifier)
       const example = examples.find((item) => item.id === id)!
       sourceAssetRef.current = null
       setExampleChooserOpen(false)
-      acceptProject(dto, example.title, [])
+      acceptProject(dto, example.title, [], { exampleSessionActive: activeExampleSession || Boolean(previous) })
     } catch (error) {
       setProjectError(error instanceof Error ? error.message : '无法保存当前草稿，示例未打开。')
     }
@@ -356,9 +406,10 @@ export function App() {
     const file = event.dataTransfer.files[0]
     if (file) void openImage(file)
   }
-  const confirmMapping = () => {
+  const confirmMapping = async () => {
     if (!mapping) return
     try {
+      await saveBeforeReplacement()
       sourceAssetRef.current = null
       acceptProject(withMillimetreMapping(mapping.dto, Number(mappingValue)), mapping.fileName, mapping.warnings)
     } catch (error) {
@@ -377,6 +428,8 @@ export function App() {
   const commitDocument = (next: PatternDocumentDTO, before: PatternDocumentDTO, warnings?: string[]) => {
     if (next === before || project.evaluateStatus === 'idle') return
     const previousHistory = historyRef.current
+    const previousSaveStatus = draftSaveStatus
+    setDraftSaveStatus('saving')
     publishHistory({ past: [...previousHistory.past, before], future: [] })
     setProjectError(null)
     ++layoutSequence.current
@@ -385,6 +438,7 @@ export function App() {
     setPreparingLayout(false)
     runEvaluate(next, { rollback: before, warnings, onFailure: () => {
       publishHistory(previousHistory)
+      setDraftSaveStatus(previousSaveStatus)
       setSelectedFamily(currentLayoutFamily(before))
       setLayoutDraft(initialLayoutDraft(before))
     }, analyzeDelayMs: 400 })
@@ -516,13 +570,15 @@ export function App() {
     if (!dto || !canEditDocument || !history.past.length) return
     setProjectError(null)
     const before = history.past[history.past.length - 1]
+    const previousSaveStatus = draftSaveStatus
+    setDraftSaveStatus('saving')
     publishHistory({ past: history.past.slice(0, -1), future: [...history.future, dto] })
     const restored = restoreSnapshot(before, dto.document_revision)
     ++layoutSequence.current
     setSelectedFamily(currentLayoutFamily(restored))
     setLayoutDraft(initialLayoutDraft(restored))
     runEvaluate(restored, {
-      rollback: dto, onFailure: () => publishHistory(history),
+      rollback: dto, onFailure: () => { publishHistory(history); setDraftSaveStatus(previousSaveStatus) },
     })
   }
   const redo = () => {
@@ -531,13 +587,15 @@ export function App() {
     if (!dto || !canEditDocument || !history.future.length) return
     setProjectError(null)
     const after = history.future[history.future.length - 1]
+    const previousSaveStatus = draftSaveStatus
+    setDraftSaveStatus('saving')
     publishHistory({ past: [...history.past, dto], future: history.future.slice(0, -1) })
     const restored = restoreSnapshot(after, dto.document_revision)
     ++layoutSequence.current
     setSelectedFamily(currentLayoutFamily(restored))
     setLayoutDraft(initialLayoutDraft(restored))
     runEvaluate(restored, {
-      rollback: dto, onFailure: () => publishHistory(history),
+      rollback: dto, onFailure: () => { publishHistory(history); setDraftSaveStatus(previousSaveStatus) },
     })
   }
 
@@ -550,21 +608,28 @@ export function App() {
   const scale = project.currentDocument ? millimetresPerUnit(project.currentDocument.document) ?? 1 : 1
   const committedFamily = project.currentDocument ? currentLayoutFamily(project.currentDocument) : 'free'
   const interactionStatus = project.evaluateStatus === 'loading' ? 'Evaluating · 正在计算'
-    : parameterPending || canvasEditing || layoutDraft?.changed ? 'Editing · 待提交'
+    : parameterPending || canvasEditing || (project.currentDocument && pendingLayoutFor(project.currentDocument, layoutDraft))
+      ? 'Editing · 待提交'
       : project.evaluateError || projectError ? 'Error · 修改未完成，可重试或撤销'
         : 'Ready · 就绪'
 
   const restoreLocalDraft = () => {
     if (!restorableDraft) return
     sourceAssetRef.current = restorableDraft.source_asset
-    acceptProject(restorableDraft.dto, restorableDraft.file_name ?? '上次编辑', [])
+    acceptProject(restorableDraft.dto, restorableDraft.file_name ?? '上次编辑', [], {
+      pendingLayout: restorableDraft.pending_layout,
+      exampleSessionActive: restorableDraft.example_session_active,
+      restored: true,
+    })
   }
   const restorePreExampleDraft = async () => {
     if (!preExampleDraft) return
     try {
       await saveBeforeReplacement()
       sourceAssetRef.current = preExampleDraft.source_asset
-      acceptProject(preExampleDraft.dto, preExampleDraft.file_name ?? '示例前的作品', [])
+      acceptProject(preExampleDraft.dto, preExampleDraft.file_name ?? '示例前的作品', [], {
+        pendingLayout: preExampleDraft.pending_layout, restored: true,
+      })
     } catch (error) {
       setProjectError(error instanceof Error ? error.message : '无法恢复示例前的作品。')
     }
@@ -605,7 +670,13 @@ export function App() {
       </div>
       <div className="project-name" aria-label="当前项目">
         <span>项目</span><strong>{project.fileName ?? 'Untitled'}</strong>
-        <span className="project-unsaved">{project.currentDocument ? `revision ${project.documentRevision}` : '未创建'}</span>
+        {project.currentDocument ? <>
+          <span className="project-unsaved" aria-live="polite">
+            {draftSaveStatus === 'saved' ? '已保存' : draftSaveStatus === 'error' ? '保存失败' : '正在保存…'}
+          </span>
+          {pendingLayoutFor(project.currentDocument, layoutDraft) && <span className="project-pending">有未应用修改</span>}
+          <span className="visually-hidden" aria-hidden="true">revision {project.documentRevision}</span>
+        </> : <span className="project-unsaved">未创建</span>}
       </div>
       <div className="top-status">
         <div className={`backend-badge ${connection.kind}`} role="status" aria-live="polite">
@@ -683,15 +754,17 @@ export function App() {
           <button type="button" onClick={() => void startFresh()}>新建项目</button>
         </div>}
         {draftNotice && <div className="draft-notice" role="alert">{draftNotice}</div>}
+        {restoreNotice && <div className="draft-restore-notice" role="status">{restoreNotice}</div>}
         <div className="workspace-toolbar">
           <div className="breadcrumb"><span>工作区</span><span className="crumb-divider">/</span><strong>{modeName}</strong></div>
           <div className="workspace-scale">{project.currentDocument ? `CANVAS · ${project.finalGeometry.length} ELEMENTS · mm` : 'CANVAS · 暂无文档'}</div>
           <div className="history-actions"><button type="button" onClick={undo} title="Ctrl+Z" disabled={!historyCount.past || !canEditDocument}>撤销</button>
             <button type="button" onClick={redo} title="Ctrl+Y / Ctrl+Shift+Z" disabled={!historyCount.future || !canEditDocument}>重做</button>
+            {exampleIdFromDocument(project.currentDocument) && <span className="example-session-label">正在试用示例：{project.fileName}</span>}
             {exampleIdFromDocument(project.currentDocument) && <button type="button" onClick={resetExample}
               disabled={!canEditDocument}>恢复示例初始状态</button>}
-            {exampleIdFromDocument(project.currentDocument) && preExampleDraft && <button type="button"
-              onClick={() => void restorePreExampleDraft()} disabled={!canEditDocument}>恢复示例前的作品</button>}</div>
+            {activeExampleSession && exampleIdFromDocument(project.currentDocument) && preExampleDraft && <button type="button"
+              onClick={() => void restorePreExampleDraft()} disabled={!canEditDocument}>← 返回之前作品</button>}</div>
         </div>
         <div className="canvas-stage" onDragOver={(event) => event.preventDefault()} onDrop={onDrop}>
           {browser.activeMode === 'design' && project.currentDocument && project.evaluateStatus !== 'idle' ? (

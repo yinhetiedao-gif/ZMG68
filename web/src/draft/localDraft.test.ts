@@ -65,4 +65,21 @@ describe('last working draft', () => {
     expect(realSizeConfirmed(restored!.dto, { min_x: 0, min_y: 0, max_x: 60, max_y: 60,
       width: 60, height: 60, units: 'mm' })).toBe(true)
   })
+
+  it('keeps an unapplied layout proposal outside the committed document', async () => {
+    const dto = project()
+    const proposal = { ...dto, document: { ...dto.document, metadata: {
+      ...dto.document.metadata, 'xiaomang_pattern_lab.parametric': { mode: 'grid', grid: { rows: 5 } },
+    } } }
+    const pending = { family: 'grid' as const, sourceRevision: dto.document_revision, proposal, changed: true }
+    await saveDraft(dto, 'draft.svg', null, { pending_layout: pending, example_session_active: true })
+    const restored = await loadDraft()
+    expect(restored?.dto).toEqual(dto)
+    expect(restored?.pending_layout).toEqual(pending)
+    expect(restored?.example_session_active).toBe(true)
+    expect(restored?.dto.document.metadata['xiaomang_pattern_lab.parametric']).not.toEqual(
+      proposal.document.metadata['xiaomang_pattern_lab.parametric'])
+    await expect(saveDraft(dto, 'draft.svg', null, { pending_layout: { ...pending, sourceRevision: 8 },
+      example_session_active: true })).rejects.toThrow(/不匹配/)
+  })
 })

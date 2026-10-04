@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { App } from './App'
 import type { PatternDocumentDTO } from './model/types'
+import basicGrid from './examples/fixtures/basic-grid.pattern.json'
 
 const draftMocks = vi.hoisted(() => ({ save: vi.fn(), load: vi.fn(), clear: vi.fn(),
   saveBefore: vi.fn(), loadBefore: vi.fn() }))
@@ -32,6 +33,10 @@ function backend() {
     const path = String(url)
     if (path.endsWith('/health')) return Promise.resolve(response({ status: 'ok', contract_version: '1.0' }))
     if (path.endsWith('/contract')) return Promise.resolve(response({ schema_version: '1.0', units: 'mm', parameter_definitions: catalog }))
+    if (path.endsWith('/assets')) return Promise.resolve(response({ asset_id: 'uploaded-image' }))
+    if (path.endsWith('/import')) return Promise.resolve(response({ schema_version: '1.0', document_id: 'new-image',
+      document_revision: 0, assets: [], document: { ...structuredClone(basicGrid),
+        metadata: { web_import_scale_unconfirmed: true } } }))
     const dto = (JSON.parse(String(init?.body)) as { document: PatternDocumentDTO }).document
     if (path.endsWith('/manufacturing/build')) return Promise.resolve(response({
       schema_version: '1.0', status: 'completed', manufacturing_result_id: `mesh-${dto.document_revision}`,
@@ -65,9 +70,12 @@ async function openFromEmpty(title: string) {
 
 describe('P1 built-in examples', () => {
   beforeEach(() => {
-    draftMocks.save.mockReset().mockImplementation(async (dto: PatternDocumentDTO) => ({ dto }))
+    draftMocks.save.mockReset().mockImplementation(async (dto: PatternDocumentDTO, fileName: string | null,
+      sourceAsset: unknown) => ({ dto, file_name: fileName, source_asset: sourceAsset }))
     draftMocks.load.mockReset().mockResolvedValue(null)
-    draftMocks.saveBefore.mockReset().mockImplementation(async (dto: PatternDocumentDTO) => ({ dto }))
+    draftMocks.saveBefore.mockReset().mockImplementation(async (dto: PatternDocumentDTO, fileName: string | null,
+      sourceAsset: unknown, uiState: { pending_layout: unknown }) => ({ dto, file_name: fileName,
+      source_asset: sourceAsset, pending_layout: uiState?.pending_layout }))
     draftMocks.loadBefore.mockReset().mockResolvedValue(null)
     draftMocks.clear.mockReset().mockResolvedValue(undefined)
   })
@@ -199,13 +207,14 @@ describe('P1 built-in examples', () => {
     fireEvent.click(screen.getByRole('button', { name: /试用示例/ }))
     fireEvent.click(screen.getByRole('button', { name: '打开示例：参数渐变' }))
     await waitFor(() => expect(evaluations).toHaveLength(2))
-    expect(draftMocks.save).toHaveBeenCalledWith(evaluations[0], '基础圆点阵列', null)
+    expect(draftMocks.save).toHaveBeenCalledWith(evaluations[0], '基础圆点阵列', null,
+      { pending_layout: null, example_session_active: false })
     expect(evaluations[1].document.fields[0].type).toBe('linear')
     expect(evaluations[1].document.modifiers.map((item) => item.type)).toEqual(['size', 'rotation'])
     draftMocks.save.mockRejectedValueOnce(new Error('草稿写入失败'))
     fireEvent.click(screen.getByRole('button', { name: /试用示例/ }))
     fireEvent.click(screen.getByRole('button', { name: '打开示例：基础圆点阵列' }))
-    await screen.findByText('草稿写入失败')
+    await screen.findByText(/当前作品保存失败，已取消切换：草稿写入失败/)
     expect(evaluations).toHaveLength(2)
     expect(screen.getByLabelText('当前项目')).toHaveTextContent('参数渐变')
   })
@@ -245,10 +254,71 @@ describe('P1 built-in examples', () => {
     fireEvent.click(screen.getByRole('button', { name: /试用示例/ }))
     fireEvent.click(screen.getByRole('button', { name: '打开示例：基础圆点阵列' }))
     await waitFor(() => expect(evaluations).toHaveLength(2))
-    expect(draftMocks.save).toHaveBeenCalledWith(evaluations[0], 'my-work.pattern.json', null)
-    expect(draftMocks.saveBefore).toHaveBeenCalledWith(evaluations[0], 'my-work.pattern.json', null)
-    fireEvent.click(screen.getByRole('button', { name: '恢复示例前的作品' }))
+    expect(draftMocks.save).toHaveBeenCalledWith(evaluations[0], 'my-work.pattern.json', null,
+      { pending_layout: null, example_session_active: false })
+    expect(draftMocks.saveBefore).toHaveBeenCalledWith(evaluations[0], 'my-work.pattern.json', null,
+      { pending_layout: null, example_session_active: false })
+    fireEvent.click(screen.getByRole('button', { name: '← 返回之前作品' }))
     await waitFor(() => expect(evaluations).toHaveLength(3))
     expect(evaluations[2].document.elements[0].id).toBe('work-1')
+  })
+
+  it('keeps the original work across multiple edited examples, then ends the example session on return', async () => {
+    const evaluations = backend()
+    render(<App />)
+    await screen.findByText('Backend Online')
+    const original = structuredClone(basicGrid)
+    delete (original.metadata as Record<string, unknown>)['xiaomang_pattern_lab.example_id']
+    const raw = JSON.stringify(original)
+    const file = new File([raw], 'my-work.pattern.json', { type: 'application/json' })
+    Object.defineProperty(file, 'text', { value: async () => raw })
+    fireEvent.change(screen.getByLabelText('选择 PatternDocument 项目文件'), { target: { files: [file] } })
+    await screen.findByLabelText('最终二维几何，单位毫米')
+    fireEvent.change(screen.getByLabelText('行数'), { target: { value: '5' } })
+    fireEvent.blur(screen.getByLabelText('行数'))
+    expect(screen.getByText('有未应用修改')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /试用示例/ }))
+    fireEvent.click(screen.getByRole('button', { name: '打开示例：基础圆点阵列' }))
+    await screen.findByText('正在试用示例：基础圆点阵列')
+    fireEvent.change(screen.getByLabelText('行数'), { target: { value: '4' } })
+    fireEvent.blur(screen.getByLabelText('行数'))
+    fireEvent.click(screen.getByRole('button', { name: '应用布局' }))
+    await screen.findByText('revision 1')
+    fireEvent.click(screen.getByRole('button', { name: /试用示例/ }))
+    fireEvent.click(screen.getByRole('button', { name: '打开示例：参数渐变' }))
+    await screen.findByText('正在试用示例：参数渐变')
+    const angle = screen.getByRole('spinbutton', { name: /^角度/ })
+    fireEvent.change(angle, { target: { value: '25' } })
+    fireEvent.blur(angle)
+    await screen.findByText('revision 1')
+    expect(draftMocks.saveBefore).toHaveBeenCalledTimes(1)
+    fireEvent.click(screen.getByRole('button', { name: '← 返回之前作品' }))
+    await waitFor(() => expect(evaluations.at(-1)?.document_id).toBe(evaluations[0].document_id))
+    expect(screen.getByLabelText('当前项目')).toHaveTextContent('my-work.pattern.json')
+    expect(screen.getByLabelText('行数')).toHaveValue(5)
+    expect(screen.getByText('有未应用修改')).toBeInTheDocument()
+    expect((evaluations.at(-1)!.document.metadata['xiaomang_pattern_lab.parametric'] as { grid: { rows: number } }).grid.rows).toBe(3)
+    expect(screen.queryByRole('button', { name: '← 返回之前作品' })).not.toBeInTheDocument()
+  })
+
+  it('does not import over an unsaved example and ends the session after a successful image import', async () => {
+    backend()
+    render(<App />)
+    await screen.findByText('Backend Online')
+    await openFromEmpty('基础圆点阵列')
+    const file = new File(['png'], 'new-pattern.png', { type: 'image/png' })
+    draftMocks.save.mockRejectedValueOnce(new Error('本地空间已满'))
+    fireEvent.drop(screen.getByLabelText('中央工作区').querySelector('.canvas-stage')!, {
+      dataTransfer: { files: [file] },
+    })
+    expect(await screen.findByRole('alert')).toHaveTextContent('当前作品保存失败，已取消切换')
+    expect(screen.getByLabelText('当前项目')).toHaveTextContent('基础圆点阵列')
+    expect(vi.mocked(fetch).mock.calls.filter(([url]) => String(url).endsWith('/assets'))).toHaveLength(0)
+    fireEvent.drop(screen.getByLabelText('中央工作区').querySelector('.canvas-stage')!, {
+      dataTransfer: { files: [file] },
+    })
+    await waitFor(() => expect(screen.getByLabelText('当前项目')).toHaveTextContent('new-pattern.png'))
+    expect(screen.queryByText(/正在试用示例/)).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '← 返回之前作品' })).not.toBeInTheDocument()
   })
 })

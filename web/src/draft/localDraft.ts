@@ -1,4 +1,5 @@
 import type { PatternDocumentDTO } from '../model/types'
+import { currentLayoutFamily, type LayoutDraft } from '../document/layoutDraft'
 
 const DB_NAME = 'xiaomang-pattern-lab-drafts'
 const STORE = 'drafts'
@@ -19,6 +20,13 @@ export interface LocalDraft {
   dto: PatternDocumentDTO
   file_name: string | null
   source_asset: SourceAssetDraft | null
+  pending_layout?: LayoutDraft | null
+  example_session_active?: boolean
+}
+
+export interface DraftUiState {
+  pending_layout: LayoutDraft | null
+  example_session_active: boolean
 }
 
 export class LocalDraftError extends Error {}
@@ -70,22 +78,31 @@ export function validateDraftDocument(dto: unknown): asserts dto is PatternDocum
 }
 
 export async function saveDraft(dto: PatternDocumentDTO, fileName: string | null,
-  sourceAsset: SourceAssetDraft | null): Promise<LocalDraft> {
-  return writeDraft(KEY, dto, fileName, sourceAsset)
+  sourceAsset: SourceAssetDraft | null, uiState?: DraftUiState): Promise<LocalDraft> {
+  return writeDraft(KEY, dto, fileName, sourceAsset, uiState)
 }
 
 /** One recoverable pre-example work slot; it uses the same canonical DTO, not a template format. */
 export async function saveBeforeExampleDraft(dto: PatternDocumentDTO, fileName: string | null,
-  sourceAsset: SourceAssetDraft | null): Promise<LocalDraft> {
-  return writeDraft(PRE_EXAMPLE_KEY, dto, fileName, sourceAsset)
+  sourceAsset: SourceAssetDraft | null, uiState?: DraftUiState): Promise<LocalDraft> {
+  return writeDraft(PRE_EXAMPLE_KEY, dto, fileName, sourceAsset, uiState)
 }
 
 async function writeDraft(key: LocalDraft['key'], dto: PatternDocumentDTO, fileName: string | null,
-  sourceAsset: SourceAssetDraft | null): Promise<LocalDraft> {
+  sourceAsset: SourceAssetDraft | null, uiState?: DraftUiState): Promise<LocalDraft> {
   validateDraftDocument(dto)
+  const pending = uiState?.pending_layout
+  if (pending && (pending.sourceRevision !== dto.document_revision ||
+      (!pending.changed && pending.family === currentLayoutFamily(dto)) ||
+      (pending.family !== 'free' && (!pending.proposal || pending.proposal.document_id !== dto.document_id)))) {
+    throw new LocalDraftError('未应用的布局参数与当前项目不匹配，草稿未写入。')
+  }
+  if (pending?.proposal) validateDraftDocument(pending.proposal)
   const draft: LocalDraft = {
     key, schema_version: '1.0', saved_at: new Date().toISOString(),
     dto, file_name: fileName, source_asset: sourceAsset,
+    pending_layout: pending ?? null,
+    example_session_active: uiState?.example_session_active ?? false,
   }
   const db = await database()
   try {
@@ -120,6 +137,14 @@ async function readDraft(key: LocalDraft['key']): Promise<LocalDraft | null> {
     if (!draft) return null
     if (draft.schema_version !== '1.0') throw new LocalDraftError('本地草稿版本不受支持。')
     validateDraftDocument(draft.dto)
+    if (draft.pending_layout) {
+      const pending = draft.pending_layout
+      if ((!pending.changed && pending.family === currentLayoutFamily(draft.dto)) ||
+          pending.sourceRevision !== draft.dto.document_revision ||
+          (pending.family !== 'free' && (!pending.proposal || pending.proposal.document_id !== draft.dto.document_id)))
+        throw new LocalDraftError('未应用的布局草稿无效。')
+      if (pending.proposal) validateDraftDocument(pending.proposal)
+    }
     return draft
   } finally { db.close() }
 }

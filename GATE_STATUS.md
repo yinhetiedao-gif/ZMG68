@@ -1,5 +1,12 @@
 # Gate 状态（2026-10-02）
 
+## P2-C Project Continuity（2026-10-04，NOT VALIDATED）
+
+- 从 `39510fb` / `backup/p2b-core-workflow-final` 在 `feature/p2c-project-continuity` 开发；预变更保护引用 `backup/pre-p2c-project-continuity`。目前仅保存非稳定检查点，不创建 `backup/p2c-project-continuity-final`，不进入 P2-D/F4。
+- 已实现的 Web 定向能力：IndexedDB 同一草稿记录分别保存已应用 `PatternDocumentDTO`、未应用 Layout 提案和示例会话标志；刷新恢复保留未应用参数但不恢复旧 Undo 历史；切换示例、导入与返回前均先完成当前草稿写入，失败时保留当前作品；示例间切换只捕获一次原作品，并可返回。未修改 Python Engine 或持久项目格式。
+- Web **161/161 PASS**、TypeScript/Vite build PASS；相关 Python **9/9 PASS**，固定图自检 **6/6 PASS**。
+- Python 全量回归**不能记 PASS**：第一次在外部 `imagetosvg-mcp` 调用超时路径产生 1 个错误、退出码 1；相关导入和上游 SVG 模块单独重跑均通过。第二次进入既有 Tk `ThemeChanged` / `Variable.__del__` 非主线程清理异常并持续挂起，只终止本轮测试子进程、退出码 1。没有修改或绕过相关测试，也未证明本轮全量正常退出。
+
 ## F3.5 Blocker — 真实失败快照的二维挤出退化面（2026-10-02）
 
 - 状态：**定向修复 PASS；未进入 F4**。以 `failure_id=20261002T111412247992Z-adf6121c04c4` 的真实开发快照重放；该快照实际为 169 个 `filled_region`，1 个 Linear Field、Size + Rotation Modifier，厚度 2 mm，并非先前口述的约 20 个元素。
