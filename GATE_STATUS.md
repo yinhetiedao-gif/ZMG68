@@ -2,7 +2,7 @@
 
 ## 小芒图案库复用接入（2026-10-05）
 
-- **LOCAL PASS**。工作分支 `feature/pattern-library-reuse`，基线与上一可回退提交
+- **PASS（本地 + 现有 Render Staging）**。工作分支 `feature/pattern-library-reuse`，基线与上一可回退提交
   `85c6ad05205362c4c65c04593b6f2a02d8966723`；已保护为
   `backup/pre-pattern-library-20261005`。本次不是 F5-C 软件/实物验收，也不进入新 Fabric 阶段。
 - 实际下载并跑通原版 `catchspider2002/svelte-svg-patterns`（MIT，固定
@@ -16,7 +16,11 @@
   下载打开、当前参数对应、直接刷新、搜索、手机端导出 PASS；下载文件像素对照无差异，
   无致命 JS、404 或外部推广请求。返回原网站制造与 STL 下载200，读回40×40×2mm、
   9组件、watertight、684面、零退化面。
-- 本机无 Docker CLI，未运行本地 Docker build；公网部署结果单独记录，不将本地结果冒充上线。
+- Render实际 Docker 构建成功并 Live，功能提交 `2b512b16361b4976b3e35e18080f7666311d630c`，
+  公网 `https://zmg68-1.onrender.com/patterns/`。独立浏览器重跑同一完整导出/刷新/手机/原网站STL
+  Smoke PASS；公网STL读回40×40×2mm、9组件、watertight、零退化面。上游先显示20个占位图案，
+  公网首次测试因过早计数失败；测试改为等待真实330款数据，本地和公网复跑通过，未改画廊逻辑。
+- 本机无 Docker CLI，未运行本地 Docker build；不将 Render 构建说成本地 Docker 验证。
   未运行无关 Tk/几何全量。上游旧依赖安全审计仍有告警，未全量升级；部署仅发布静态产物，
   不运行该项目旧 Node 服务。完整范围、失败修复记录和启动方式见
   `docs/PATTERN_LIBRARY_REUSE.md`。

@@ -99,6 +99,25 @@ $env:XIAOMANG_ENV = 'staging'
 - 上游 `npm test`：未执行，原脚本引用不存在的 cy:run；使用现有 Playwright runtime，
   无新测试框架。未跑无关 Tk/算法全量，不声称全产品人工验收。
 
+## Render Staging 实际验收
+
+- 普通 fast-forward 同步、普通 push 到现有 `feature/staging-render-deployment`；
+  Render 自动部署功能提交 `2b512b16361b4976b3e35e18080f7666311d630c`，Dashboard
+  确认 Live，实际 Docker build/deploy约2分11秒；未修改套餐、账户权限、域名或生产服务。
+- 实际公网模块：`https://zmg68-1.onrender.com/patterns/`。原网站仍在同一 origin `/`。
+  health返回相同 backend_commit、staging；既有 Fabric 能力开关保留。
+- 独立 Edge context实际全流程 PASS：330图案、搜索、三类图案参数/预览、6个SVG/PNG
+  下载文件、直接刷新、手机端SVG、新标签页入口、返回原网站标准制造和STL。
+  图案像素对照差异0；无致命JS、HTTP错误、外部推广/作者服务请求。
+- 公网STL下载200、34284 bytes、684 triangles；原Exporter/Validator读回40×40×2mm、
+  9组件、watertight、正体积、零退化面。普通制造允许多组件，不施加Fabric融合单组件要求。
+- 公网首次Smoke读到上游SSR20款占位图案即断言失败；源码确认完整数据随后fetch。
+  只让测试等待330款数据加载，未改产品算法；本地和公网复跑均通过。
+- 测试原始报告/截图/导出文件留在未提交运行目录
+  `work/pattern-library-public/`，本地对照在 `work/pattern-library-smoke/`。
+- 本次只完成图案库交付；未替代F5-C切片、Linux代表性Fabric样本和实物验收，
+  不将普通STL回归当作 Fabric 最终制造 PASS。
+
 ## 已知限制
 
 - 上游依赖老旧，npm audit 有24个告警（含1 critical）；omit=dev 仍有4个告警。

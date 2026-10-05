@@ -30,6 +30,9 @@ fs.mkdirSync(output, { recursive: true });
     await library.close();
     await page.goto(base + "/patterns/");
     await page.locator(".samples a.pattern").first().waitFor();
+    // Upstream initially renders 20 placeholders and fetches the full gallery.
+    // Wait for its real data instead of assuming local-network hydration speed.
+    await page.waitForFunction(() => document.querySelectorAll(".samples a.pattern").length === 330);
     assert.equal(await page.locator(".samples a.pattern").count(), 330);
     assert.match(await page.title(), /小芒图案库/);
     await page.screenshot({ path: path.join(output, "gallery.png") });
