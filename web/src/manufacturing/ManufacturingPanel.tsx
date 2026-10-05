@@ -9,6 +9,7 @@ import { availableFabricFields, fabricFieldModifier, fabricModifierTypes, type F
 import { groupFor, type ParameterCatalog, type ParameterValue } from '../document/parameterSchema'
 import type { BoundsMM, PatternDocumentDTO } from '../model/types'
 import type { FabricDesignPreview } from '../api/fabricPreview'
+import { FabricPreflightPanel } from './FabricPreflightPanel'
 import { fabricPresets } from '../document/fabricPresets'
 import { fabricDesignWarnings, fabricPreviewSummary } from '../document/fabricDesignSummary'
 import { FABRIC_PREVIEW_NOTICE } from './fabricCopy'
@@ -47,6 +48,7 @@ interface Props {
   fabricPreviewResult: FabricDesignPreview | null
   fabricPreviewError: string | null
   onUpdateFabricPreview: () => void
+  candidateFetcher?: typeof fetch
 }
 
 const labels: Record<ManufacturingStatus, string> = {
@@ -169,6 +171,8 @@ export function ManufacturingPanel(props: Props) {
         disabled={!props.canBuild || (base ? props.fabricPreviewStatus === 'building' : status === 'building')}>
         {base ? '更新3D预览' : '检查并生成'}</button>
     </div>
+    {base && props.document && <FabricPreflightPanel document={props.document}
+      fetcher={props.candidateFetcher} disabled={!props.canBuild} />}
     {!props.validHeight && <p className="manufacturing-error" role="alert">厚度必须大于 0 mm。</p>}
     <div className={`manufacturing-status ${base ? props.fabricPreviewStatus : status}`} role="status">
       {base ? ({ idle: '尚未更新设计预览', building: '正在更新3D预览…', ready: '设计预览已就绪',

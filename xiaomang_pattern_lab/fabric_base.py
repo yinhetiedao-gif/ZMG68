@@ -79,6 +79,10 @@ class FabricBaseBuilder:
     """Create a solid/grid base in mm, independent of any UI or unit cell."""
 
     def build(self, bounds_mm: tuple[float, float, float, float], base: BaseDefinition) -> ManufacturingMeshResult:
+        return TrimeshBackend().extrude(self.geometry(bounds_mm, base), base.thickness_mm)
+
+    def geometry(self, bounds_mm: tuple[float, float, float, float], base: BaseDefinition) -> Manufacturing2DGeometry:
+        """Same F1 polygons for extrusion and factual base-material queries."""
         if len(bounds_mm) != 4 or any(not math.isfinite(value) for value in bounds_mm):
             raise ValueError("二维制造边界必须是有限毫米坐标。")
         min_x, min_y, max_x, max_y = bounds_mm
@@ -91,8 +95,7 @@ class FabricBaseBuilder:
                 (left, bottom), (right, bottom), (right, top), (left, top))),)
         else:
             polygons = self._grid_polygons(left, bottom, right, top, base)
-        geometry = Manufacturing2DGeometry(polygons, "mm", (left, bottom, right, top))
-        return TrimeshBackend().extrude(geometry, base.thickness_mm)
+        return Manufacturing2DGeometry(polygons, "mm", (left, bottom, right, top))
 
     @staticmethod
     def _grid_polygons(left: float, bottom: float, right: float, top: float,

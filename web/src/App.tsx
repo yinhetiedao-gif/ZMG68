@@ -874,6 +874,7 @@ export function App() {
               }}
               fabricPreviewStatus={fabricPreview.status} fabricPreviewResult={fabricPreview.result}
               fabricPreviewError={fabricPreview.error} onUpdateFabricPreview={() => void fabricPreview.update()}
+              candidateFetcher={assetFetch}
               validHeight={manufacturing.validHeight} canBuild={connected && project.evaluateStatus === 'ready'
                 && Boolean(project.currentDocument) && manufacturing.validHeight}
               onBuild={() => void manufacturing.build()} status={manufacturing.status}

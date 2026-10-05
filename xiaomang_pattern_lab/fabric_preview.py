@@ -5,6 +5,7 @@ returned prototype is shared by all instance transforms in the browser.
 """
 from __future__ import annotations
 
+from dataclasses import dataclass
 from collections import OrderedDict
 from hashlib import sha256
 import json
@@ -18,7 +19,7 @@ from .evaluation import parametric_model_from_document
 from .fabric_base import FabricConfig
 from .fabric_cells import UnitCellDefinition
 from .fabric_field_modifiers import apply_fabric_field_modifiers
-from .fabric_plan import FabricPlacementPoint, FabricPlanner, RegularPlacement
+from .fabric_plan import FabricPlacementPoint, FabricInstancePlan, FabricPlanner, RegularPlacement
 from .placement_assignment import PlacementAssignmentState
 from .shared_modifiers import SharedModifierStack
 
@@ -71,7 +72,15 @@ def _reference_dimensions_mm(document) -> dict[str, tuple[float, float]]:
             if item.width > 0 and item.height > 0}
 
 
-def build_fabric_preview(document, dto: PatternDocumentDTO) -> dict[str, Any]:
+@dataclass(frozen=True)
+class FabricDesignInput:
+    config: FabricConfig
+    plan: FabricInstancePlan | None
+    design_bounds_mm: tuple[float, float, float, float]
+    metadata: dict[str, Any]
+
+
+def build_fabric_design(document, dto: PatternDocumentDTO, *, preview_limit: bool = True) -> FabricDesignInput:
     started = perf_counter()
     raw = document.metadata.get("fabric_config")
     if not isinstance(raw, dict):
@@ -101,7 +110,7 @@ def build_fabric_preview(document, dto: PatternDocumentDTO) -> dict[str, Any]:
         plan = None
     elif mode == "area_fill":
         plan = FabricPlanner().plan(base_bounds, config.base.thickness_mm, cell,
-                                    RegularPlacement.from_mapping(placement))
+                                    RegularPlacement.from_mapping(placement), preview_limit=preview_limit)
     else:
         reference_sizes = _reference_dimensions_mm(document)
         points = []
@@ -126,16 +135,11 @@ def build_fabric_preview(document, dto: PatternDocumentDTO) -> dict[str, Any]:
                 rotation_deg=item.get("rotation", 0.0),
             ))
         plan = FabricPlanner().plan_points(points, config.base.thickness_mm, cell,
-                                           follow_pattern_size=size_mode == "follow_pattern")
+                                           follow_pattern_size=size_mode == "follow_pattern", preview_limit=preview_limit)
     if plan is not None:
         plan = apply_fabric_field_modifiers(plan, document, raw.get("field_modifiers"))
     planned_at = perf_counter()
-    payload = plan.preview_payload() if plan else {
-        "schema_version": "1.0", "kind": "fabric_instance_preview", "cell_type": None,
-        "count": 0, "total_count": 0, "skipped_count": 0, "preview_simplified": False,
-        "active_count": 0,
-        "prototype": None, "instances": [], "manufacturing_status": "preview_only_not_in_stl"}
-    payload.update({"document_id": dto.document_id, "document_revision": dto.document_revision,
+    metadata = {"document_id": dto.document_id, "document_revision": dto.document_revision,
                     "placement_mode": mode, "element_count": len(geometry),
                     "unit_size_mode": size_mode,
                     "unmatched_reference_count": unmatched_reference_count if mode == "pattern_points" else 0,
@@ -145,7 +149,19 @@ def build_fabric_preview(document, dto: PatternDocumentDTO) -> dict[str, Any]:
                                      "spacing_y_mm": config.base.spacing_y_mm,
                                      "line_width_mm": config.base.line_width_mm},
                     "timings_ms": {"evaluate": round((evaluated_at - started) * 1000, 3),
-                                   "plan_and_prototype": round((planned_at - evaluated_at) * 1000, 3)}})
+                                   "plan_and_prototype": round((planned_at - evaluated_at) * 1000, 3)}}
+    return FabricDesignInput(config, plan, (left, bottom, right, top), metadata)
+
+
+def build_fabric_preview(document, dto: PatternDocumentDTO) -> dict[str, Any]:
+    design = build_fabric_design(document, dto)
+    plan = design.plan
+    payload = plan.preview_payload() if plan else {
+        "schema_version": "1.0", "kind": "fabric_instance_preview", "cell_type": None,
+        "count": 0, "total_count": 0, "skipped_count": 0, "preview_simplified": False,
+        "active_count": 0,
+        "prototype": None, "instances": [], "manufacturing_status": "preview_only_not_in_stl"}
+    payload.update(design.metadata)
     # Preview API has no manufacturing_result_id. It is intentionally not an
     # exportable, validated manufacturing result.
     payload["preview_id"] = preview_key(dto)

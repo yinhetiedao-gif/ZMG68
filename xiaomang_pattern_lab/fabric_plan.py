@@ -21,6 +21,12 @@ def _preview_indices(total: int):
     return (index * last // denominator for index in range(MAX_PREVIEW_INSTANCES))
 
 
+def _plan_indices(total: int, preview_limit: bool):
+    if not preview_limit and total > 50000:
+        raise ValueError("完整制造候选超过 50000 个实例的检查资源预算；设计未修改。")
+    return _preview_indices(total) if preview_limit else range(total)
+
+
 @lru_cache(maxsize=64)
 def _preview_prototype(cell: UnitCellDefinition):
     # Mesh is read-only in a FabricInstancePlan. Do not mutate this cached mesh.
@@ -91,6 +97,8 @@ class FabricInstancePlan:
     prototype: Any
     total_count: int = 0
     skipped_count: int = 0
+    # Full placement centers, never narrowed by display-only sampling.
+    field_bounds_mm: tuple[float,float,float,float] | None = None
 
     @property
     def count(self) -> int:
@@ -125,7 +133,7 @@ class FabricInstancePlan:
 
 class FabricPlanner:
     def plan(self, base_bounds_mm: tuple[float, float, float, float], base_top_z: float,
-             cell: UnitCellDefinition, placement: RegularPlacement) -> FabricInstancePlan:
+             cell: UnitCellDefinition, placement: RegularPlacement, *, preview_limit: bool = True) -> FabricInstancePlan:
         if len(base_bounds_mm) != 4 or any(not math.isfinite(value) for value in base_bounds_mm):
             raise ValueError("Fabric Base 范围必须是有限毫米坐标。")
         left, bottom, right, top = base_bounds_mm
@@ -144,16 +152,19 @@ class FabricPlanner:
                           base_width_mm=cell.width_mm, base_depth_mm=cell.depth_mm,
                           base_height_mm=cell.height_mm, cell_width_mm=cell.width_mm,
                           cell_depth_mm=cell.depth_mm)
-                          for index in _preview_indices(total))
+                          for index in _plan_indices(total, preview_limit))
         bounds = ((left + placement.spacing_x_mm / 2 - cell.width_mm / 2,
                    bottom + placement.spacing_y_mm / 2 - cell.depth_mm / 2, base_top_z),
                   (left + (columns - .5) * placement.spacing_x_mm + cell.width_mm / 2,
                    bottom + (rows - .5) * placement.spacing_y_mm + cell.depth_mm / 2,
                    base_top_z + cell.height_mm))
-        return FabricInstancePlan(cell, instances, bounds, prototype, total_count=total)
+        return FabricInstancePlan(cell, instances, bounds, prototype, total_count=total,
+            field_bounds_mm=(left+placement.spacing_x_mm/2,bottom+placement.spacing_y_mm/2,
+                left+(columns-.5)*placement.spacing_x_mm,bottom+(rows-.5)*placement.spacing_y_mm))
 
     def plan_points(self, points: list[FabricPlacementPoint], base_top_z: float,
-                    cell: UnitCellDefinition, *, follow_pattern_size: bool = True) -> FabricInstancePlan:
+                    cell: UnitCellDefinition, *, follow_pattern_size: bool = True,
+                    preview_limit: bool = True) -> FabricInstancePlan:
         if not math.isfinite(base_top_z) or base_top_z <= 0:
             raise ValueError("Fabric Base 顶部高度无效。")
         valid = [point for point in points
@@ -175,7 +186,7 @@ class FabricPlanner:
                           base_height_mm=cell.height_mm,
                           cell_width_mm=cell.width_mm * (point.scale_x if follow_pattern_size else 1.0),
                           cell_depth_mm=cell.depth_mm * (point.scale_y if follow_pattern_size else 1.0))
-                          for point in (valid[index] for index in _preview_indices(total)))
+                          for point in (valid[index] for index in _plan_indices(total, preview_limit)))
         extents = []
         for point in valid:
             angle = math.radians(point.rotation_deg)
@@ -189,7 +200,9 @@ class FabricPlanner:
                   (max(item[2] for item in extents), max(item[3] for item in extents),
                    base_top_z + cell.height_mm))
         return FabricInstancePlan(cell, instances, bounds, _preview_prototype(cell),
-                                  total_count=total, skipped_count=len(points) - total)
+                                  total_count=total, skipped_count=len(points) - total,
+                                  field_bounds_mm=(min(p.x_mm for p in valid),min(p.y_mm for p in valid),
+                                      max(p.x_mm for p in valid),max(p.y_mm for p in valid)))
 
 
 def plan_from_fabric_config(config, manufacturing_bounds_mm):

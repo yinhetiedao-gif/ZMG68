@@ -109,7 +109,7 @@ def apply_fabric_field_modifiers(plan: FabricInstancePlan, document,
         _check_field(registry, field_id)
     elements = [Element(item.id, "rect", item.x_mm, item.y_mm, 1.0, 1.0)
                 for item in plan.instances]
-    context = FieldContext.from_elements(elements)
+    context = FieldContext(plan.field_bounds_mm) if plan.field_bounds_mm is not None else FieldContext.from_elements(elements)
     values = {field_id: tuple(registry.evaluate(field_id, item, context) for item in elements)
               for field_id in {field_id for field_id, _ in active.values()}}
     directions = None

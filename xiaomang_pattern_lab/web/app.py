@@ -44,7 +44,8 @@ from .runtime_store import InMemoryManufacturingResultStore, StoredManufacturing
 from .preview_artifact import export_preview_glb
 from .failure_snapshot import save_manufacturing_failure
 from xiaomang_pattern_lab.fabric_plan import plan_from_fabric_config
-from xiaomang_pattern_lab.fabric_preview import FabricPreviewCache, build_fabric_preview, preview_key
+from xiaomang_pattern_lab.fabric_preview import FabricPreviewCache, build_fabric_preview, build_fabric_design, preview_key
+from xiaomang_pattern_lab.fabric_candidate import build_fabric_candidate
 
 
 MAX_REQUEST_BYTES = 2 * 1024 * 1024
@@ -515,6 +516,31 @@ def create_app(*, asset_resolver: AssetResolver | None = None,
             except (ValueError, TypeError, KeyError) as error:
                 raise WebError("invalid_fabric_preview", str(error)) from error
             fabric_preview_cache.put(key, result)
+            return JSONResponse(result, headers={"Cache-Control": "no-store"})
+        finally:
+            if expensive_job_slot is not None:
+                expensive_job_slot.release()
+
+    @app.post("/api/v1/fabric/candidate", openapi_extra=JSON_DOCUMENT_BODY)
+    async def fabric_candidate(request: Request) -> JSONResponse:
+        payload = await _read_payload(request)
+        dto = PatternDocumentDTO.from_dict(_document_payload(payload))
+        if payload.get("document_revision") != dto.document_revision:
+            raise ContractError("stale_revision", "文档已更改，请重新检查可制造性。")
+        document = await run_in_threadpool(_resolve_document, dto, resolver)
+        if expensive_job_slot is not None and not expensive_job_slot.acquire(blocking=False):
+            raise WebError("staging_busy", "测试站正在处理另一项三维任务，请稍后重试。")
+        def build_report():
+            design = build_fabric_design(document, dto, preview_limit=False)
+            candidate = build_fabric_candidate(design.plan, design.config.base,
+                design.design_bounds_mm, document_id=dto.document_id,
+                document_revision=dto.document_revision)
+            return candidate.report
+        try:
+            try:
+                result = await run_in_threadpool(build_report)
+            except (ValueError, TypeError, KeyError) as error:
+                raise WebError("invalid_fabric_candidate", str(error)) from error
             return JSONResponse(result, headers={"Cache-Control": "no-store"})
         finally:
             if expensive_job_slot is not None:

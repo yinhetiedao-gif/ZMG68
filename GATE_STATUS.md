@@ -1,5 +1,13 @@
 # Gate 状态（2026-10-05）
 
+## F5-A Fabric Manufacturing Candidate & Preflight（2026-10-05）
+
+- **PASS（未融合候选与接触预检，不是最终制造认证）**。基线 `7401621d86db3a972bc6f8c870a310dc0f88a04b`，功能分支 `feature/f5-fabric-manufacturing`，冻结引用 `backup/f5a-manufacturing-candidate-final`。F4 CLOSED。
+- 复用既有完整实例计划和原型；候选只应用最终 TRS，不重算 Field。Solid/Grid 实际顶面接触使用空间索引，孔洞/近接触/微小面积/非法变换保留逐实例诊断。共面接触明确不等于融合；没有 Boolean、Repair、Fabric STL 或 Watertight/可打印声明。
+- Solid 60×60×0.6 +100 Pyramid：100 接触，实际 Z=3.6；Grid 孔洞对照100未连接。Pattern Points、Image/Distance/Gradient与候选数值对照通过。100/400/1000/5000候选约34/123/307/1527 ms，非预览耗时。
+- Python定向 **103 PASS +43子测试**、Web **177/177 PASS**、production build PASS；真实浏览器 Solid64/Grid64及stale通过，无致命错误。标准制造、169 Field矩阵、API/STL未回归。
+- 组件融合目标仅估计，不分析cell-cell连接；完整检查预算50000显式拒绝，不改设计。Preview>5000保留完整布点Field上下文，6000点采样对照通过。已有bundle/TestClient warning保留。完整范围与文件见 `docs/F5A_MANUFACTURING_CANDIDATE.md`。未进入 F5-B。
+
 ## F4-C Gradient Orientation Stability（2026-10-05）
 
 - **PASS（本地定向及 production 真实浏览器）**。基线 `ff42cf47244e1122e824650f6d2a05d440fbc7ab`；预保护 `backup/pre-f4c-orientation-stability`，稳定引用 `backup/f4c-orientation-stability-final`。
