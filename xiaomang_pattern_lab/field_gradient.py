@@ -1,7 +1,7 @@
 """Spatial derivatives are a consumer of scalar fields, not a vector Field API."""
 from dataclasses import replace
 import math
-from .shared_fields import CompositeField, ImageField
+from .shared_fields import CompositeField, ImageField, DistanceField
 
 
 def sampling_delta(registry, identifier, context, seen=frozenset()):
@@ -25,11 +25,20 @@ def sampling_delta(registry, identifier, context, seen=frozenset()):
 
 def gradient_angles(registry, identifier, elements, context):
     dx, dy = sampling_delta(registry, identifier, context)
+    field = registry.get(identifier)
+    prepared = None
+    if isinstance(field, DistanceField):
+        from .orientation_raster import prepare_orientation, stabilized_angle
+        prepared = prepare_orientation(field, field.sample_bounds or context.bounds)
     result = []
     for item in elements:
         gx = (registry.evaluate(identifier, replace(item, x=item.x+dx), context)
               - registry.evaluate(identifier, replace(item, x=item.x-dx), context))/(2*dx)
         gy = (registry.evaluate(identifier, replace(item, y=item.y+dy), context)
               - registry.evaluate(identifier, replace(item, y=item.y-dy), context))/(2*dy)
-        result.append(None if math.hypot(gx, gy) <= 1e-9 else math.degrees(math.atan2(gy, gx)))
+        magnitude = math.hypot(gx, gy)
+        angle = math.degrees(math.atan2(gy, gx))
+        result.append(stabilized_angle(prepared, field.sample_bounds or context.bounds,
+            item.x, item.y, angle, magnitude) if prepared is not None else
+            None if magnitude <= 1e-9 else angle)
     return tuple(result)

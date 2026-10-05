@@ -75,7 +75,8 @@ class DistanceOrientationTests(unittest.TestCase):
         points = [RectElement(str(i), x, y, 1, 1) for i, (x, y) in enumerate(((83, 50), (50, 83), (17, 50), (50, 17)))]
         angles = gradient_angles(registry, 'distance', points, self.context)
         for angle, expected in zip(angles, (180, -90, 0, 90)):
-            self.assertAlmostEqual(abs((angle-expected+180)%360-180), 0, places=5)
+            # F4-C explicitly treats Fin orientation as an axis, not an arrow.
+            self.assertAlmostEqual(abs((angle-expected+90)%180-90), 0, places=5)
         self.assertEqual(self.scalar(self.field(), 50, 50), 0)  # hole stays outside
 
     def test_real_pattern_modifiers_and_fabric_combination_map_once(self):

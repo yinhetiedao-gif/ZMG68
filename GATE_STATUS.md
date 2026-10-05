@@ -1,4 +1,14 @@
-# Gate 状态（2026-10-04）
+# Gate 状态（2026-10-05）
+
+## F4-C Gradient Orientation Stability（2026-10-05）
+
+- **PASS（本地定向及 production 真实浏览器）**。基线 `ff42cf47244e1122e824650f6d2a05d440fbc7ab`；预保护 `backup/pre-f4c-orientation-stability`，稳定引用 `backup/f4c-orientation-stability-final`。
+- 根因：最近边界切换/脊线导致 raw gradient 不可靠，旧消费路径没有轴向邻域一致性与相对梯度可靠度。原 S mask 含白色细缝，已原样固定，另加无细缝 S 对照；不是所有突变都来自零梯度。
+- 只稳定 Distance 的方向消费路径：加权 doubled-angle、world/raster 邻域、可靠度和确定性 inherited-rotation fallback；Normal/Tangent 共用结果。Distance scalar、Height/Scale/Density、Document 和制造算法不变。
+- 原 S：35 对 >45° / max 88.77° → Tangent 4 对 / max 56.05°，Normal 5 对 / max 59.14°；两者 >75° 均为 0。无细缝 S 为 0 对 / max 21.25°。Ring、真实直角分支、Pattern Points 和 scalar 不变均通过。
+- Python **71 PASS + 38 子测试**、Web **173/173 PASS**、production build PASS。真实生产页面上传与 Three.js Smoke 无致命错误；未运行无关全量 Tk，未部署 Render。
+- 400/1000/5000 Python 暖计划 **18.77/42.15/200.23 ms**；浏览器暖预览 **166/135/290 ms**。冷缓存、精度与现有限制见 `docs/F4C_ORIENTATION_STABILITY.md`。
+- 保留低分辨率 Distance 阶梯感、bundle/TestClient warning；Fabric final mesh/STL 未开放。完成后停止，未进入 F5。
 
 ## F4-B Distance Field & Gradient Orientation（2026-10-04）
 
