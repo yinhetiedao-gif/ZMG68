@@ -31,10 +31,10 @@ export function FabricPreflightPanel({ document, fetcher = fetch, disabled = fal
   }
   return <section className="manufacturing-report" aria-label="Fabric 可制造性预检">
     <h2>可制造性预检</h2>
-    <p>仅检查制造候选与底布接触；尚未融合，不代表可打印。最终 Fabric STL 尚未开放。</p>
+    <p>这是独立的候选与底布接触检查，不代表可打印；生成最终制造网格时也会执行预检。</p>
     <button type="button" className="ui-secondary" disabled={disabled || !stale && state?.building === true}
       onClick={() => void check()}>检查可制造性</button>
-    <p role="status">{stale ? '设计已变化，请重新检查可制造性。' : state?.building ? '正在检查可制造性…' : result ? '预检完成（未融合）' : '尚未检查'}</p>
+    <p role="status">{stale ? '设计已变化，请重新检查可制造性。' : state?.building ? '正在检查可制造性…' : result ? '预检完成（未融合）' : state?.error ? '独立预检失败' : '独立预检尚未运行'}</p>
     {!stale && state?.error && <p role="alert">{state.error}</p>}
     {result && <>
       <p>实例：{result.enabled_instance_count} / {result.instance_count} · 接触到底布：{result.attachment_counts.ATTACHED}

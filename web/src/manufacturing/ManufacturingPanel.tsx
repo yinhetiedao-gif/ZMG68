@@ -13,7 +13,7 @@ import { FabricPreflightPanel } from './FabricPreflightPanel'
 import { FabricFusionPanel } from './FabricFusionPanel'
 import { fabricPresets } from '../document/fabricPresets'
 import { fabricDesignWarnings, fabricPreviewSummary } from '../document/fabricDesignSummary'
-import { FABRIC_PREVIEW_NOTICE } from './fabricCopy'
+import { FABRIC_PREVIEW_NOTICE, fabricExportNotice } from './fabricCopy'
 import { formatMm } from '../model/formatMm'
 import { RealSizePanel } from './RealSizePanel'
 
@@ -50,6 +50,7 @@ interface Props {
   fabricPreviewError: string | null
   onUpdateFabricPreview: () => void
   candidateFetcher?: typeof fetch
+  fabricStlTestExportEnabled?: boolean
 }
 
 const labels: Record<ManufacturingStatus, string> = {
@@ -161,7 +162,7 @@ export function ManufacturingPanel(props: Props) {
             </section>
           })}
         </section>}
-        {cell && <p>{FABRIC_PREVIEW_NOTICE}</p>}
+        {cell && <p>{FABRIC_PREVIEW_NOTICE} {fabricExportNotice(props.fabricStlTestExportEnabled)}</p>}
       </section>}
     </section>
     <div className="manufacturing-settings">
@@ -175,7 +176,7 @@ export function ManufacturingPanel(props: Props) {
     {base && props.document && <FabricPreflightPanel document={props.document}
       fetcher={props.candidateFetcher} disabled={!props.canBuild} />}
     {base && props.document && <FabricFusionPanel document={props.document}
-      fetcher={props.candidateFetcher} disabled={!props.canBuild} />}
+      fetcher={props.candidateFetcher} disabled={!props.canBuild} testExportEnabled={props.fabricStlTestExportEnabled} />}
     {!props.validHeight && <p className="manufacturing-error" role="alert">厚度必须大于 0 mm。</p>}
     <div className={`manufacturing-status ${base ? props.fabricPreviewStatus : status}`} role="status">
       {base ? ({ idle: '尚未更新设计预览', building: '正在更新3D预览…', ready: '设计预览已就绪',
@@ -233,8 +234,7 @@ export function ManufacturingPanel(props: Props) {
     </div>}
     <div className="manufacturing-output-actions">
       <button type="button" className="ui-secondary" onClick={props.onPreview} disabled={base ? !props.fabricPreviewResult : !result || !props.isCurrentResult(result.manufacturing_result_id)}>3D 预览</button>
-      {base ? <button type="button" disabled title="Fabric STL 将在下一阶段开放">Fabric STL 尚未开放</button>
-        : <StlExportButton result={result} status={status} projectName={props.projectName}
+      {!base && <StlExportButton result={result} status={status} projectName={props.projectName}
           isCurrentResult={props.isCurrentResult} />}
     </div>
   </section>

@@ -1,5 +1,13 @@
 # Gate 状态（2026-10-05）
 
+## F5-C Fabric STL Export（2026-10-05）
+
+- **INCOMPLETE / NOT SOFTWARE PASS**。基线 `709579af59398fe620d7945ffad39ae85b7461e6`，F5-C 作为待公网部署、切片和实物验收 checkpoint 提交；保护引用 `backup/pre-f5c-fabric-stl`。本地验证通过不等于切片、Linux/Render或实物通过，未创建 Physical backup。
+- 复用既有 STLExporter 和严格 MeshValidator；独立 Fabric result namespace、revision/DTO fingerprint、测试环境开关、二进制回读检查。Basic、Fin、Distance、Pattern Points、1000实例通过；5000实例38退化面继续被拒绝，无修复/删面/放宽。
+- 相关回归122 PASS +43子测试，最后导出/融合/普通STL/performance子集24 PASS；Web最终182/182 PASS，production build和真实下载Smoke PASS。一次Web草稿beforeunload断言失败后单测和全量复跑通过，保留间歇风险，未断言其为旧问题。
+- 切片软件实际验收与Linux/Render runtime尚未完成：桌面控制初始化重试失败，Render浏览器访问失败；不能声称C1 PASS。完整数据和待验收样本见 `docs/F5C_FABRIC_STL_ACCEPTANCE.md`。停止，不进入其他功能。
+- 最终网格/测试STL联动修复：实际5173→8765 fusion请求404、旧进程无路由；只重启已核实的8765项目服务并在本地开启既有测试开关。UI区分未生成/生成中/失败/失效/网格通过但导出关闭；HTTP阶段/原因/失败编号保留，旧固定关闭文案移除，能力来自同一后端开关。100实例真实网页fusion与下载200、revision4、回读1组件/watertight/0退化面；闭开关、stale及Grid-hole422快照验收通过。受影响Web52/52、Python20/20、build PASS。未提交此前F5-C实现，C1/实物仍待验收，不创建Physical backup。
+
 ## F5-B Fabric Fusion & Final Mesh Validation（2026-10-05）
 
 - **PASS（本地核心制造网格 Gate；5000实例失败限制明确保留）**。基线 `bb58d0d0270f19bb2017ec09da6e6b964a2599bb`，分支 `feature/f5-fabric-manufacturing`，保护 `backup/pre-f5b-fabric-fusion`；通过后冻结 `backup/f5b-fabric-fusion-final`。未进入 F5-C，Fabric STL 仍禁用。

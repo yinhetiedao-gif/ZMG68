@@ -3,8 +3,9 @@ WORKDIR /build/web
 COPY web/package.json web/package-lock.json ./
 RUN npm ci
 COPY web/ ./
+ARG RENDER_GIT_COMMIT
 # Vite staging build leaves VITE_API_BASE_URL unset: API calls use this origin.
-RUN npm run build -- --mode staging
+RUN RENDER_GIT_COMMIT="${RENDER_GIT_COMMIT:-}" npm run build -- --mode staging
 
 FROM node:22-bookworm-slim AS vectorizer-build
 WORKDIR /build/vectorizer

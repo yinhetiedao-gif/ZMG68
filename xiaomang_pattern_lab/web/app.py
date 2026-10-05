@@ -4,7 +4,9 @@ from __future__ import annotations
 import logging
 import math
 import os
+import re
 import threading
+from hashlib import sha256
 from copy import deepcopy
 from dataclasses import replace
 from pathlib import Path
@@ -47,6 +49,7 @@ from xiaomang_pattern_lab.fabric_plan import plan_from_fabric_config
 from xiaomang_pattern_lab.fabric_preview import FabricPreviewCache, build_fabric_preview, build_fabric_design, preview_key
 from xiaomang_pattern_lab.fabric_candidate import build_fabric_candidate
 from xiaomang_pattern_lab.fabric_fusion import FabricFusionService, FabricFusionFailure
+from xiaomang_pattern_lab.contracts.v1 import canonical_json
 
 
 MAX_REQUEST_BYTES = 2 * 1024 * 1024
@@ -343,6 +346,8 @@ def create_app(*, asset_resolver: AssetResolver | None = None,
     store = result_store if result_store is not None else InMemoryManufacturingResultStore()
     fabric_preview_cache = FabricPreviewCache()
     fabric_fusion_service = FabricFusionService()
+    fabric_stl_testing = (os.environ.get('XIAOMANG_FABRIC_STL_TEST_EXPORT') == '1'
+        and os.environ.get('XIAOMANG_ENV','development') in ('development','staging'))
     uploads = asset_store if asset_store is not None else TemporaryAssetStore()
     resolver = asset_resolver if asset_resolver is not None else uploads
     snapshot_enabled = os.environ.get("XIAOMANG_DEV_MANUFACTURING_SNAPSHOTS") == "1"
@@ -363,13 +368,24 @@ def create_app(*, asset_resolver: AssetResolver | None = None,
     app.add_exception_handler(Exception, internal_error_handler)
 
     @app.get("/api/v1/health")
-    def health() -> dict[str, str]:
-        return {"status": "ok", "contract_version": CURRENT_WEB_SCHEMA_VERSION}
+    def health() -> dict:
+        commit = os.environ.get('RENDER_GIT_COMMIT', '')
+        environment = os.environ.get('XIAOMANG_ENV', 'development')
+        routes = {(route.path, method) for route in app.routes
+                  for method in getattr(route, 'methods', ())}
+        return {"status": "ok", "contract_version": CURRENT_WEB_SCHEMA_VERSION,
+                "backend_commit": commit.lower() if re.fullmatch(r'[a-fA-F0-9]{40}', commit) else 'UNKNOWN',
+                "environment": environment if environment in ('development', 'staging', 'production', 'test') else 'UNKNOWN',
+                "capabilities": {
+                    "fabric_preflight": ('/api/v1/fabric/candidate', 'POST') in routes,
+                    "fabric_final_mesh": ('/api/v1/fabric/fusion', 'POST') in routes,
+                    "fabric_stl_test_export": fabric_stl_testing}}
 
     @app.get("/api/v1/contract")
     def contract() -> dict:
         from xiaomang_pattern_lab.parameter_definitions import parameter_definitions
         return {"schema_version": CURRENT_WEB_SCHEMA_VERSION, "units": "mm",
+                "fabric_stl_test_export_enabled": fabric_stl_testing,
                 "parameter_definitions": parameter_definitions()}
 
     @app.post("/api/v1/assets")
@@ -562,13 +578,17 @@ def create_app(*, asset_resolver: AssetResolver | None = None,
                 design = build_fabric_design(document,dto,preview_limit=False)
                 candidate = build_fabric_candidate(design.plan,design.config.base,design.design_bounds_mm,
                     document_id=dto.document_id,document_revision=dto.document_revision)
+                candidate = replace(candidate,report={**candidate.report,
+                    'document_fingerprint':sha256(canonical_json(dto.to_dict()).encode()).hexdigest()})
             except (ValueError,TypeError,KeyError) as error:
                 raise FabricFusionFailure('candidate',str(error)) from error
             return fabric_fusion_service.build(candidate).report
         try:
             try:
                 result = await run_in_threadpool(build_report)
-                return JSONResponse(result,headers={"Cache-Control":"no-store"})
+                return JSONResponse({**result,'export_available':fabric_stl_testing,
+                    'stl_export_mode':'testing' if fabric_stl_testing else 'disabled'},
+                    headers={"Cache-Control":"no-store"})
             except FabricFusionFailure as error:
                 logging.getLogger(__name__).warning('Fabric fusion failure: id=%s stage=%s',
                     error.report['failure_id'],error.report['stage'])
@@ -587,6 +607,31 @@ def create_app(*, asset_resolver: AssetResolver | None = None,
         finally:
             if expensive_job_slot is not None:
                 expensive_job_slot.release()
+
+    @app.post('/api/v1/fabric/{result_id}/model.stl',openapi_extra=JSON_DOCUMENT_BODY)
+    async def download_fabric_stl(result_id: str,request: Request) -> Response:
+        if not fabric_stl_testing:
+            raise WebError('fabric_stl_disabled','Fabric STL 仍处于测试阶段，当前环境未开放。')
+        payload=await _read_payload(request)
+        dto=PatternDocumentDTO.from_dict(_document_payload(payload))
+        if payload.get('document_revision') != dto.document_revision:
+            raise ContractError('stale_revision','设计已变化，请重新生成后导出。')
+        await run_in_threadpool(_resolve_document,dto,resolver)
+        fingerprint=sha256(canonical_json(dto.to_dict()).encode()).hexdigest()
+        try:
+            data,export_report=await run_in_threadpool(fabric_fusion_service.export_stl,
+                result_id,dto.document_id,dto.document_revision,fingerprint)
+            return Response(data,media_type='model/stl',headers={
+                'Content-Disposition':'attachment; filename="xiaomang-fabric.stl"','Cache-Control':'no-store'})
+        except FabricFusionFailure as error:
+            if snapshot_enabled:
+                try:
+                    await run_in_threadpool(save_manufacturing_failure,snapshot_dir,dto,0,
+                        'fabric_'+error.report['stage'],{'fabric_stl':error.report},failure_id=error.report['failure_id'])
+                except (OSError,ValueError,TypeError,ContractError):
+                    logging.getLogger(__name__).warning('Fabric STL failure snapshot could not be written')
+            return JSONResponse({'error':{'code':'fabric_stl_failed','message':str(error)},
+                'fusion_report':error.report},status_code=422,headers={'Cache-Control':'no-store'})
 
     @app.get("/api/v1/manufacturing/{manufacturing_result_id}/model.stl")
     def download_stl(manufacturing_result_id: str) -> Response:

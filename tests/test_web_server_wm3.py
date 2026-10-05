@@ -48,7 +48,10 @@ class WebServerWM3Tests(unittest.TestCase):
     def test_health_contract_openapi_and_cors(self):
         with TestClient(create_app()) as client:
             self.assertEqual(client.get("/api/v1/health").json(),
-                             {"status": "ok", "contract_version": "1.0"})
+                             {"status": "ok", "contract_version": "1.0",
+                              "backend_commit": "UNKNOWN", "environment": "development",
+                              "capabilities": {"fabric_preflight": True,
+                                  "fabric_final_mesh": True, "fabric_stl_test_export": False}})
             self.assertEqual(client.get("/api/v1/contract").json()["units"], "mm")
             self.assertEqual(client.get("/docs").status_code, 200)
             paths = client.get("/openapi.json").json()["paths"]

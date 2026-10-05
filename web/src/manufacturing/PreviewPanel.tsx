@@ -5,7 +5,7 @@ import { ThreePreview } from './ThreePreview'
 import type { PatternDocumentDTO } from '../model/types'
 import type { FabricDesignPreview } from '../api/fabricPreview'
 import { FabricThreePreview } from './FabricThreePreview'
-import { FABRIC_PREVIEW_NOTICE } from './fabricCopy'
+import { FABRIC_PREVIEW_NOTICE, fabricExportNotice } from './fabricCopy'
 import { formatMm } from '../model/formatMm'
 
 interface Props {
@@ -16,13 +16,15 @@ interface Props {
   document?: PatternDocumentDTO | null
   fabricPreview?: FabricDesignPreview | null
   onGoManufacture?: () => void
+  fabricStlTestExportEnabled?: boolean
 }
 
-export function PreviewPanel({ result, status, projectName, isCurrentResult, document, fabricPreview, onGoManufacture }: Props) {
+export function PreviewPanel({ result, status, projectName, isCurrentResult, document, fabricPreview, onGoManufacture, fabricStlTestExportEnabled }: Props) {
   const isFabric = Boolean(document?.document.metadata.fabric_config)
   if (isFabric) return <section className="preview-panel" aria-label="Fabric 设计预览">
     <div className="preview-header"><div><span className="eyebrow">FABRIC DESIGN PREVIEW</span><h1>3D 设计预览</h1>
-      <p>{FABRIC_PREVIEW_NOTICE}</p></div><button type="button" disabled>Fabric STL 尚未开放</button></div>
+      <p>{FABRIC_PREVIEW_NOTICE} {fabricExportNotice(fabricStlTestExportEnabled)}</p></div>
+      <button type="button" onClick={onGoManufacture}>去生成最终制造网格</button></div>
     {fabricPreview ? <FabricThreePreview key={fabricPreview.preview_id} plan={fabricPreview} />
       : <p>设计已变化或尚未预览。请返回 Fabric 页面点击「更新3D预览」。</p>}
   </section>

@@ -119,13 +119,22 @@ class STLExporter:
     @staticmethod
     def reload_as_mesh_result(path: str | Path) -> ManufacturingMeshResult:
         """Read an STL for test/readback verification without processing it."""
+        return STLExporter._reload_mesh_result(Path(path))
+
+    @staticmethod
+    def reload_bytes_as_mesh_result(payload: bytes) -> ManufacturingMeshResult:
+        """Use the same exact-coordinate readback for transport artifacts."""
+        from io import BytesIO
+        return STLExporter._reload_mesh_result(BytesIO(payload))
+
+    @staticmethod
+    def _reload_mesh_result(source) -> ManufacturingMeshResult:
 
         try:
             import numpy as np
             import trimesh
         except ImportError as error:
             raise RuntimeError("缺少 STL 读回依赖 trimesh。") from error
-        source = Path(path)
         raw_mesh = trimesh.load_mesh(source, file_type="stl", process=False, maintain_order=True)
         # Binary STL stores each facet as three coordinate triples and has no
         # vertex-index table.  Reconstruct equal-coordinate indexes only in

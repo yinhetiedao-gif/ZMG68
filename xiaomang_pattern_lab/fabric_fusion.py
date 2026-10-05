@@ -65,7 +65,8 @@ class FabricFusionService:
             raise FabricFusionFailure('backend','缺少 Fabric 实体融合依赖 manifold3d。') from error
         fingerprint = sha256(json.dumps({'document_id':source['document_id'],
             'document_revision':source['document_revision'],'backend':version('manifold3d'),
-            'interface_overlap_mm':0,'schema':'f5b-1-balanced'},sort_keys=True).encode())
+            'interface_overlap_mm':0,'document_fingerprint':source.get('document_fingerprint'),
+            'schema':'f5b-1-balanced'},sort_keys=True).encode())
         meshes = (candidate.base_mesh,*candidate.cell_meshes)
         for mesh in meshes:
             fingerprint.update(str((mesh.vertices.shape, mesh.faces.shape)).encode())
@@ -131,6 +132,7 @@ class FabricFusionService:
                         candidate_bounds_mm=source['bounds_mm'],final_bounds_mm=mesh.bounds.tolist())
                 report = {'schema_version':'1.0','kind':'final_fabric_mesh',
                     'document_id':source['document_id'],'document_revision':source['document_revision'],
+                    'document_fingerprint':source.get('document_fingerprint'),
                     'final_fabric_mesh_id':'fabric-final-'+key,'final_fabric_mesh_ready':True,
                     'fused':True,'export_available':False,'backend':'manifold3d-mesh64',
                     'backend_version':version('manifold3d'),'interface_overlap_mm':0,
@@ -150,7 +152,7 @@ class FabricFusionService:
                 mesh.faces.flags.writeable = False
                 size = mesh.vertices.nbytes+mesh.faces.nbytes
                 if size <= self.max_bytes:
-                    self._cache[key] = (monotonic(),FinalFabricMesh(final.mesh_result,deepcopy(report)),size)
+                    self._cache[key] = (monotonic(),FinalFabricMesh(final.mesh_result,deepcopy(report)),size,None)
                     while len(self._cache)>self.capacity or sum(v[2] for v in self._cache.values())>self.max_bytes:
                         self._cache.popitem(last=False)
                 return final
@@ -159,3 +161,25 @@ class FabricFusionService:
             except Exception as error:
                 raise FabricFusionFailure('boolean_union','融合后端发生错误，请查看失败编号。',
                     exception_type=type(error).__name__) from error
+
+    def export_stl(self,result_id,document_id,document_revision,document_fingerprint):
+        from .fabric_stl import export_validated_fabric_stl
+        key=result_id.removeprefix('fabric-final-') if result_id.startswith('fabric-final-') else ''
+        with self._lock:
+            entry=self._cache.get(key)
+            if not entry or monotonic()-entry[0] >= self.ttl_seconds:
+                raise FabricFusionFailure('stale_result','制造结果不存在或已过期，请重新生成。')
+            report=entry[1].report
+            if (report['document_id'] != document_id or report['document_revision'] != document_revision
+                or report.get('document_fingerprint') != document_fingerprint):
+                raise FabricFusionFailure('stale_result','设计已变化，请重新生成后导出。')
+            if entry[3] is not None:
+                return entry[3]
+            artifact=export_validated_fabric_stl(entry[1])
+            size=entry[2]+len(artifact[0])
+            if size <= self.max_bytes:
+                self._cache[key]=(entry[0],entry[1],size,artifact)
+                self._cache.move_to_end(key)
+                while sum(value[2] for value in self._cache.values())>self.max_bytes:
+                    self._cache.popitem(last=False)
+            return artifact

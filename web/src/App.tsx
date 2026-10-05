@@ -34,6 +34,7 @@ import { clearDraft, loadBeforeExampleDraft, loadDraft, saveBeforeExampleDraft, 
   type DraftUiState, type LocalDraft, type SourceAssetDraft } from './draft/localDraft'
 import { createExampleDocument, exampleIdFromDocument, examples, type BuiltInExample, type ExampleId } from './examples/catalog'
 import { confirmUniformRealSize } from './document/realSize'
+import { ReleaseDiagnostics } from './ReleaseDiagnostics'
 
 type ConnectionState =
   | { kind: 'checking'; message: string }
@@ -76,6 +77,8 @@ function ExampleCard({ example, onOpen, disabled }: { example: BuiltInExample; o
 export function App() {
   const [connection, setConnection] = useState<ConnectionState>({ kind: 'checking', message: '正在连接后端…' })
   const [parameterCatalog, setParameterCatalog] = useState<ParameterCatalog | null>(null)
+  const [fabricStlTestExportEnabled, setFabricStlTestExportEnabled] = useState<boolean | undefined>()
+  const [releaseHealth, setReleaseHealth] = useState<import('./api/client').HealthResponse | null>(null)
   const [retry, setRetry] = useState(0)
   const [browser, setBrowser] = useState(initialBrowserState)
   const [project, setProject] = useState(initialDocumentState)
@@ -143,8 +146,12 @@ export function App() {
     const controller = new AbortController()
     let current = true
     setConnection({ kind: 'checking', message: '正在连接后端…' })
-    checkBackend(fetch, controller.signal).then(({ contract }) => {
+    setFabricStlTestExportEnabled(undefined)
+    setReleaseHealth(null)
+    checkBackend(fetch, controller.signal).then(({ health, contract }) => {
       if (current) {
+        setReleaseHealth(health)
+        setFabricStlTestExportEnabled(contract.fabric_stl_test_export_enabled)
         setParameterCatalog(contract.parameter_definitions?.schema_version === '1.0' &&
           contract.parameter_definitions.units === 'mm' ? contract.parameter_definitions : null)
         setConnection({ kind: 'online', message: 'Backend Online' })
@@ -875,6 +882,7 @@ export function App() {
               fabricPreviewStatus={fabricPreview.status} fabricPreviewResult={fabricPreview.result}
               fabricPreviewError={fabricPreview.error} onUpdateFabricPreview={() => void fabricPreview.update()}
               candidateFetcher={assetFetch}
+              fabricStlTestExportEnabled={fabricStlTestExportEnabled}
               validHeight={manufacturing.validHeight} canBuild={connected && project.evaluateStatus === 'ready'
                 && Boolean(project.currentDocument) && manufacturing.validHeight}
               onBuild={() => void manufacturing.build()} status={manufacturing.status}
@@ -885,6 +893,7 @@ export function App() {
           ) : <PreviewPanel result={manufacturing.result} status={manufacturing.status}
             projectName={project.fileName} isCurrentResult={manufacturing.isCurrentResult}
             document={project.currentDocument} fabricPreview={fabricPreview.result}
+            fabricStlTestExportEnabled={fabricStlTestExportEnabled}
             onGoManufacture={() => setBrowser((current) => ({ ...current, activeMode: 'manufacture' }))} />}
           {project.evaluateStatus === 'loading' && <div className="viewer-notice" role="status">Python 正在计算最终二维几何…</div>}
           {importing && <div className="viewer-notice" role="status">Python 正在转换图片为可编辑元素…</div>}
@@ -953,6 +962,7 @@ export function App() {
             <button type="button" onClick={() => runEvaluate(project.currentDocument!)}>重试二维求值</button>}
           <details className="diagnostic-details"><summary>诊断详情</summary>
             <p>Python Engine · Contract <strong>v{EXPECTED_SCHEMA_VERSION}</strong> · mm</p>
+            <ReleaseDiagnostics health={releaseHealth} />
             {!connected && <p>待验证</p>}
             {project.currentDocument && <p>文档修订：{project.documentRevision}<span className="visually-hidden">revision {project.documentRevision}</span></p>}
             <p>{connection.message}</p>

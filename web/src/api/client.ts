@@ -6,12 +6,20 @@ export const EXPECTED_UNITS = 'mm' as const
 export interface HealthResponse {
   status: string
   contract_version: string
+  backend_commit?: string
+  environment?: string
+  capabilities?: {
+    fabric_preflight?: boolean
+    fabric_final_mesh?: boolean
+    fabric_stl_test_export?: boolean
+  }
 }
 
 export interface ContractResponse {
   schema_version: string
   units: string
   parameter_definitions?: ParameterCatalog
+  fabric_stl_test_export_enabled?: boolean
 }
 
 export interface BackendHandshake {
