@@ -2,3 +2,4 @@
 -r requirements.txt
 fastapi>=0.115,<1
 uvicorn>=0.34,<1
+manifold3d==3.5.4

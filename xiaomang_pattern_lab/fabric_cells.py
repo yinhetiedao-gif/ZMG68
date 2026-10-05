@@ -105,8 +105,10 @@ def _fin(definition: UnitCellDefinition):
     x, y, h = definition.width_mm / 2, definition.depth_mm / 2, definition.height_mm
     vertices = [(-x, -y, 0), (x, -y, 0), (0, -y, h),
                 (-x, y, 0), (x, y, 0), (0, y, h)]
-    faces = [(0, 2, 1), (3, 4, 5), (0, 1, 4), (0, 4, 3),
-             (1, 2, 5), (1, 5, 4), (2, 0, 3), (2, 3, 5)]
+    # Explicit outward construction winding (the former list enclosed a
+    # negative volume). No runtime mesh repair/inversion or vertex change.
+    faces = [(0, 1, 2), (3, 5, 4), (0, 4, 1), (0, 3, 4),
+             (1, 5, 2), (1, 4, 5), (2, 3, 0), (2, 5, 3)]
     return trimesh.Trimesh(vertices=vertices, faces=faces, process=False)
 
 

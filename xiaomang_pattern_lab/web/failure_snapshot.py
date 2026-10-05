@@ -25,7 +25,7 @@ def _redact(value):
 
 def save_manufacturing_failure(
     directory: Path, dto: PatternDocumentDTO, height_mm: float,
-    error_code: str, validation_summary: dict | None,
+    error_code: str, validation_summary: dict | None, *, failure_id: str | None = None,
 ) -> Path:
     """Save a transport-safe request/report without browser state or server paths.
 
@@ -33,7 +33,9 @@ def save_manufacturing_failure(
     the original manufacturing error always remains the HTTP response.
     """
     timestamp = datetime.now(timezone.utc)
-    failure_id = f"{timestamp.strftime('%Y%m%dT%H%M%S%fZ')}-{uuid4().hex[:12]}"
+    if failure_id is not None and not re.fullmatch(r'[A-Za-z0-9_-]{1,100}', failure_id):
+        raise ValueError('Invalid failure identifier')
+    failure_id = failure_id or f"{timestamp.strftime('%Y%m%dT%H%M%S%fZ')}-{uuid4().hex[:12]}"
     document = dto.to_dict()
     payload = _redact({
         "snapshot_version": 1,

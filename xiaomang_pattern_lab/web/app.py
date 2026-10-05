@@ -46,6 +46,7 @@ from .failure_snapshot import save_manufacturing_failure
 from xiaomang_pattern_lab.fabric_plan import plan_from_fabric_config
 from xiaomang_pattern_lab.fabric_preview import FabricPreviewCache, build_fabric_preview, build_fabric_design, preview_key
 from xiaomang_pattern_lab.fabric_candidate import build_fabric_candidate
+from xiaomang_pattern_lab.fabric_fusion import FabricFusionService, FabricFusionFailure
 
 
 MAX_REQUEST_BYTES = 2 * 1024 * 1024
@@ -341,6 +342,7 @@ def create_app(*, asset_resolver: AssetResolver | None = None,
     """Build an isolated headless server instance; importing does not start it."""
     store = result_store if result_store is not None else InMemoryManufacturingResultStore()
     fabric_preview_cache = FabricPreviewCache()
+    fabric_fusion_service = FabricFusionService()
     uploads = asset_store if asset_store is not None else TemporaryAssetStore()
     resolver = asset_resolver if asset_resolver is not None else uploads
     snapshot_enabled = os.environ.get("XIAOMANG_DEV_MANUFACTURING_SNAPSHOTS") == "1"
@@ -542,6 +544,46 @@ def create_app(*, asset_resolver: AssetResolver | None = None,
             except (ValueError, TypeError, KeyError) as error:
                 raise WebError("invalid_fabric_candidate", str(error)) from error
             return JSONResponse(result, headers={"Cache-Control": "no-store"})
+        finally:
+            if expensive_job_slot is not None:
+                expensive_job_slot.release()
+
+    @app.post("/api/v1/fabric/fusion", openapi_extra=JSON_DOCUMENT_BODY)
+    async def fabric_fusion(request: Request) -> JSONResponse:
+        payload = await _read_payload(request)
+        dto = PatternDocumentDTO.from_dict(_document_payload(payload))
+        if payload.get("document_revision") != dto.document_revision:
+            raise ContractError("stale_revision", "文档已更改，请重新生成最终制造网格。")
+        document = await run_in_threadpool(_resolve_document, dto, resolver)
+        if expensive_job_slot is not None and not expensive_job_slot.acquire(blocking=False):
+            raise WebError("staging_busy", "测试站正在处理另一项三维任务，请稍后重试。")
+        def build_report():
+            try:
+                design = build_fabric_design(document,dto,preview_limit=False)
+                candidate = build_fabric_candidate(design.plan,design.config.base,design.design_bounds_mm,
+                    document_id=dto.document_id,document_revision=dto.document_revision)
+            except (ValueError,TypeError,KeyError) as error:
+                raise FabricFusionFailure('candidate',str(error)) from error
+            return fabric_fusion_service.build(candidate).report
+        try:
+            try:
+                result = await run_in_threadpool(build_report)
+                return JSONResponse(result,headers={"Cache-Control":"no-store"})
+            except FabricFusionFailure as error:
+                logging.getLogger(__name__).warning('Fabric fusion failure: id=%s stage=%s',
+                    error.report['failure_id'],error.report['stage'])
+                if snapshot_enabled:
+                    try:
+                        summary = {**error.report,'fusion_config':{'interface_overlap_mm':0},
+                            'instances':error.report.get('instances',[])[:50]}
+                        await run_in_threadpool(save_manufacturing_failure,snapshot_dir,dto,
+                            dto.document.get('metadata',{}).get('fabric_config',{}).get('base',{}).get('thickness_mm',0),
+                            'fabric_fusion_'+error.report['stage'],{'fabric_fusion':summary},
+                            failure_id=error.report['failure_id'])
+                    except (OSError,ValueError,TypeError,ContractError) as snapshot_error:
+                        logging.getLogger(__name__).warning('Fabric failure snapshot write failed (%s)',type(snapshot_error).__name__)
+                return JSONResponse({'error':{'code':'fabric_fusion_failed','message':str(error)},
+                    'fusion_report':error.report},status_code=422,headers={"Cache-Control":"no-store"})
         finally:
             if expensive_job_slot is not None:
                 expensive_job_slot.release()

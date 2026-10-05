@@ -10,6 +10,7 @@ import { groupFor, type ParameterCatalog, type ParameterValue } from '../documen
 import type { BoundsMM, PatternDocumentDTO } from '../model/types'
 import type { FabricDesignPreview } from '../api/fabricPreview'
 import { FabricPreflightPanel } from './FabricPreflightPanel'
+import { FabricFusionPanel } from './FabricFusionPanel'
 import { fabricPresets } from '../document/fabricPresets'
 import { fabricDesignWarnings, fabricPreviewSummary } from '../document/fabricDesignSummary'
 import { FABRIC_PREVIEW_NOTICE } from './fabricCopy'
@@ -173,6 +174,8 @@ export function ManufacturingPanel(props: Props) {
     </div>
     {base && props.document && <FabricPreflightPanel document={props.document}
       fetcher={props.candidateFetcher} disabled={!props.canBuild} />}
+    {base && props.document && <FabricFusionPanel document={props.document}
+      fetcher={props.candidateFetcher} disabled={!props.canBuild} />}
     {!props.validHeight && <p className="manufacturing-error" role="alert">厚度必须大于 0 mm。</p>}
     <div className={`manufacturing-status ${base ? props.fabricPreviewStatus : status}`} role="status">
       {base ? ({ idle: '尚未更新设计预览', building: '正在更新3D预览…', ready: '设计预览已就绪',
@@ -230,7 +233,7 @@ export function ManufacturingPanel(props: Props) {
     </div>}
     <div className="manufacturing-output-actions">
       <button type="button" className="ui-secondary" onClick={props.onPreview} disabled={base ? !props.fabricPreviewResult : !result || !props.isCurrentResult(result.manufacturing_result_id)}>3D 预览</button>
-      {base ? <button type="button" disabled title="Fabric 最终制造尚未开放">Fabric STL 尚未开放</button>
+      {base ? <button type="button" disabled title="Fabric STL 将在下一阶段开放">Fabric STL 尚未开放</button>
         : <StlExportButton result={result} status={status} projectName={props.projectName}
           isCurrentResult={props.isCurrentResult} />}
     </div>

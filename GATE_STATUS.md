@@ -1,5 +1,14 @@
 # Gate 状态（2026-10-05）
 
+## F5-B Fabric Fusion & Final Mesh Validation（2026-10-05）
+
+- **PASS（本地核心制造网格 Gate；5000实例失败限制明确保留）**。基线 `bb58d0d0270f19bb2017ec09da6e6b964a2599bb`，分支 `feature/f5-fabric-manufacturing`，保护 `backup/pre-f5b-fabric-fusion`；通过后冻结 `backup/f5b-fabric-fusion-final`。未进入 F5-C，Fabric STL 仍禁用。
+- 新增 headless `manifold3d==3.5.4` / Mesh64 双精度平衡树真实实体并集。原环境无可用3D Boolean；批量并集在边缘Cone案例产生零面积面，平衡树同输入通过。Fin原型负体积根因是静态面绕序向内，已只纠正面索引，顶点/尺寸不变。全部通过案例共面直接融合，interface overlap=0，不改 Preview/Document，不 Repair/删面/放宽 Validator。
+- Solid100、Grid100有效连接、Grid孔洞阻止、五种Cell100、cell-cell重叠、400 Area Fill与100 Pattern Points的Distance Height/Gradient+二维Size/Rotation/Position均通过。最终必须实际1组件、watertight、正体积、原MeshValidator零错误、bounds保持；MARGINAL间隙真实失败。失败stage/id与开发快照可定位。
+- 100/400/1000 Pyramid候选+融合约80.55/260.23/691.73 ms；5000真实尝试4044.27 ms，38退化面被Validator拒绝，不标PASS。进程累计峰值working set约170.18 MiB。缓存4项/30分钟/128 MiB，完整候选指纹与revision变更失效，相同结果不重复Boolean。
+- Python相关 **118 PASS +43子测试**，Web **181/181 PASS**，production build与真实生产页面Smoke通过：Solid64就绪、缓存复用、Grid变更stale/孔洞422、Fabric STL禁用，致命page error 0。标准制造/API/STL与169 Field矩阵未回归。
+- Linux CPython3.12 wheel已实际下载，现有Docker依赖兼容；本机无Docker/可用WSL，**Linux/Render运行未验证**，不声称云端PASS。保留bundle/TestClient warning及既有Tk风险；未运行无关Tk全量。详见 `docs/F5B_FABRIC_FUSION.md`，完成后停止。
+
 ## F5-A Fabric Manufacturing Candidate & Preflight（2026-10-05）
 
 - **PASS（未融合候选与接触预检，不是最终制造认证）**。基线 `7401621d86db3a972bc6f8c870a310dc0f88a04b`，功能分支 `feature/f5-fabric-manufacturing`，冻结引用 `backup/f5a-manufacturing-candidate-final`。F4 CLOSED。
