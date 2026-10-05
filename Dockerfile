@@ -15,10 +15,19 @@ COPY external/imagetosvg-mcp/tsconfig.json ./
 COPY external/imagetosvg-mcp/src/ ./src/
 RUN npm run build && npm prune --omit=dev --ignore-scripts
 
+# Keep the upstream Svelte/Sapper build independent of the React build.
+FROM node:22-bookworm-slim AS pattern-library-build
+WORKDIR /build/pattern-library
+COPY external/pattern-library/package.json external/pattern-library/package-lock.json ./
+RUN npm ci --ignore-scripts
+COPY external/pattern-library/ ./
+RUN node build-static.cjs
+
 FROM python:3.12-slim-bookworm
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     XIAOMANG_WEB_DIST=/app/web-dist \
+    XIAOMANG_PATTERN_LIBRARY_DIST=/app/pattern-library-dist \
     XIAOMANG_ENV=staging
 WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends libstdc++6 \
@@ -33,5 +42,6 @@ COPY --from=vectorizer-build /build/vectorizer/dist/ /app/external/imagetosvg-mc
 COPY --from=vectorizer-build /build/vectorizer/node_modules/ /app/external/imagetosvg-mcp/node_modules/
 COPY --from=vectorizer-build /usr/local/bin/node /usr/local/bin/node
 COPY --from=web-build /build/web/dist/ /app/web-dist/
+COPY --from=pattern-library-build /build/pattern-library/__sapper__/export/patterns/ /app/pattern-library-dist/
 EXPOSE 10000
 CMD ["sh", "-c", "exec uvicorn xiaomang_pattern_lab.web.app:create_app --factory --host 0.0.0.0 --port \"${PORT:-10000}\""]

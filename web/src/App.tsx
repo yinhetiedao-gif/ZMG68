@@ -706,6 +706,7 @@ export function App() {
         </> : <span className="project-unsaved">未创建</span>}
       </div>
       <div className="top-status">
+        <a className="pattern-library-link" href="/patterns/" target="_blank" rel="noopener noreferrer">小芒图案库 ↗</a>
         <div className={`backend-badge ${connection.kind}`} role="status" aria-live="polite">
           <span className="status-light" aria-hidden="true" />
           {connected ? '已连接' : connection.kind === 'checking' ? '正在连接' : connection.kind === 'offline' ? '连接中断' : '连接不兼容'}

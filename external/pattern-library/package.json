@@ -1,0 +1,42 @@
+{
+  "name": "https://pattern.monster",
+  "description": "SVG Patterns",
+  "version": "0.0.1",
+  "scripts": {
+    "dev": "sapper dev",
+    "build": "sapper build --legacy",
+    "export": "node build-static.cjs",
+    "start": "node __sapper__/build",
+    "test": "run-p --race dev cy:run"
+  },
+  "dependencies": {
+    "@rollup/plugin-json": "^4.1.0",
+    "@simonwep/pickr": "^1.8.2",
+    "compression": "^1.7.4",
+    "dayjs": "^1.11.9",
+    "dotenv": "^16.3.1",
+    "polka": "next",
+    "prettier": "^2.8.8",
+    "save-svg-as-png": "^1.4.17",
+    "sirv": "^1.0.7"
+  },
+  "devDependencies": {
+    "@rollup/plugin-commonjs": "^16.0.0",
+    "@rollup/plugin-node-resolve": "^10.0.0",
+    "@rollup/plugin-replace": "^2.3.4",
+    "npm-run-all": "^4.1.5",
+    "rollup": "^2.33.3",
+    "rollup-plugin-svelte": "^6.1.1",
+    "rollup-plugin-terser": "^7.0.2",
+    "sapper": "^0.29.1",
+    "svelte": "^3.59.1",
+    "fs-extra": "^11.1.1",
+    "@node-minify/clean-css": "^8.0.6",
+    "@node-minify/core": "^8.0.6",
+    "read-excel-file": "^5.6.1",
+    "glob": "^8.1.0",
+    "tinycolor2": "^1.6.0",
+    "sharp": "^0.32.3",
+    "convert-svg-to-png": "^0.6.4"
+  }
+}

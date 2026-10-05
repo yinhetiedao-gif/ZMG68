@@ -36,6 +36,8 @@ button { font: inherit; }
 .project-unsaved { font-size: 10px; color: #9aa7af; padding-left: 8px; border-left: 1px solid #dfe5e9; }
 .project-pending { font-size: 10px; color: #9a6523; padding-left: 8px; }
 .top-status { gap: 13px; justify-self: end; }
+.pattern-library-link { font-size: 12px; color: #315d76; white-space: nowrap; text-decoration: none; padding: 7px 9px; border: 1px solid #d4e8ef; border-radius: 6px; background: #f7fbfc; }
+.pattern-library-link:hover { background: #e8f3f7; }
 .backend-badge { display: flex; align-items: center; gap: 7px; font-weight: 650; font-size: 11px; white-space: nowrap; color: #536477; }
 .status-light { height: 7px; width: 7px; border-radius: 50%; background: #b1bcc6; box-shadow: 0 0 0 3px #b1bcc625; }
 .backend-badge.online { color: #238064; }

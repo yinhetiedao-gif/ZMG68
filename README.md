@@ -1,5 +1,17 @@
 # Xiaomang Pattern Lab / 小芒图案实验室（当前活跃项目）
 
+## 小芒图案库（独立复用模块）
+
+原网站顶部“小芒图案库”以新标签页打开 `/patterns/`。复用 MIT 开源
+`svelte-svg-patterns` 的 330 款图案、Svelte 参数编辑器、即时预览及 SVG/PNG
+导出，不替换原编辑器或制造/STL 管线。图案库没有自动转换为制造项目的通道；
+需要制造时返回图案实验室，按现有导入、真实尺寸确认和制造检查流程操作。
+
+模块独立构建：在 `external/pattern-library` 执行 `npm ci --ignore-scripts`、
+`node build-static.cjs`；将后端的 `XIAOMANG_PATTERN_LIBRARY_DIST` 指向生成的
+`__sapper__/export/patterns`。现有 Docker 配置已包含此构建和静态挂载。
+许可证、接入边界、实际测试及回退说明见 [交付记录](docs/PATTERN_LIBRARY_REUSE.md)。
+
 ## 临时公网测试站
 
 需要短时交给外部测试者检查时，安装官方 `cloudflared`，在项目根目录执行

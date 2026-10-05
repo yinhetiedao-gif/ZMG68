@@ -13,6 +13,7 @@ work/
 backups/
 source-releases/
 node_modules/
+__sapper__/
 npm-cache/
 *.tsbuildinfo
 .pytest_cache/

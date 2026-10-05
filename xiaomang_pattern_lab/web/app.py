@@ -667,6 +667,16 @@ def create_app(*, asset_resolver: AssetResolver | None = None,
         payload["manufacturing_result_id"] = manufacturing_result_id
         return JSONResponse(payload, headers={"Cache-Control": "no-store"})
 
+    # The reused Sapper library is an independent static build. Mount before
+    # the React SPA fallback so missing library assets remain honest 404s.
+    library_setting = os.environ.get("XIAOMANG_PATTERN_LIBRARY_DIST")
+    if library_setting:
+        library_dist = Path(library_setting).resolve()
+        if not (library_dist / "index.html").is_file():
+            raise RuntimeError("Pattern library build is missing index.html")
+        app.mount("/patterns", StaticFiles(directory=library_dist, html=True),
+                  name="pattern-library")
+
     # Production assets are opt-in; local Vite + FastAPI development is unchanged.
     dist_setting = web_dist if web_dist is not None else os.environ.get("XIAOMANG_WEB_DIST")
     if dist_setting:

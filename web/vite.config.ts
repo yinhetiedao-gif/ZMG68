@@ -16,11 +16,23 @@ function buildCommit(): string {
 export default defineConfig({
   define: { 'import.meta.env.VITE_BUILD_COMMIT': JSON.stringify(buildCommit()) },
   plugins: [react()],
+  server: {
+    proxy: {
+      '/patterns': {
+        target: process.env.XIAOMANG_STAGING_API_TARGET ?? 'http://127.0.0.1:8766',
+        changeOrigin: false,
+      },
+    },
+  },
   // The built staging site has one public origin; only /api is forwarded to
   // the loopback-only Python service. Never expose the Vite development server.
   preview: {
     allowedHosts: ['.trycloudflare.com'],
     proxy: {
+      '/patterns': {
+        target: process.env.XIAOMANG_STAGING_API_TARGET ?? 'http://127.0.0.1:8766',
+        changeOrigin: false,
+      },
       '/api': {
         target: process.env.XIAOMANG_STAGING_API_TARGET ?? 'http://127.0.0.1:8766',
         changeOrigin: false,

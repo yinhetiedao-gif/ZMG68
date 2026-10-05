@@ -1,5 +1,26 @@
 # Gate 状态（2026-10-05）
 
+## 小芒图案库复用接入（2026-10-05）
+
+- **LOCAL PASS**。工作分支 `feature/pattern-library-reuse`，基线与上一可回退提交
+  `85c6ad05205362c4c65c04593b6f2a02d8966723`；已保护为
+  `backup/pre-pattern-library-20261005`。本次不是 F5-C 软件/实物验收，也不进入新 Fabric 阶段。
+- 实际下载并跑通原版 `catchspider2002/svelte-svg-patterns`（MIT，固定
+  `803e30bfde106cf094581aabfc80ced2062c5ab7`）。复用330款数据和原 Svelte/Sapper
+  画廊/编辑器/导出；中文主要入口、移除推广跟踪服务、保留许可证。
+  参考仓库仅有打包文件且无可核验源码许可，未反编译或复制。
+- 独立 `/patterns/` 静态模块；原 React 只新增新标签页入口，FastAPI 增加可选静态挂载，
+  Docker 增加独立构建阶段。未改 PatternDocument、Field、Fabric、制造或 STL 算法。
+- Web **189/189 PASS**；静态挂载/部署/普通制造 API **16 PASS**；React staging build
+  与 Sapper 全330路由导出 PASS。真实 Edge：waves/circles/diamonds 参数修改、SVG/PNG
+  下载打开、当前参数对应、直接刷新、搜索、手机端导出 PASS；下载文件像素对照无差异，
+  无致命 JS、404 或外部推广请求。返回原网站制造与 STL 下载200，读回40×40×2mm、
+  9组件、watertight、684面、零退化面。
+- 本机无 Docker CLI，未运行本地 Docker build；公网部署结果单独记录，不将本地结果冒充上线。
+  未运行无关 Tk/几何全量。上游旧依赖安全审计仍有告警，未全量升级；部署仅发布静态产物，
+  不运行该项目旧 Node 服务。完整范围、失败修复记录和启动方式见
+  `docs/PATTERN_LIBRARY_REUSE.md`。
+
 ## F5-C Fabric STL Export（2026-10-05）
 
 - **INCOMPLETE / NOT SOFTWARE PASS**。基线 `709579af59398fe620d7945ffad39ae85b7461e6`，F5-C 作为待公网部署、切片和实物验收 checkpoint 提交；保护引用 `backup/pre-f5c-fabric-stl`。本地验证通过不等于切片、Linux/Render或实物通过，未创建 Physical backup。

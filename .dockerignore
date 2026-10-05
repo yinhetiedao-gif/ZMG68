@@ -9,6 +9,7 @@
 **/__pycache__
 **/*.pyc
 **/node_modules
+**/__sapper__
 **/dist
 **/build
 **/*.tsbuildinfo
