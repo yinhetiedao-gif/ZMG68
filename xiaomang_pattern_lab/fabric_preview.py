@@ -106,10 +106,11 @@ def build_fabric_design(document, dto: PatternDocumentDTO, *, preview_limit: boo
     left, bottom, right, top = (bounds["min_x"], bounds["min_y"], bounds["max_x"], bounds["max_y"])
     margin = config.base.margin_mm
     base_bounds = (left - margin, bottom - margin, right + margin, top + margin)
+    base_top_z = config.base.thickness_mm if config.output_mode == "cells_with_base" else 0.
     if cell is None:
         plan = None
     elif mode == "area_fill":
-        plan = FabricPlanner().plan(base_bounds, config.base.thickness_mm, cell,
+        plan = FabricPlanner().plan(base_bounds, base_top_z, cell,
                                     RegularPlacement.from_mapping(placement), preview_limit=preview_limit)
     else:
         reference_sizes = _reference_dimensions_mm(document)
@@ -134,12 +135,13 @@ def build_fabric_design(document, dto: PatternDocumentDTO, *, preview_limit: boo
                 scale_y=height / reference[1] if reference else 1.0,
                 rotation_deg=item.get("rotation", 0.0),
             ))
-        plan = FabricPlanner().plan_points(points, config.base.thickness_mm, cell,
+        plan = FabricPlanner().plan_points(points, base_top_z, cell,
                                            follow_pattern_size=size_mode == "follow_pattern", preview_limit=preview_limit)
     if plan is not None:
         plan = apply_fabric_field_modifiers(plan, document, raw.get("field_modifiers"))
     planned_at = perf_counter()
     metadata = {"document_id": dto.document_id, "document_revision": dto.document_revision,
+                    "output_mode": config.output_mode,
                     "placement_mode": mode, "element_count": len(geometry),
                     "unit_size_mode": size_mode,
                     "unmatched_reference_count": unmatched_reference_count if mode == "pattern_points" else 0,

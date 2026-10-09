@@ -16,8 +16,12 @@ class _ExportTimingValidator(MeshValidator):
 
 def export_validated_fabric_stl(final):
     report=final.report
-    if (report.get('final_fabric_mesh_ready') is not True or report.get('fused') is not True
-        or report.get('connected_component_count') != 1 or report.get('watertight') is not True
+    cells_only=report.get('output_mode','cells_with_base') == 'cells_only'
+    expected_components=report.get('connected_component_count',0)
+    if (report.get('final_fabric_mesh_ready') is not True
+        or not cells_only and (report.get('fused') is not True or expected_components != 1)
+        or expected_components < 1 or report.get('watertight') is not True
+        or not final.mesh_result.mesh.is_winding_consistent
         or not np.isfinite(report.get('volume_mm3',0)) or report.get('volume_mm3',0) <= 0 or report['validation_report']['error_count']
         or report['validation_report']['degenerate_face_count']):
         raise FabricFusionFailure('stl_export_gate','最终网格未通过检查，Fabric STL 不可导出。')
@@ -45,7 +49,8 @@ def export_validated_fabric_stl(final):
     tolerance=float(max(1e-6,float(np.abs(final.mesh_result.mesh.vertices).max())*np.finfo(np.float32).eps))
     bounds_match=np.allclose(reopened.mesh.bounds,final.mesh_result.mesh.bounds,rtol=0,atol=tolerance)
     volume_match=np.isclose(volume,report['volume_mm3'],rtol=2e-5,atol=1e-6)
-    if (not checked.is_valid or not checked.is_watertight or checked.component_count != 1
+    if (not checked.is_valid or not checked.is_watertight or checked.component_count != expected_components
+        or not reopened.mesh.is_winding_consistent
         or not np.isfinite(volume) or volume <= 0 or not bounds_match or not volume_match
         or checked.face_count != final.mesh_result.face_count):
         raise FabricFusionFailure('stl_roundtrip','STL 读回检查失败，已阻止下载。',

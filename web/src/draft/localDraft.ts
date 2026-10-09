@@ -1,6 +1,7 @@
 import type { PatternDocumentDTO } from '../model/types'
 import { currentLayoutFamily, type LayoutDraft } from '../document/layoutDraft'
 import type { ImageSources } from '../api/imageAssets'
+import { validateReferenceLayer, type ReferenceLayer } from '../document/referenceLayer'
 
 const DB_NAME = 'xiaomang-pattern-lab-drafts'
 const STORE = 'drafts'
@@ -24,12 +25,14 @@ export interface LocalDraft {
   pending_layout?: LayoutDraft | null
   example_session_active?: boolean
   image_sources?: ImageSources
+  reference_layer?: ReferenceLayer | null
 }
 
 export interface DraftUiState {
   pending_layout: LayoutDraft | null
   example_session_active: boolean
   image_sources?: ImageSources
+  reference_layer?: ReferenceLayer | null
 }
 
 export class LocalDraftError extends Error {}
@@ -98,6 +101,7 @@ async function writeDraft(key: LocalDraft['key'], dto: PatternDocumentDTO, fileN
   sourceAsset: SourceAssetDraft | null, uiState?: DraftUiState): Promise<LocalDraft> {
   validateDraftDocument(dto)
   validateImageSources(dto, uiState?.image_sources)
+  if (uiState?.reference_layer) validateReferenceLayer(uiState.reference_layer)
   const pending = uiState?.pending_layout
   if (pending && (pending.sourceRevision !== dto.document_revision ||
       (!pending.changed && pending.family === currentLayoutFamily(dto)) ||
@@ -111,6 +115,7 @@ async function writeDraft(key: LocalDraft['key'], dto: PatternDocumentDTO, fileN
     pending_layout: pending ?? null,
     example_session_active: uiState?.example_session_active ?? false,
     image_sources: uiState?.image_sources ?? {},
+    reference_layer: uiState?.reference_layer ?? null,
   }
   const db = await database()
   try {
@@ -146,6 +151,7 @@ async function readDraft(key: LocalDraft['key']): Promise<LocalDraft | null> {
     if (draft.schema_version !== '1.0') throw new LocalDraftError('本地草稿版本不受支持。')
     validateDraftDocument(draft.dto)
     validateImageSources(draft.dto, draft.image_sources)
+    if (draft.reference_layer) validateReferenceLayer(draft.reference_layer)
     if (draft.pending_layout) {
       const pending = draft.pending_layout
       if ((!pending.changed && pending.family === currentLayoutFamily(draft.dto)) ||

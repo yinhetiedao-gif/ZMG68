@@ -552,7 +552,7 @@ def create_app(*, asset_resolver: AssetResolver | None = None,
             design = build_fabric_design(document, dto, preview_limit=False)
             candidate = build_fabric_candidate(design.plan, design.config.base,
                 design.design_bounds_mm, document_id=dto.document_id,
-                document_revision=dto.document_revision)
+                document_revision=dto.document_revision, output_mode=design.config.output_mode)
             return candidate.report
         try:
             try:
@@ -577,7 +577,8 @@ def create_app(*, asset_resolver: AssetResolver | None = None,
             try:
                 design = build_fabric_design(document,dto,preview_limit=False)
                 candidate = build_fabric_candidate(design.plan,design.config.base,design.design_bounds_mm,
-                    document_id=dto.document_id,document_revision=dto.document_revision)
+                    document_id=dto.document_id,document_revision=dto.document_revision,
+                    output_mode=design.config.output_mode)
                 candidate = replace(candidate,report={**candidate.report,
                     'document_fingerprint':sha256(canonical_json(dto.to_dict()).encode()).hexdigest()})
             except (ValueError,TypeError,KeyError) as error:

@@ -2,6 +2,8 @@ import { useEffect, useLayoutEffect, useRef, useState, type PointerEvent, type W
 import type { BoundsMM, FinalGeometry } from '../model/types'
 import { geometryShape } from './render'
 import { fitView, panBy, screenToWorld, zoomAt, type Point, type ViewTransform, type Viewport } from './view'
+import type { ReferenceLayer } from '../document/referenceLayer'
+import { gradientHandleChange, gradientMarkers, type GradientControl, type GradientHandle } from './gradientControls'
 
 interface Props {
   geometry: FinalGeometry[]
@@ -16,15 +18,20 @@ interface Props {
   pendingPreview: { id: string; dx: number; dy: number } | null
   fitToken: number
   onEditingChange?: (editing: boolean) => void
+  referenceLayer?: (ReferenceLayer & { url: string }) | null
+  onSelectReference?: () => void
+  gradientControl?: GradientControl | null
+  onGradientChange?: (values: Record<string, number>) => void
 }
 
 type Interaction =
   | { kind: 'pan'; x: number; y: number; view: ViewTransform; nextX: number; nextY: number }
   | { kind: 'drag'; id: string; start: Point; node: SVGGElement; next: Point }
+  | { kind: 'gradient'; control: GradientControl; handle: GradientHandle; start: Point }
 
 export function Workspace2D({
   geometry, bounds, mmPerUnit, view, onViewChange, selectedId, onSelect,
-  canDrag, onDragCommit, pendingPreview, fitToken, onEditingChange,
+  canDrag, onDragCommit, pendingPreview, fitToken, onEditingChange, referenceLayer, onSelectReference, gradientControl, onGradientChange,
 }: Props) {
   const stage = useRef<HTMLDivElement>(null)
   const svg = useRef<SVGSVGElement>(null)
@@ -63,7 +70,15 @@ export function Workspace2D({
 
   useEffect(() => () => {
     if (frame.current !== null) cancelAnimationFrame(frame.current)
+    onEditingChange?.(false)
   }, [])
+
+  useEffect(() => {
+    if (interaction.current?.kind === 'gradient' && interaction.current.control.kind !== gradientControl?.kind) {
+      interaction.current = null
+      onEditingChange?.(false)
+    }
+  }, [gradientControl?.kind, onEditingChange])
 
   useLayoutEffect(() => {
     const node = lastDragNode.current
@@ -84,7 +99,23 @@ export function Workspace2D({
   const zoom = (factor: number) => onViewChange(zoomAt(view, factor, { x: viewport.width / 2, y: viewport.height / 2 }))
   const onWheel = (event: WheelEvent<SVGSVGElement>) => {
     event.preventDefault()
+    if (interaction.current?.kind === 'gradient') return
     onViewChange(zoomAt(view, event.deltaY < 0 ? 1.12 : 1 / 1.12, screenPoint(event)))
+  }
+  const onGradientDown = (event: PointerEvent<SVGCircleElement>, handle: GradientHandle) => {
+    if (event.button !== 0 || !gradientControl) return
+    event.preventDefault(); event.stopPropagation()
+    interaction.current = { kind: 'gradient', control: gradientControl, handle,
+      start: screenToWorld(screenPoint(event), view) }
+    onEditingChange?.(true)
+    svg.current?.setPointerCapture?.(event.pointerId)
+  }
+  const changeGradient = (active: Extract<Interaction, { kind: 'gradient' }>, event: { clientX: number; clientY: number }) => {
+    const world = screenToWorld(screenPoint(event), view)
+    // Keep the grab offset when dragging the center, avoiding a pointerdown jump.
+    const position = active.handle === 'center' && active.control.kind === 'radial'
+      ? { x: active.control.values.center_x + world.x - active.start.x, y: active.control.values.center_y + world.y - active.start.y } : world
+    onGradientChange?.(gradientHandleChange(active.control, active.handle, position))
   }
   const onElementDown = (event: PointerEvent<SVGGElement>, item: FinalGeometry) => {
     if (event.button !== 0) return
@@ -117,6 +148,7 @@ export function Workspace2D({
     }
     const active = interaction.current
     if (!active) return
+    if (active.kind === 'gradient') { changeGradient(active, event); return }
     if (active.kind === 'drag') {
       const world = screenToWorld(screen, view)
       active.next = { x: world.x - active.start.x, y: world.y - active.start.y }
@@ -144,6 +176,7 @@ export function Workspace2D({
     }
     interaction.current = null
     onEditingChange?.(false)
+    if (active.kind === 'gradient') { changeGradient(active, event); return }
     if (active.kind === 'pan') {
       onViewChange(panBy(active.view, event.clientX - active.x, event.clientY - active.y))
       return
@@ -167,11 +200,14 @@ export function Workspace2D({
     const active = interaction.current
     interaction.current = null
     onEditingChange?.(false)
+    if (active?.kind === 'gradient') onGradientChange?.({ ...active.control.values })
     if (active?.kind === 'drag') {
       active.node.removeAttribute('transform')
       lastDragNode.current = null
     }
   }
+  const markers = gradientControl ? gradientMarkers(gradientControl) : null
+  const handleRadius = 7 / view.zoom
 
   return (
     <div className="viewer-root" ref={stage} aria-label="二维设计画布">
@@ -185,9 +221,16 @@ export function Workspace2D({
       <svg ref={svg} className="viewer-svg" role="img" aria-label="最终二维几何，单位毫米"
         viewBox={`0 0 ${viewport.width} ${viewport.height}`}
         onWheel={onWheel} onPointerDown={onBackgroundDown} onPointerMove={onMove}
-        onPointerUp={onUp} onPointerCancel={onCancel}>
+        onPointerUp={onUp} onPointerCancel={onCancel} onLostPointerCapture={onCancel}>
         <rect width={viewport.width} height={viewport.height} fill="transparent" />
         <g transform={`translate(${view.panX} ${view.panY}) scale(${view.zoom})`}>
+          {referenceLayer?.visible && referenceLayer.url && <image data-reference-layer="true"
+            href={referenceLayer.url} x={referenceLayer.x_mm - referenceLayer.width_mm / 2}
+            y={referenceLayer.y_mm - referenceLayer.height_mm / 2} width={referenceLayer.width_mm} height={referenceLayer.height_mm}
+            opacity={referenceLayer.opacity} preserveAspectRatio="none"
+            transform={`rotate(${referenceLayer.rotation_deg} ${referenceLayer.x_mm} ${referenceLayer.y_mm})`}
+            pointerEvents={referenceLayer.locked ? 'none' : 'auto'}
+            onPointerDown={event => { event.stopPropagation(); onSelectReference?.() }} />}
           {geometry.map((item) => (
             <g key={item.id} data-element-id={item.id}
               transform={pendingPreview?.id === item.id ? `translate(${pendingPreview.dx} ${pendingPreview.dy})` : undefined}
@@ -200,6 +243,24 @@ export function Workspace2D({
                 transform={item.rotation ? `rotate(${item.rotation} ${item.x} ${item.y})` : undefined} />}
             </g>
           ))}
+          {gradientControl && markers && <g data-gradient-controls={gradientControl.kind} className="gradient-controls">
+            {gradientControl.kind === 'linear'
+              ? <line data-gradient-axis="true" x1={2 * markers.center.x - markers.point.x} y1={2 * markers.center.y - markers.point.y}
+                x2={markers.point.x} y2={markers.point.y} vectorEffect="non-scaling-stroke" pointerEvents="none" />
+              : <circle data-gradient-range="true" cx={markers.center.x} cy={markers.center.y} r={gradientControl.values.radius}
+                fill="none" vectorEffect="non-scaling-stroke" pointerEvents="none" />}
+            <circle data-gradient-handle={gradientControl.kind === 'linear' ? 'direction' : 'radius'}
+              aria-label={gradientControl.kind === 'linear' ? '拖动渐变方向' : '拖动影响半径'}
+              cx={markers.point.x} cy={markers.point.y} r={handleRadius} vectorEffect="non-scaling-stroke"
+              onPointerDown={event => onGradientDown(event, gradientControl.kind === 'linear' ? 'direction' : 'radius')} />
+            {gradientControl.kind === 'radial' && <circle data-gradient-handle="center" aria-label="拖动渐变中心"
+              cx={markers.center.x} cy={markers.center.y} r={handleRadius} vectorEffect="non-scaling-stroke"
+              onPointerDown={event => onGradientDown(event, 'center')} />}
+            <text x={markers.center.x} y={markers.center.y - 14 / view.zoom} fontSize={12 / view.zoom} pointerEvents="none">
+              {gradientControl.kind === 'linear' ? `${gradientControl.values.angle.toFixed(1)}° · 仅方向，不代表作用范围`
+                : `影响半径 ${gradientControl.values.radius.toFixed(2)} mm`}
+            </text>
+          </g>}
         </g>
       </svg>
       <div className="viewer-footer">

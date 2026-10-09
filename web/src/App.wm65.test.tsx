@@ -82,7 +82,7 @@ describe('Web/Desktop parameterization semantics', () => {
   it('imports in Free; selecting any family does not commit or evaluate', async () => {
     const calls = backend()
     await importSvg()
-    await screen.findByText('推荐：规则矩阵 Grid（95%）')
+    expect(screen.queryByText(/推荐：/)).toBeNull()
     for (const label of ['规则矩阵 Grid', '放射 Radial', '曲线 Curve', '自由布局 Free']) {
       fireEvent.click(screen.getByRole('button', { name: new RegExp(label) }))
     }
@@ -94,11 +94,11 @@ describe('Web/Desktop parameterization semantics', () => {
     expect(screen.getByText('revision 0')).toBeInTheDocument()
   })
 
-  it('uses recommendation only as selection; Apply commits once and evaluates once', async () => {
+  it('uses manual selection without recommendation; Apply commits once and evaluates once', async () => {
     const calls = backend()
     await importSvg()
-    await screen.findByText('推荐：规则矩阵 Grid（95%）')
-    fireEvent.click(screen.getByRole('button', { name: '使用推荐' }))
+    expect(screen.queryByText(/推荐：/)).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: /规则矩阵 Grid/ }))
     await waitFor(() => expect(screen.getByRole('button', { name: '应用布局' })).toBeEnabled())
     expect(screen.getByText('revision 0')).toBeInTheDocument()
     expect(calls.filter((item) => item.path.endsWith('/evaluate'))).toHaveLength(1)
@@ -112,7 +112,7 @@ describe('Web/Desktop parameterization semantics', () => {
   it('keeps Free available without a recommendation, and Cancel does not change document', async () => {
     const calls = backend(null)
     await importSvg()
-    await screen.findByText('暂无可靠推荐；可手动尝试图案结构。')
+    expect(calls.filter(item => item.path.endsWith('/analyze-pattern'))).toHaveLength(0)
     fireEvent.click(screen.getByRole('button', { name: '放射 Radial' }))
     await waitFor(() => expect(screen.getByRole('button', { name: '应用布局' })).toBeEnabled())
     fireEvent.click(screen.getByRole('button', { name: '取消布局' }))
@@ -124,8 +124,8 @@ describe('Web/Desktop parameterization semantics', () => {
   it('keeps the document and geometry when a layout proposal fails', async () => {
     const calls = backend('grid', 'grid')
     await importSvg()
-    await screen.findByText('推荐：规则矩阵 Grid（95%）')
-    fireEvent.click(screen.getByRole('button', { name: '使用推荐' }))
+    expect(screen.queryByText(/推荐：/)).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: /规则矩阵 Grid/ }))
     await screen.findByText('布局提案准备失败。')
     expect(screen.getByText('revision 0')).toBeInTheDocument()
     expect(calls.filter((item) => item.path.endsWith('/evaluate'))).toHaveLength(1)
@@ -183,7 +183,7 @@ describe('Web/Desktop parameterization semantics', () => {
     expect(calls.filter((item) => item.path.endsWith('/evaluate'))).toHaveLength(3)
   })
 
-  it('keeps candidate selection available during automatic analysis', async () => {
+  it('keeps manual selection available without invoking automatic analysis', async () => {
     const calls = backend()
     const previous = globalThis.fetch
     let finishAnalysis: ((value: Response) => void) | undefined
@@ -194,28 +194,28 @@ describe('Web/Desktop parameterization semantics', () => {
       return previous(url, init)
     }))
     await importSvg()
-    await screen.findByText('正在分析图案；结构仍可尝试使用。')
+    expect(screen.queryByRole('button', { name: '使用推荐' })).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: '放射 Radial' }))
     expect(screen.getByText('revision 0')).toBeInTheDocument()
     expect(calls.filter((item) => item.path.endsWith('/pattern-action'))).toHaveLength(0)
     finishAnalysis?.(reply({ document_id: 'imported', document_revision: 0,
       recommended_family: 'grid', confidence: .95, analysis_status: 'matched' }))
-    await screen.findByText('推荐：规则矩阵 Grid（95%）')
+    expect(screen.queryByText(/推荐：/)).toBeNull()
   })
 
-  it('debounces analysis after a normal element edit without changing candidate availability', async () => {
+  it('does not request recommendation after a normal element edit', async () => {
     const calls = backend()
     await importSvg()
-    await screen.findByText('推荐：规则矩阵 Grid（95%）')
+    expect(screen.queryByText(/推荐：/)).toBeNull()
     const canvas = screen.getByRole('img', { name: '最终二维几何，单位毫米' })
     fireEvent.pointerDown(canvas.querySelector('[data-element-id="dot-0"]')!, { button: 0 })
     const width = screen.getByRole('spinbutton', { name: '宽度 mm' })
     fireEvent.change(width, { target: { value: '6' } })
     fireEvent.blur(width)
     await waitFor(() => expect(screen.getByText('revision 1')).toBeInTheDocument())
-    await screen.findByText('图案已修改，推荐结果待更新；结构仍可使用。')
+    expect(screen.queryByText(/推荐结果待更新/)).toBeNull()
     expect(screen.getByRole('button', { name: '放射 Radial' })).toBeEnabled()
-    await waitFor(() => expect(calls.filter((item) => item.path.endsWith('/analyze-pattern'))).toHaveLength(2), {
+    await waitFor(() => expect(calls.filter((item) => item.path.endsWith('/analyze-pattern'))).toHaveLength(0), {
       timeout: 1500,
     })
     expect(calls.filter((item) => item.path.endsWith('/evaluate'))).toHaveLength(2)

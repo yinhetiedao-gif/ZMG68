@@ -10,7 +10,7 @@ const sizeMode: ParameterDefinition = { id: 'size_mode', label: '单元尺寸模
   options: [{ value: 'fixed', label: '固定尺寸' }, { value: 'follow_pattern', label: '跟随图案' }] }
 const catalog = { schema_version: '1.0', units: 'mm', definitions: { layout: {}, field: {}, modifier: {},
   fabric_cell: Object.fromEntries(['cylinder', 'cone', 'pyramid', 'double_tower', 'fin'].map((type) => [type,
-    { label: type, parameters: [sizeMode, parameter('width_mm', 2), parameter('depth_mm', 2), parameter('height_mm', 3)] }])),
+    { label: type, parameters: [sizeMode, parameter('width_mm', 4), parameter('depth_mm', 4), parameter('height_mm', 3)] }])),
   fabric_placement: { regular: { label: 'regular', parameters: [parameter('spacing_x_mm', 5), parameter('spacing_y_mm', 5)] } },
 } } as ParameterCatalog
 const dto = { schema_version: '1.0', document_id: 'f2', document_revision: 0, assets: [],
@@ -23,7 +23,7 @@ describe('F2 Unit Cell document editing', () => {
   it('uses one immutable revision per change, preserves base, and removes both plan inputs together', () => {
     const cylinder = setFabricUnitCellType(dto, 'cylinder', catalog)
     expect(cylinder.document_revision).toBe(1)
-    expect(fabricUnitCell(cylinder)).toMatchObject({ type: 'cylinder', width_mm: 2, height_mm: 3 })
+    expect(fabricUnitCell(cylinder)).toMatchObject({ type: 'cylinder', width_mm: 4, height_mm: 3 })
     expect(fabricPlacement(cylinder)).toEqual({ spacing_x_mm: 5, spacing_y_mm: 5 })
     const resized = updateFabricUnitCell(cylinder, 'cell', 'height_mm', 4, catalog)
     const spaced = updateFabricUnitCell(resized, 'placement', 'spacing_x_mm', 6, catalog)

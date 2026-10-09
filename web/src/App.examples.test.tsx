@@ -129,7 +129,7 @@ describe('P1 built-in examples', () => {
     await screen.findByText('Backend Online')
     await openFromEmpty('参数渐变')
     expect(screen.getByText('调整线性场的方向和范围，观察尺寸与旋转如何渐变。')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /布局 · 规则矩阵/ })).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByRole('button', { name: /布局 · 规则矩阵/ })).toBeNull()
     expect(screen.getByRole('button', { name: '参数场' })).toHaveAttribute('aria-expanded', 'true')
     expect(screen.getByRole('button', { name: '效果层' })).toHaveAttribute('aria-expanded', 'true')
     expect(screen.getByRole('checkbox', { name: '尺寸' })).toBeInTheDocument()
@@ -207,7 +207,7 @@ describe('P1 built-in examples', () => {
     fireEvent.click(screen.getByRole('button', { name: '打开示例：参数渐变' }))
     await waitFor(() => expect(evaluations).toHaveLength(2))
     expect(draftMocks.save).toHaveBeenCalledWith(evaluations[0], '基础圆点阵列', null,
-      { pending_layout: null, example_session_active: false, image_sources: {} })
+      { pending_layout: null, example_session_active: false, image_sources: {}, reference_layer: null })
     expect(evaluations[1].document.fields[0].type).toBe('linear')
     expect(evaluations[1].document.modifiers.map((item) => item.type)).toEqual(['size', 'rotation'])
     draftMocks.save.mockRejectedValueOnce(new Error('草稿写入失败'))
@@ -254,9 +254,9 @@ describe('P1 built-in examples', () => {
     fireEvent.click(screen.getByRole('button', { name: '打开示例：基础圆点阵列' }))
     await waitFor(() => expect(evaluations).toHaveLength(2))
     expect(draftMocks.save).toHaveBeenCalledWith(evaluations[0], 'my-work.pattern.json', null,
-      { pending_layout: null, example_session_active: false, image_sources: {} })
+      { pending_layout: null, example_session_active: false, image_sources: {}, reference_layer: null })
     expect(draftMocks.saveBefore).toHaveBeenCalledWith(evaluations[0], 'my-work.pattern.json', null,
-      { pending_layout: null, example_session_active: false, image_sources: {} })
+      { pending_layout: null, example_session_active: false, image_sources: {}, reference_layer: null })
     fireEvent.click(screen.getByRole('button', { name: '← 返回之前作品' }))
     await waitFor(() => expect(evaluations).toHaveLength(3))
     expect(evaluations[2].document.elements[0].id).toBe('work-1')

@@ -162,6 +162,8 @@ button { font: inherit; }
 .manufacturing-settings input { width: 105px; padding: 8px; border: 1px solid #cbdbe3; border-radius: 6px; }
 .manufacturing-settings button { padding: 9px 16px; border: 0; border-radius: 6px; background: #386a83; color: #fff; cursor: pointer; }
 .manufacturing-settings button:disabled { opacity: .5; cursor: not-allowed; }
+.manufacture-inspector .manufacturing-settings .section-toggle { background: transparent; color: inherit; padding: 5px 0; text-align: left; }
+.manufacture-inspector .manufacturing-settings .parameter-reset { background: transparent; color: #52758a; padding: 2px 4px; font-size: 10px; }
 .manufacturing-status { margin: 18px 0; padding: 10px 12px; background: #eef5f8; border-radius: 6px; font-size: 12px; }
 .manufacturing-status.warning, .manufacturing-status.stale { background: #fff3df; }
 .manufacturing-status.error, .manufacturing-error { color: #9d3934; background: #ffefed; }
@@ -196,6 +198,40 @@ button { font: inherit; }
 .three-preview-viewport canvas { width: 100%; height: 100%; display: block; }
 .three-preview-status, .three-preview-bounds { display: block; padding: 5px 9px; color: #667f8e; font-size: 11px; }
 .three-preview-bounds { padding-top: 0; }
+
+/* Manufacturing uses the existing inspector and a single persistent 3D view. */
+.manufacture-layout { grid-template-columns: 252px minmax(0, 1fr) 360px; }
+.fabric-live-stage { position: relative; z-index: 1; width: 100%; height: 100%; min-height: 0; display: flex; flex-direction: column; padding: 12px; box-sizing: border-box; }
+.fabric-live-stage[hidden], .manufacturing-inspector-form[hidden], .manufacturing-action-dock[hidden] { display: none; }
+.fabric-live-heading { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 12px; flex: 0 0 auto; padding-bottom: 10px; }
+.fabric-live-heading strong { font-size: 16px; }
+.fabric-live-heading small, .fabric-live-heading span { font-size: 11px; color: #667f8e; }
+.inspector.manufacture-inspector { padding: 0; overflow: hidden; }
+.manufacture-inspector > .inspector-title { flex: 0 0 auto; padding: 14px 16px; }
+.manufacture-inspector > .inspector-content { flex: 1 1 auto; overflow-y: auto; overflow-x: hidden; min-height: 0; scrollbar-gutter: stable; padding: 0 12px 16px; }
+.manufacturing-inspector-form .manufacturing-panel { width: 100%; max-height: none; overflow: visible; padding: 0; border: 0; box-shadow: none; border-radius: 0; background: transparent; }
+.manufacturing-inspector-form .manufacturing-heading { padding: 12px 5px 0; }
+.manufacturing-inspector-form .manufacturing-heading h1 { font-size: 16px; }
+.manufacturing-inspector-form .manufacturing-heading p { margin-bottom: 8px; }
+.manufacturing-inspector-form .workflow-back { margin-bottom: 8px; }
+.manufacturing-inspector-form .manufacturing-settings, .manufacturing-inspector-form fieldset { display: block; width: 100%; }
+.manufacturing-inspector-form .inspector-section { padding-top: 12px; }
+.manufacturing-inspector-form .inspector-section h2 { font-size: 13px; }
+.manufacturing-inspector-form p, .manufacturing-inspector-form small { font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; }
+.manufacturing-inspector-form label { display: block; margin: 8px 0 5px; }
+.manufacturing-inspector-form input[type=checkbox] { width: auto; display: inline; }
+.manufacturing-inspector-form select { width: 100%; max-width: 100%; min-width: 0; }
+.manufacturing-inspector-form .parameter-inputs { display: flex; min-width: 0; }
+.manufacturing-inspector-form .parameter-inputs input[type=range] { flex: 1; min-width: 0; width: 0; }
+.manufacturing-inspector-form .parameter-inputs input[type=number] { width: 78px; flex: 0 0 78px; min-width: 0; }
+.manufacturing-inspector-form pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+.manufacturing-action-dock { flex: 0 0 auto; background: #fff; padding: 10px 12px; border-top: 1px solid #dfe8ed; }
+.manufacturing-action-dock .manufacturing-output-actions { margin: 0; padding: 0; border: 0; gap: 8px; }
+.manufacturing-action-dock button { white-space: normal; flex: 1; min-width: 0; font-size: 12px; padding: 10px 8px; }
+.manufacturing-action-dock .stl-export-action { flex: 1; min-width: 0; }
+.manufacturing-action-dock .stl-export-action button { width: 100%; }
+@media (max-width: 1200px) { .work-area.manufacture-layout { grid-template-columns: 210px minmax(0, 1fr) 320px; } }
+@media (max-width: 900px) { .work-area.manufacture-layout { grid-template-columns: 168px minmax(0, 1fr) 300px; } }
 
 .inspector { border-left: 1px solid #dde4e9; display: flex; flex-direction: column; padding: 25px 17px 20px; }
 .inspector-title { display: flex; align-items: flex-start; justify-content: space-between; border-bottom: 1px solid #e7ebee; padding: 0 5px 18px; }
@@ -365,3 +401,8 @@ button.ui-danger:hover:not(:disabled) { background: #fff1ef; }
   .mode-label { display: none; }
   .mode-button { min-width: 82px; padding: 0 7px; }
 }
+.gradient-controls { stroke: #00a2b5; stroke-width: 2; }
+.gradient-controls [data-gradient-range] { stroke-dasharray: 6 4; }
+.gradient-controls [data-gradient-handle] { fill: #fff; cursor: grab; touch-action: none; }
+.gradient-controls [data-gradient-handle]:active { cursor: grabbing; fill: #bcf5ef; }
+.gradient-controls text { stroke: none; fill: #006c79; paint-order: stroke; }

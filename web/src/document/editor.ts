@@ -8,6 +8,27 @@ import {
 
 export class DocumentEditError extends Error {}
 
+/** Same conservative ownership scan used by Fabric shortcuts, including disabled
+ * consumers and nested Composite/legacy metadata. Ownership is not a consumer. */
+export function fieldReferencedOutside(dto: PatternDocumentDTO, id: string, own: {
+  metadataKeys: string[]; modifierId?: string; fabricConsumer?: string
+}): boolean {
+  const contains = (value: unknown): boolean => value === id || (Array.isArray(value)
+    ? value.some(contains) : !!value && typeof value === 'object' && Object.values(value).some(contains))
+  const metadata = { ...dto.document.metadata }
+  for (const key of own.metadataKeys) delete metadata[key]
+  if (own.fabricConsumer) {
+    const config = asRecord(metadata.fabric_config)
+    if (config) {
+      const modifiers = { ...asRecord(config.field_modifiers) }
+      delete modifiers[own.fabricConsumer]
+      metadata.fabric_config = { ...config, field_modifiers: modifiers }
+    }
+  }
+  return contains(dto.document.modifiers.filter(modifier => !own.modifierId || modifier.id !== own.modifierId)) ||
+    contains(metadata) || dto.document.fields.some(field => field.id !== id && contains(field))
+}
+
 function numeric(value: number, key: string, specs: { key: string; min: number; max: number; integer?: boolean }[]): number {
   const rule = specs.find((item) => item.key === key)
   if (!rule || !Number.isFinite(value) || value < rule.min || value > rule.max || (rule.integer && !Number.isInteger(value))) {

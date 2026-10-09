@@ -86,6 +86,8 @@ class ManufacturingService:
         try:
             document = session.require_document()
             fabric = fabric_config_from_document(document)
+            if fabric is not None and fabric.output_mode == "cells_only":
+                raise ValueError("仅图案单元必须通过 Fabric 最终制造网格生成，不能使用旧基底挤出入口。")
             if fabric is not None and not math.isclose(height, fabric.base.thickness_mm, rel_tol=0, abs_tol=1e-9):
                 raise ValueError("制造厚度必须与 Fabric Base 厚度一致。")
             final_elements = session.evaluate_elements()

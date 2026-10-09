@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { requestFabricFusion, fetchFabricStl, FabricRequestError, type FabricFinalReport } from '../api/fabricFusion'
 import type { PatternDocumentDTO } from '../model/types'
 import { fabricExportNotice } from './fabricCopy'
@@ -8,8 +9,11 @@ const stageLabels: Record<string, string> = { request: '请求', response_contra
   boolean_input: '融合输入检查', boolean_union: '实体融合', connectivity: '连通性检查',
   mesh_validation: '最终网格检查', bounds: '尺寸检查', stl_export: 'STL 导出', stl_roundtrip: 'STL 读回检查' }
 
-export function FabricFusionPanel({ document, fetcher = fetch, disabled = false, testExportEnabled }: {
+export function FabricFusionPanel({ document, fetcher = fetch, disabled = false, testExportEnabled, computeBusy = false, isComputeBusy, actionHost, canUseInputs }: {
   document: PatternDocumentDTO; fetcher?: typeof fetch; disabled?: boolean; testExportEnabled?: boolean
+  computeBusy?: boolean; isComputeBusy?: () => boolean
+  actionHost?: HTMLElement | null
+  canUseInputs?: () => boolean
 }) {
   const key = useMemo(() => JSON.stringify(document), [document])
   const current = useRef(key); current.current = key
@@ -18,6 +22,7 @@ export function FabricFusionPanel({ document, fetcher = fetch, disabled = false,
   const downloadController = useRef<AbortController | null>(null)
   const [downloadError, setDownloadError] = useState<string | null>(null)
   const [downloading, setDownloading] = useState(false)
+  const exportBlocked = useRef(disabled); exportBlocked.current = disabled
   const [state, setState] = useState<{ key: string; building: boolean;
     report: FabricFinalReport | null; error: string | null; diagnostics?: Record<string, unknown>;
     expired?: boolean } | null>(null)
@@ -28,10 +33,11 @@ export function FabricFusionPanel({ document, fetcher = fetch, disabled = false,
   const report = stale ? null : state?.report
   const exportEnabled = report ? report.export_available : testExportEnabled
   const statusText = stale ? '结果已失效，请重新生成。' : state?.building ? '正在生成最终制造网格……'
-    : state?.error ? '最终制造网格生成失败。' : report
+    : state?.error ? state.diagnostics?.error_code === 'staging_busy' ? '计算服务忙碌，请等待后再操作。' : '最终制造网格生成失败。' : report
       ? report.export_available ? '最终网格已通过检查' : '网格已通过检查，当前环境未启用测试导出。'
       : '请先生成最终制造网格。'
   async function build() {
+    if (disabled || computeBusy || isComputeBusy?.() || canUseInputs && !canUseInputs()) return
     downloadController.current?.abort(); setDownloading(false); setDownloadError(null)
     controller.current?.abort()
     const abort = new AbortController(); controller.current = abort
@@ -49,14 +55,14 @@ export function FabricFusionPanel({ document, fetcher = fetch, disabled = false,
     }
   }
   async function download() {
-    if (!report || stale || !report.export_available || state?.building) return
+    if (disabled || canUseInputs && !canUseInputs() || !report || stale || !report.export_available || state?.building) return
     downloadController.current?.abort()
     const abort = new AbortController(); downloadController.current = abort
     const request = sequence.current
     setDownloading(true); setDownloadError(null)
     try {
       const blob = await fetchFabricStl(report, document, abort.signal, fetcher)
-      if (abort.signal.aborted || current.current !== key || sequence.current !== request) return
+      if (abort.signal.aborted || exportBlocked.current || canUseInputs && !canUseInputs() || current.current !== key || sequence.current !== request) return
       const url = URL.createObjectURL(blob)
       const anchor = window.document.createElement('a')
       anchor.href = url; anchor.download = 'xiaomang-fabric.stl'
@@ -74,11 +80,14 @@ export function FabricFusionPanel({ document, fetcher = fetch, disabled = false,
       }
     } finally { if (!abort.signal.aborted) setDownloading(false) }
   }
+  const buildButton = <button type="button" className="ui-primary" disabled={disabled || computeBusy || !stale && state?.building === true}
+    onClick={() => void build()}>{actionHost ? '生成最终模型' : '生成最终制造网格'}</button>
+  const downloadButton = <button type="button" className="ui-primary" disabled={!report?.export_available || stale || downloading || disabled}
+    onClick={() => void download()}>{downloading ? '正在导出…' : '下载测试 Fabric STL'}</button>
   return <section className="manufacturing-report" aria-label="Fabric 最终制造网格">
     <h2>最终制造网格</h2>
     <p>预检 → 实体融合 → 网格检查。{fabricExportNotice(exportEnabled)}</p>
-    <button type="button" className="ui-secondary" disabled={disabled || !stale && state?.building === true}
-      onClick={() => void build()}>生成最终制造网格</button>
+    {!actionHost && buildButton}
     <p role="status">{statusText}</p>
     {!stale && state?.error && <p role="alert">Fabric STL 不可导出：
       {stageLabels[String(state.diagnostics?.stage)] ?? '生成'}阶段 · {state.error}</p>}
@@ -86,11 +95,11 @@ export function FabricFusionPanel({ document, fetcher = fetch, disabled = false,
       <pre>{JSON.stringify(state.diagnostics, null, 2)}</pre></details>}
     {report && <>
       <p>Components: {report.connected_component_count} · Watertight: Yes</p>
+      {report.output_mode === 'cells_only' && <p>仅图案单元，无实体基底。{report.connected_component_count > 1 ? '包含多个独立封闭实体，不是融合为一体的面料。' : '实际校验为一个实体。'}</p>}
       <p>XYZ：{report.bounds_mm[1].map((v,i)=>(v-report.bounds_mm[0][i]).toFixed(2)).join(' × ')} mm</p>
       <p>制造接口重叠：{report.interface_overlap_mm} mm{report.cache_hit ? ' · 已复用融合结果' : ''}</p>
     </>}
-    <button type="button" className="ui-primary" disabled={!report?.export_available || stale || downloading || disabled}
-      onClick={() => void download()}>{downloading ? '正在导出…' : '下载测试 Fabric STL'}</button>
+    {actionHost ? createPortal(<div className="manufacturing-output-actions">{buildButton}{downloadButton}</div>, actionHost) : downloadButton}
     {downloadError && <p role="alert">{downloadError}</p>}
   </section>
 }

@@ -15,7 +15,7 @@ describe('P2-D product hierarchy', () => {
     expect(within(empty).getByRole('button', { name: '打开示例：基础圆点阵列' })).toBeEnabled()
     expect(within(empty).getByRole('button', { name: '打开示例：参数渐变' })).toBeEnabled()
     expect(within(empty).getByRole('button', { name: '导入自己的图案' })).toHaveClass('ui-primary')
-    expect(screen.getByRole('button', { name: /基础形状 Shapes/ })).toBeDisabled()
+    expect(screen.getByRole('button', { name: '＋ 添加圆形' })).toBeEnabled()
     expect(screen.getByRole('button', { name: /设计 Design/ })).toHaveAttribute('data-step-state', 'current')
     expect(screen.getByRole('button', { name: /制造 Manufacture/ })).toHaveAttribute('data-step-state', 'not-ready')
     expect(screen.queryByText('CONTRACT')).toBeNull()

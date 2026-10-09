@@ -59,6 +59,16 @@ export function updateFabricUnitCell(dto: PatternDocumentDTO, section: 'cell' | 
   if (!cell || !placement) throw new Error('请先选择 Unit Cell。')
   const group = section === 'cell' ? groupFor(catalog, 'fabric_cell', cell.type)
     : groupFor(catalog, 'fabric_placement', 'regular')
+  if (section === 'cell' && key === 'uniform_size_mm') {
+    if (typeof value !== 'number') throw new Error('单元大小无效。')
+    const depth = value * cell.depth_mm / cell.width_mm
+    const widthDefinition = group?.parameters.find(item => item.id === 'width_mm')
+    const depthDefinition = group?.parameters.find(item => item.id === 'depth_mm')
+    if (!widthDefinition || !depthDefinition || !validateParameter(widthDefinition, value) || !validateParameter(depthDefinition, depth))
+      throw new Error('单元大小超出合法范围。')
+    if (value === cell.width_mm) return dto
+    return changed(dto, { ...cell, width_mm: value, depth_mm: depth }, placement)
+  }
   const definition = group?.parameters.find((item) => item.id === key)
   if (!definition || !validateParameter(definition, value) ||
     (key === 'size_mode' ? typeof value !== 'string' : typeof value !== 'number'))

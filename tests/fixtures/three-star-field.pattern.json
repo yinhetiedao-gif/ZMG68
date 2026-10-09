@@ -1,0 +1,373 @@
+{
+  "canvas": {
+    "height": 30,
+    "mm_per_unit": 1,
+    "origin_x": 0,
+    "origin_y": 0,
+    "unit": "mm",
+    "width": 70
+  },
+  "elements": [
+    {
+      "base_height": 1,
+      "base_width": 1,
+      "base_x": 0,
+      "base_y": 0,
+      "group_id": null,
+      "height": 16,
+      "id": "grid:r0:c0",
+      "metadata": {
+        "builtin_shape": "star",
+        "grid_prototype_kind": "polygon",
+        "normalized_local_coordinates": true
+      },
+      "path_data": "M 3.061617e-17 -0.5 L 0.12931276 -0.17798374 L 0.47552826 -0.1545085 L 0.20923243 0.067983739 L 0.29389263 0.4045085 L 1.3471115e-17 0.22 L -0.29389263 0.4045085 L -0.20923243 0.067983739 L -0.47552826 -0.1545085 L -0.12931276 -0.17798374 Z",
+      "rotation": 0,
+      "source_transform": "",
+      "style": {
+        "fill": "#000000",
+        "stroke": "none"
+      },
+      "type": "filled_region",
+      "visible": true,
+      "width": 16,
+      "x": 12,
+      "y": 15
+    },
+    {
+      "base_height": 1,
+      "base_width": 1,
+      "base_x": 0,
+      "base_y": 0,
+      "group_id": null,
+      "height": 16,
+      "id": "grid:r0:c1",
+      "metadata": {
+        "builtin_shape": "star",
+        "grid_prototype_kind": "polygon",
+        "normalized_local_coordinates": true
+      },
+      "path_data": "M 3.061617e-17 -0.5 L 0.12931276 -0.17798374 L 0.47552826 -0.1545085 L 0.20923243 0.067983739 L 0.29389263 0.4045085 L 1.3471115e-17 0.22 L -0.29389263 0.4045085 L -0.20923243 0.067983739 L -0.47552826 -0.1545085 L -0.12931276 -0.17798374 Z",
+      "rotation": 0,
+      "source_transform": "",
+      "style": {
+        "fill": "#000000",
+        "stroke": "none"
+      },
+      "type": "filled_region",
+      "visible": true,
+      "width": 16,
+      "x": 33,
+      "y": 15
+    },
+    {
+      "base_height": 1,
+      "base_width": 1,
+      "base_x": 0,
+      "base_y": 0,
+      "group_id": null,
+      "height": 16,
+      "id": "grid:r0:c2",
+      "metadata": {
+        "builtin_shape": "star",
+        "grid_prototype_kind": "polygon",
+        "normalized_local_coordinates": true
+      },
+      "path_data": "M 3.061617e-17 -0.5 L 0.12931276 -0.17798374 L 0.47552826 -0.1545085 L 0.20923243 0.067983739 L 0.29389263 0.4045085 L 1.3471115e-17 0.22 L -0.29389263 0.4045085 L -0.20923243 0.067983739 L -0.47552826 -0.1545085 L -0.12931276 -0.17798374 Z",
+      "rotation": 0,
+      "source_transform": "",
+      "style": {
+        "fill": "#000000",
+        "stroke": "none"
+      },
+      "type": "filled_region",
+      "visible": true,
+      "width": 16,
+      "x": 54,
+      "y": 15
+    }
+  ],
+  "fields": [
+    {
+      "id": "print-wave",
+      "parameters": {
+        "amplitude": 1,
+        "angle": 0,
+        "invert": false,
+        "offset": 0,
+        "phase": -2.4683942278205517,
+        "wavelength": 84
+      },
+      "type": "wave"
+    }
+  ],
+  "groups": [],
+  "metadata": {
+    "xiaomang_pattern_lab.parametric": {
+      "family": "grid",
+      "grid": {
+        "basis_u": [
+          21,
+          0
+        ],
+        "basis_u_vector": null,
+        "basis_v": [
+          0,
+          21
+        ],
+        "basis_v_vector": null,
+        "columns": 3,
+        "element_height": 16,
+        "element_width": 16,
+        "local_overrides": {},
+        "lock_aspect": true,
+        "mask": {
+          "center_x": 0,
+          "center_y": 0,
+          "enabled": false,
+          "height": 100,
+          "invert": false,
+          "mode": "none",
+          "path_points": [],
+          "radius": 50,
+          "width": 100
+        },
+        "offset_x": 33,
+        "offset_y": 15,
+        "prototype": {
+          "base_height": 1,
+          "base_width": 1,
+          "base_x": 0,
+          "base_y": 0,
+          "filled": true,
+          "intrinsic_rotation": 0,
+          "kind": "polygon",
+          "metadata": {
+            "builtin_shape": "star",
+            "normalized_local_coordinates": true
+          },
+          "path_data": "M 3.061617e-17 -0.5 L 0.12931276 -0.17798374 L 0.47552826 -0.1545085 L 0.20923243 0.067983739 L 0.29389263 0.4045085 L 1.3471115e-17 0.22 L -0.29389263 0.4045085 L -0.20923243 0.067983739 L -0.47552826 -0.1545085 L -0.12931276 -0.17798374 Z",
+          "rx_ratio": 0,
+          "ry_ratio": 0,
+          "source_transform": "",
+          "style": {
+            "fill": "#000000",
+            "stroke": "none"
+          }
+        },
+        "rotation": 0,
+        "rows": 1,
+        "size_gradient": {
+          "center_x": 0,
+          "center_y": 0,
+          "falloff": 1,
+          "max_size": 10,
+          "min_size": 4,
+          "mode": "none",
+          "radius_x": 50,
+          "radius_y": 50,
+          "strength": 1
+        },
+        "spacing_x": 21,
+        "spacing_y": 21
+      },
+      "mode": "grid",
+      "model": {
+        "basis_u": [
+          21,
+          0
+        ],
+        "basis_u_vector": null,
+        "basis_v": [
+          0,
+          21
+        ],
+        "basis_v_vector": null,
+        "columns": 3,
+        "element_height": 16,
+        "element_width": 16,
+        "local_overrides": {},
+        "lock_aspect": true,
+        "mask": {
+          "center_x": 0,
+          "center_y": 0,
+          "enabled": false,
+          "height": 100,
+          "invert": false,
+          "mode": "none",
+          "path_points": [],
+          "radius": 50,
+          "width": 100
+        },
+        "offset_x": 33,
+        "offset_y": 15,
+        "prototype": {
+          "base_height": 1,
+          "base_width": 1,
+          "base_x": 0,
+          "base_y": 0,
+          "filled": true,
+          "intrinsic_rotation": 0,
+          "kind": "polygon",
+          "metadata": {
+            "builtin_shape": "star",
+            "normalized_local_coordinates": true
+          },
+          "path_data": "M 3.061617e-17 -0.5 L 0.12931276 -0.17798374 L 0.47552826 -0.1545085 L 0.20923243 0.067983739 L 0.29389263 0.4045085 L 1.3471115e-17 0.22 L -0.29389263 0.4045085 L -0.20923243 0.067983739 L -0.47552826 -0.1545085 L -0.12931276 -0.17798374 Z",
+          "rx_ratio": 0,
+          "ry_ratio": 0,
+          "source_transform": "",
+          "style": {
+            "fill": "#000000",
+            "stroke": "none"
+          }
+        },
+        "rotation": 0,
+        "rows": 1,
+        "size_gradient": {
+          "center_x": 0,
+          "center_y": 0,
+          "falloff": 1,
+          "max_size": 10,
+          "min_size": 4,
+          "mode": "none",
+          "radius_x": 50,
+          "radius_y": 50,
+          "strength": 1
+        },
+        "spacing_x": 21,
+        "spacing_y": 21
+      },
+      "source_elements": [
+        {
+          "base_height": 1,
+          "base_width": 1,
+          "base_x": 0,
+          "base_y": 0,
+          "group_id": null,
+          "height": 16,
+          "id": "grid:r0:c0",
+          "metadata": {
+            "builtin_shape": "star",
+            "grid_prototype_kind": "polygon",
+            "normalized_local_coordinates": true
+          },
+          "path_data": "M 3.061617e-17 -0.5 L 0.12931276 -0.17798374 L 0.47552826 -0.1545085 L 0.20923243 0.067983739 L 0.29389263 0.4045085 L 1.3471115e-17 0.22 L -0.29389263 0.4045085 L -0.20923243 0.067983739 L -0.47552826 -0.1545085 L -0.12931276 -0.17798374 Z",
+          "rotation": 0,
+          "source_transform": "",
+          "style": {
+            "fill": "#000000",
+            "stroke": "none"
+          },
+          "type": "filled_region",
+          "visible": true,
+          "width": 16,
+          "x": 12,
+          "y": 15
+        },
+        {
+          "base_height": 1,
+          "base_width": 1,
+          "base_x": 0,
+          "base_y": 0,
+          "group_id": null,
+          "height": 16,
+          "id": "grid:r0:c1",
+          "metadata": {
+            "builtin_shape": "star",
+            "grid_prototype_kind": "polygon",
+            "normalized_local_coordinates": true
+          },
+          "path_data": "M 3.061617e-17 -0.5 L 0.12931276 -0.17798374 L 0.47552826 -0.1545085 L 0.20923243 0.067983739 L 0.29389263 0.4045085 L 1.3471115e-17 0.22 L -0.29389263 0.4045085 L -0.20923243 0.067983739 L -0.47552826 -0.1545085 L -0.12931276 -0.17798374 Z",
+          "rotation": 0,
+          "source_transform": "",
+          "style": {
+            "fill": "#000000",
+            "stroke": "none"
+          },
+          "type": "filled_region",
+          "visible": true,
+          "width": 16,
+          "x": 33,
+          "y": 15
+        },
+        {
+          "base_height": 1,
+          "base_width": 1,
+          "base_x": 0,
+          "base_y": 0,
+          "group_id": null,
+          "height": 16,
+          "id": "grid:r0:c2",
+          "metadata": {
+            "builtin_shape": "star",
+            "grid_prototype_kind": "polygon",
+            "normalized_local_coordinates": true
+          },
+          "path_data": "M 3.061617e-17 -0.5 L 0.12931276 -0.17798374 L 0.47552826 -0.1545085 L 0.20923243 0.067983739 L 0.29389263 0.4045085 L 1.3471115e-17 0.22 L -0.29389263 0.4045085 L -0.20923243 0.067983739 L -0.47552826 -0.1545085 L -0.12931276 -0.17798374 Z",
+          "rotation": 0,
+          "source_transform": "",
+          "style": {
+            "fill": "#000000",
+            "stroke": "none"
+          },
+          "type": "filled_region",
+          "visible": true,
+          "width": 16,
+          "x": 54,
+          "y": 15
+        }
+      ]
+    }
+  },
+  "modifiers": [
+    {
+      "enabled": true,
+      "field_id": "print-wave",
+      "id": "print-size",
+      "mapping": {
+        "clamp": true,
+        "falloff": 1,
+        "invert": false,
+        "max_output": 1.375,
+        "min_output": 0.625,
+        "remap_curve": "linear",
+        "strength": 1
+      },
+      "type": "size"
+    }
+  ],
+  "reference": {
+    "metadata": {},
+    "preprocessing": {},
+    "source_path": "",
+    "visible": false
+  },
+  "schema_version": 1,
+  "transforms": {
+    "grid:r0:c0": {
+      "element_id": "grid:r0:c0",
+      "rotation": 0,
+      "scale_x": 1,
+      "scale_y": 1,
+      "x": 12,
+      "y": 15
+    },
+    "grid:r0:c1": {
+      "element_id": "grid:r0:c1",
+      "rotation": 0,
+      "scale_x": 1,
+      "scale_y": 1,
+      "x": 33,
+      "y": 15
+    },
+    "grid:r0:c2": {
+      "element_id": "grid:r0:c2",
+      "rotation": 0,
+      "scale_x": 1,
+      "scale_y": 1,
+      "x": 54,
+      "y": 15
+    }
+  }
+}

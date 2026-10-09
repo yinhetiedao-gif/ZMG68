@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { AmbientLight, Box3, BoxGeometry, BufferGeometry, Color, DirectionalLight,
   DoubleSide, Float32BufferAttribute, Group, InstancedMesh, MeshPhongMaterial,
   Object3D, PerspectiveCamera, Scene, Vector3, WebGLRenderer } from 'three'
@@ -37,6 +37,8 @@ export function FabricThreePreview({ plan }: { plan: FabricDesignPreview }) {
   const [status, setStatus] = useState('正在准备 Fabric 设计预览…')
   const [bounds, setBounds] = useState<string | null>(null)
   const [style, setStyle] = useState<FabricPreviewStyle>('default')
+  const latest = useRef({ plan, style }); latest.current = { plan, style }
+  const updateRef = useRef<(() => void) | null>(null)
 
   useEffect(() => {
     const host = hostRef.current
@@ -59,92 +61,125 @@ export function FabricThreePreview({ plan }: { plan: FabricDesignPreview }) {
     const light = new DirectionalLight(0xffffff, 2.8)
     light.position.set(1, -2, 3)
     scene.add(light)
-    const started = performance.now()
     try {
       renderer = new WebGLRenderer({ canvas, antialias: true })
       renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2))
       controls = new OrbitControls(camera, canvas)
       controls.enableDamping = true
-      const [left, bottom, right, top] = plan.base_preview.bounds_mm
-      const thickness = plan.base_preview.thickness_mm
-      const boxes: [number, number, number, number, number, number][] = []
-      if (plan.base_preview.type === 'solid') {
-        boxes.push([(left + right) / 2, (bottom + top) / 2, thickness / 2,
-          right - left, top - bottom, thickness])
-      } else {
-        const sx = plan.base_preview.spacing_x_mm ?? 1
-        const sy = plan.base_preview.spacing_y_mm ?? 1
-        const width = plan.base_preview.line_width_mm ?? 1
-        const columns = Math.ceil((right - left) / sx)
-        const rows = Math.ceil((top - bottom) / sy)
-        for (let index = 0; index <= columns; index++) {
-          const x = index === columns ? right : left + index * sx
-          const start = Math.max(left, x - width / 2)
-          const end = Math.min(right, x + width / 2)
-          boxes.push([(start + end) / 2, (bottom + top) / 2, thickness / 2,
-            end - start, top - bottom, thickness])
+      canvas.dataset.rendererInitializations = String(Number(canvas.dataset.rendererInitializations ?? 0) + 1)
+      let initialized = false
+      let geometryKey = ''
+      let cells: InstancedMesh | null = null
+      const update = () => {
+        const started = performance.now()
+        const { plan, style } = latest.current
+        const palette = fabricPreviewPalette(style)
+        scene.background = new Color(palette.background)
+        material.color.setHex(palette.cell); baseMaterial.color.setHex(palette.base)
+        const active = plan.instances.filter(instance => instance.enabled)
+        const nextGeometryKey = JSON.stringify([plan.output_mode, plan.base_preview, plan.prototype, active.length])
+        if (nextGeometryKey !== geometryKey) {
+          for (const node of [...group.children]) {
+            if (node instanceof InstancedMesh) { node.geometry.dispose(); node.dispose() }
+            group.remove(node)
+          }
+          cells = null
+          geometryKey = nextGeometryKey
+          const [left, bottom, right, top] = plan.base_preview.bounds_mm
+          const thickness = plan.base_preview.thickness_mm
+          const boxes: [number, number, number, number, number, number][] = []
+          if (plan.output_mode === 'cells_only') {
+            // Bounds still support placement; they are not a physical base.
+          } else if (plan.base_preview.type === 'solid') {
+            boxes.push([(left + right) / 2, (bottom + top) / 2, thickness / 2,
+              right - left, top - bottom, thickness])
+          } else {
+            const sx = plan.base_preview.spacing_x_mm ?? 1
+            const sy = plan.base_preview.spacing_y_mm ?? 1
+            const width = plan.base_preview.line_width_mm ?? 1
+            const columns = Math.ceil((right - left) / sx)
+            const rows = Math.ceil((top - bottom) / sy)
+            for (let index = 0; index <= columns; index++) {
+              const x = index === columns ? right : left + index * sx
+              const start = Math.max(left, x - width / 2)
+              const end = Math.min(right, x + width / 2)
+              boxes.push([(start + end) / 2, (bottom + top) / 2, thickness / 2,
+                end - start, top - bottom, thickness])
+            }
+            for (let index = 0; index <= rows; index++) {
+              const y = index === rows ? top : bottom + index * sy
+              const start = Math.max(bottom, y - width / 2)
+              const end = Math.min(top, y + width / 2)
+              boxes.push([(left + right) / 2, (start + end) / 2, thickness / 2,
+                right - left, end - start, thickness])
+            }
+          }
+          const dummy = new Object3D()
+          const baseMesh = new InstancedMesh(new BoxGeometry(1, 1, 1), baseMaterial, boxes.length)
+          boxes.forEach(([x, y, z, w, h, d], index) => {
+            dummy.position.set(x, y, z)
+            dummy.scale.set(w, h, d)
+            dummy.rotation.set(0, 0, 0)
+            dummy.updateMatrix()
+            baseMesh.setMatrixAt(index, dummy.matrix)
+          })
+          baseMesh.instanceMatrix.needsUpdate = true
+          if (boxes.length) { baseMesh.computeBoundingSphere(); group.add(baseMesh) }
+          else baseMesh.geometry.dispose()
+          if (plan.prototype && active.length) {
+            const geometry = new BufferGeometry()
+            geometry.setAttribute('position', new Float32BufferAttribute(plan.prototype.vertices.flat(), 3))
+            geometry.setIndex(plan.prototype.faces.flat())
+            geometry.computeVertexNormals()
+            const instances = new InstancedMesh(geometry, material, active.length)
+            cells = instances
+            group.add(instances)
+          }
         }
-        for (let index = 0; index <= rows; index++) {
-          const y = index === rows ? top : bottom + index * sy
-          const start = Math.max(bottom, y - width / 2)
-          const end = Math.min(top, y + width / 2)
-          boxes.push([(left + right) / 2, (start + end) / 2, thickness / 2,
-            right - left, end - start, thickness])
+        if (cells) {
+          const instances = cells
+          const dummy = new Object3D()
+          const heights = active.map((instance) => instance.height_mm)
+          const minHeight = Math.min(...heights)
+          const maxHeight = Math.max(...heights)
+          if (style !== 'height_map') instances.instanceColor = null
+          active.forEach((instance, index) => {
+            setFabricInstanceTransform(dummy, instance)
+            instances.setMatrixAt(index, dummy.matrix)
+            if (style === 'height_map') instances.setColorAt(index,
+              fabricHeightColor(instance.height_mm, minHeight, maxHeight))
+          })
+          instances.instanceMatrix.needsUpdate = true
+          if (instances.instanceColor) instances.instanceColor.needsUpdate = true
+          // Color belongs to the instance buffer, not an extra vertex-color attribute.
+          material.needsUpdate = true
+          instances.computeBoundingBox()
+          instances.computeBoundingSphere()
         }
+        const box = new Box3().setFromObject(group)
+        const center = box.getCenter(new Vector3())
+        const size = box.getSize(new Vector3())
+        setBounds(`${size.x.toFixed(2)} × ${size.y.toFixed(2)} × ${size.z.toFixed(2)} mm`)
+        const fit = (reset: boolean) => {
+          const maxSize = Math.max(size.x, size.y, size.z, 1)
+          const distance = maxSize / (2 * Math.tan(camera.fov * Math.PI / 360)) * 1.8
+          const direction = reset ? new Vector3(1, -1, .8).normalize()
+            : camera.position.clone().sub(controls!.target).normalize()
+          camera.near = Math.max(.001, distance / 1000)
+          camera.far = distance * 1000
+          camera.position.copy(center).addScaledVector(direction, distance)
+          camera.updateProjectionMatrix()
+          controls!.target.copy(center)
+          controls!.update()
+        }
+        fitRef.current = () => fit(false)
+        resetRef.current = () => fit(true)
+        if (!initialized && active.length) { fit(true); initialized = true }
+        setStatus(`Fabric 设计预览已就绪 · ${plan.active_count} 个可见共享原型实例 · 浏览器实例更新 ${(performance.now() - started).toFixed(1)} ms`)
       }
-      const dummy = new Object3D()
-      const baseMesh = new InstancedMesh(new BoxGeometry(1, 1, 1), baseMaterial, boxes.length)
-      boxes.forEach(([x, y, z, w, h, d], index) => {
-        dummy.position.set(x, y, z)
-        dummy.scale.set(w, h, d)
-        dummy.rotation.set(0, 0, 0)
-        dummy.updateMatrix()
-        baseMesh.setMatrixAt(index, dummy.matrix)
-      })
-      baseMesh.instanceMatrix.needsUpdate = true
-      baseMesh.computeBoundingSphere()
-      group.add(baseMesh)
-      if (plan.prototype && plan.instances.length) {
-        const geometry = new BufferGeometry()
-        geometry.setAttribute('position', new Float32BufferAttribute(plan.prototype.vertices.flat(), 3))
-        geometry.setIndex(plan.prototype.faces.flat())
-        geometry.computeVertexNormals()
-        const active = plan.instances.filter((instance) => instance.enabled)
-        const instances = new InstancedMesh(geometry, material, active.length)
-        const heights = active.map((instance) => instance.height_mm)
-        const minHeight = Math.min(...heights)
-        const maxHeight = Math.max(...heights)
-        active.forEach((instance, index) => {
-          setFabricInstanceTransform(dummy, instance)
-          instances.setMatrixAt(index, dummy.matrix)
-          if (style === 'height_map') instances.setColorAt(index,
-            fabricHeightColor(instance.height_mm, minHeight, maxHeight))
-        })
-        instances.instanceMatrix.needsUpdate = true
-        if (instances.instanceColor) instances.instanceColor.needsUpdate = true
-        instances.computeBoundingSphere()
-        group.add(instances)
-      }
+      updateRef.current = update
       scene.add(group)
-      const box = new Box3().setFromObject(group)
-      const center = box.getCenter(new Vector3())
-      const size = box.getSize(new Vector3())
-      setBounds(`${size.x.toFixed(2)} × ${size.y.toFixed(2)} × ${size.z.toFixed(2)} mm`)
-      const fit = (reset: boolean) => {
-        const maxSize = Math.max(size.x, size.y, size.z, 1)
-        const distance = maxSize / (2 * Math.tan(camera.fov * Math.PI / 360)) * 1.8
-        const direction = reset ? new Vector3(1, -1, .8).normalize()
-          : camera.position.clone().sub(controls!.target).normalize()
-        camera.near = Math.max(.001, distance / 1000)
-        camera.far = distance * 1000
-        camera.position.copy(center).addScaledVector(direction, distance)
-        camera.updateProjectionMatrix()
-        controls!.target.copy(center)
-        controls!.update()
-      }
-      fitRef.current = () => fit(false)
-      resetRef.current = () => fit(true)
-      fit(true)
+      update()
       const resize = () => {
         if (!renderer) return
         camera.aspect = Math.max(1, host.clientWidth) / Math.max(1, host.clientHeight)
@@ -154,7 +189,6 @@ export function FabricThreePreview({ plan }: { plan: FabricDesignPreview }) {
       resize()
       observer = new ResizeObserver(resize)
       observer.observe(host)
-      setStatus(`Fabric 设计预览已就绪 · ${plan.active_count} 个可见共享原型实例 · 浏览器实例创建 ${(performance.now() - started).toFixed(1)} ms`)
       const animate = () => {
         if (disposed || !renderer || !controls) return
         frame = requestAnimationFrame(animate)
@@ -176,8 +210,10 @@ export function FabricThreePreview({ plan }: { plan: FabricDesignPreview }) {
       renderer?.dispose()
       fitRef.current = null
       resetRef.current = null
+      updateRef.current = null
     }
-  }, [plan, style])
+  }, [])
+  useLayoutEffect(() => { updateRef.current?.() }, [plan, style])
 
   return <div className="three-preview" aria-label="Fabric 设计预览">
     <label htmlFor="fabric-preview-style">预览样式</label>

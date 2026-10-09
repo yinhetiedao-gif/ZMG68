@@ -50,7 +50,7 @@ describe('WM5.5 browser import', () => {
       expect.stringMatching(/\/api\/v1\/assets$/), expect.stringMatching(/\/api\/v1\/import$/),
       expect.stringMatching(/\/api\/v1\/evaluate$/),
     ]))
-    expect(screen.getByText(/制造前必须确认真实尺寸/)).toHaveClass('viewer-warning')
+    expect(screen.getAllByText(/制造前必须确认真实尺寸/).find(node => node.classList.contains('viewer-warning'))).toBeDefined()
     fireEvent.click(screen.getByRole('button', { name: /制造 Manufacture/ }))
     const note = screen.getByRole('note')
     const actions = screen.getByRole('button', { name: '导出 STL' }).closest('.manufacturing-output-actions')!
@@ -60,7 +60,7 @@ describe('WM5.5 browser import', () => {
     fireEvent.click(screen.getByRole('button', { name: '检查并生成' }))
     expect(await screen.findByText('模型已生成')).toBeInTheDocument()
     const createUrl = vi.fn(() => 'blob:stl')
-    vi.stubGlobal('URL', { ...URL, createObjectURL: createUrl, revokeObjectURL: vi.fn() })
+    vi.stubGlobal('URL', Object.assign(URL, { createObjectURL: createUrl, revokeObjectURL: vi.fn() }))
     const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined)
     fireEvent.click(screen.getByRole('button', { name: '导出 STL' }))
     await waitFor(() => expect(click).toHaveBeenCalledOnce())

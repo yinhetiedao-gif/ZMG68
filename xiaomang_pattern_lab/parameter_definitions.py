@@ -196,8 +196,8 @@ def parameter_definitions() -> dict[str, Any]:
                 _p("size_mode", "单元尺寸模式", "select", "follow_pattern", options=[
                     {"value": "fixed", "label": "固定尺寸"},
                     {"value": "follow_pattern", "label": "跟随图案"}]),
-                _size("width_mm", "单元宽度", 2) | {"slider_min": 0.3, "slider_max": 20, "slider_step": 0.1},
-                _size("depth_mm", "单元深度", 2) | {"slider_min": 0.3, "slider_max": 20, "slider_step": 0.1},
+                _size("width_mm", "单元宽度", 4) | {"slider_min": 0.3, "slider_max": 20, "slider_step": 0.1},
+                _size("depth_mm", "单元深度", 4) | {"slider_min": 0.3, "slider_max": 20, "slider_step": 0.1},
                 _size("height_mm", "单元高度", 3) | {
                     "slider_min": 0.5, "slider_max": 10, "slider_step": 0.1},
             ]} for kind, label in (

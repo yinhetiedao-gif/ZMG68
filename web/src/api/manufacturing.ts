@@ -1,4 +1,5 @@
 import { apiBaseUrl, EXPECTED_SCHEMA_VERSION } from './client'
+import { requestError } from './requestErrors'
 import type { PatternDocumentDTO } from '../model/types'
 
 export interface ManufacturingIssue { code?: string; severity?: string; message?: string }
@@ -17,7 +18,9 @@ export interface ManufacturingBuildResult {
   warnings: string[]
 }
 
-export class ManufacturingError extends Error {}
+export class ManufacturingError extends Error {
+  constructor(message: string, readonly code?: string) { super(message) }
+}
 
 export async function buildManufacturing(
   dto: PatternDocumentDTO, heightMm: number, signal?: AbortSignal, fetcher: typeof fetch = fetch,
@@ -38,12 +41,8 @@ export async function buildManufacturing(
   }
   const payload: unknown = await response.json().catch(() => null)
   if (!response.ok) {
-    const message = payload && typeof payload === 'object' && 'message' in payload
-      ? String(payload.message) : `HTTP ${response.status}`
-    const details = payload && typeof payload === 'object' && 'details' in payload ? payload.details : null
-    const failureId = details && typeof details === 'object' && 'failure_id' in details
-      && typeof details.failure_id === 'string' ? details.failure_id : null
-    throw new ManufacturingError(`制造检查失败：${message}${failureId ? ` · failure_id: ${failureId}` : ''}`)
+    const { code, message, failureId } = requestError(response.status, payload)
+    throw new ManufacturingError(`${code === 'staging_busy' ? '' : '制造检查失败：'}${message}${failureId ? ` · failure_id: ${failureId}` : ''}`, code)
   }
   if (!payload || typeof payload !== 'object') throw new ManufacturingError('制造服务返回格式无效。')
   const result = payload as Record<string, unknown>

@@ -60,7 +60,7 @@ const positionParameterKeys: Record<string, string[]> = {
 export function InspectorControls({ dto, selected, onEdit, disabled, parameterCatalog = null,
   layoutSelection = null, layoutDraft = null, layoutBusy = false, onLayoutDraftEdit,
   onApplyLayout, onCancelLayout, layoutActionsDisabled = false, gradientExample = false,
-  selectedFieldId = '', onSelectField, syncToken = '', onPending, imageSourceNames = {} }: {
+  selectedFieldId = '', onSelectField, syncToken = '', onPending, imageSourceNames = {}, context = 'all', onElementDraft }: {
   dto: PatternDocumentDTO
   selected: FinalGeometry | null
   onEdit: (action: EditAction) => void
@@ -79,6 +79,8 @@ export function InspectorControls({ dto, selected, onEdit, disabled, parameterCa
   syncToken?: string
   onPending?: (id: string, pending: boolean) => void
   imageSourceNames?: Record<string, string>
+  context?: 'all' | 'layout' | 'element' | 'effects' | 'none'
+  onElementDraft?: (key: string, value: import('./parameterSchema').ParameterValue | null) => void
 }) {
   const [newFieldType, setNewFieldType] = useState('')
   const fields = fieldRecords(dto)
@@ -101,6 +103,7 @@ export function InspectorControls({ dto, selected, onEdit, disabled, parameterCa
   return <ParameterInteraction.Provider value={{ syncToken, onPending }}>
     <fieldset disabled={disabled} className={`inspector-controls ${disabled ? 'controls-busy' : ''}`} aria-label="参数检查器">
     {layoutSelection && <InspectorSection label="布局参数" title={`布局 · ${stagedGroup?.label ?? '自由布局'}`}
+      hidden={context !== 'all' && context !== 'layout'}
       activeKey={layoutSelection} defaultExpanded={!gradientExample}>
       <p className="inspector-readonly">布局决定元素如何排列。</p>
       {layoutBusy ? <p className="inspector-readonly">正在由 Python 准备布局参数…</p>
@@ -119,7 +122,7 @@ export function InspectorControls({ dto, selected, onEdit, disabled, parameterCa
       </div>
     </InspectorSection>}
 
-    {!layoutSelection && grid && <InspectorSection label="矩阵结构参数" title="布局 · 矩阵结构">
+    {!layoutSelection && grid && <InspectorSection label="矩阵结构参数" title="布局 · 矩阵结构" hidden={context !== 'all' && context !== 'layout'}>
       {groupFor(parameterCatalog, 'layout', 'grid') ? <ParameterPanel group={groupFor(parameterCatalog, 'layout', 'grid')!}
         values={grid} onCommit={(key, value) => { if (typeof value === 'number') onEdit({ kind: 'grid', key, value }) }} />
         : GRID_SPECS.filter((item) => typeof grid[item.key] === 'number').map((item) =>
@@ -130,12 +133,12 @@ export function InspectorControls({ dto, selected, onEdit, disabled, parameterCa
 
     {!layoutSelection && layout && (layout.mode === 'radial' || layout.mode === 'along_curve') &&
       groupFor(parameterCatalog, 'layout', layout.mode) &&
-      <InspectorSection label="布局结构参数" title={`布局 · ${groupFor(parameterCatalog, 'layout', layout.mode)!.label}`}>
+      <InspectorSection label="布局结构参数" title={`布局 · ${groupFor(parameterCatalog, 'layout', layout.mode)!.label}`} hidden={context !== 'all' && context !== 'layout'}>
         <ParameterPanel group={groupFor(parameterCatalog, 'layout', layout.mode)!} values={layout.model}
           onCommit={(key, value) => { if (typeof value !== 'string') onEdit({ kind: 'layout', key, value }) }} />
       </InspectorSection>}
 
-    <InspectorSection label="参数场" title="参数场" activeKey={String(activeField?.id ?? '')}>
+    <InspectorSection label="参数场" title="参数场" activeKey={String(activeField?.id ?? '')} hidden={context !== 'all' && context !== 'effects'}>
       <p className="inspector-readonly">参数场决定变化在空间中的分布。</p>
       <div className="field-create">
         <label htmlFor="field-type">新增参数场类型</label>
@@ -191,7 +194,7 @@ export function InspectorControls({ dto, selected, onEdit, disabled, parameterCa
       })()}
     </InspectorSection>
 
-    <InspectorSection label="效果堆栈" title="效果层">
+    <InspectorSection label="效果堆栈" title="效果层" hidden={context !== 'all' && context !== 'effects'}>
         <p className="inspector-readonly">效果层决定空间变化影响尺寸、旋转还是位置。</p>
         <div className="modifier-actions">
           <button type="button" disabled={!fields.length || !groupFor(parameterCatalog, 'modifier', 'size')}
@@ -269,7 +272,7 @@ export function InspectorControls({ dto, selected, onEdit, disabled, parameterCa
           <small>形状分配在效果层前执行，仅替换当前选中元素，不修改原始元素。</small>
         </div>}
     </InspectorSection>
-    <InspectorSection label="元素变换" title="元素" activeKey={selected?.id}>
+    <InspectorSection label="元素变换" title="元素" activeKey={selected?.id} hidden={context !== 'all' && context !== 'element'}>
       {selected ? <>
         <div className="inspector-selection">
           <strong>已选元素</strong>
@@ -285,7 +288,7 @@ export function InspectorControls({ dto, selected, onEdit, disabled, parameterCa
               ? (spec.key === 'rotation' ? sourceValue : sourceValue * scale) : 0]
           }))
           const group = groupFor(parameterCatalog, 'element', 'transform')
-          return group ? <ParameterPanel key={selected.id} group={group} values={values}
+          return group ? <ParameterPanel key={selected.id} group={group} values={values} onDraft={onElementDraft}
             onCommit={(key, value) => { if (typeof value === 'number') onEdit({ kind: 'element', id: selected.id, key, value }) }} />
             : ELEMENT_SPECS.map((spec) => <NumericControl key={`${selected.id}:${spec.key}`} spec={spec}
               value={Number(values[spec.key])}

@@ -9,6 +9,7 @@ import { FABRIC_PREVIEW_NOTICE, fabricExportNotice } from './fabricCopy'
 import { formatMm } from '../model/formatMm'
 
 interface Props {
+  hideExport?: boolean
   result: ManufacturingBuildResult | null
   status: ManufacturingStatus
   projectName: string | null
@@ -19,13 +20,13 @@ interface Props {
   fabricStlTestExportEnabled?: boolean
 }
 
-export function PreviewPanel({ result, status, projectName, isCurrentResult, document, fabricPreview, onGoManufacture, fabricStlTestExportEnabled }: Props) {
+export function PreviewPanel({ result, status, projectName, isCurrentResult, document, fabricPreview, onGoManufacture, fabricStlTestExportEnabled, hideExport }: Props) {
   const isFabric = Boolean(document?.document.metadata.fabric_config)
   if (isFabric) return <section className="preview-panel" aria-label="Fabric 设计预览">
     <div className="preview-header"><div><span className="eyebrow">FABRIC DESIGN PREVIEW</span><h1>3D 设计预览</h1>
       <p>{FABRIC_PREVIEW_NOTICE} {fabricExportNotice(fabricStlTestExportEnabled)}</p></div>
       <button type="button" onClick={onGoManufacture}>去生成最终制造网格</button></div>
-    {fabricPreview ? <FabricThreePreview key={fabricPreview.preview_id} plan={fabricPreview} />
+    {fabricPreview ? <FabricThreePreview plan={fabricPreview} />
       : <p>设计已变化或尚未预览。请返回 Fabric 页面点击「更新3D预览」。</p>}
   </section>
   if (!result) return <section className="preview-empty" aria-label="三维预览未就绪">
@@ -33,16 +34,16 @@ export function PreviewPanel({ result, status, projectName, isCurrentResult, doc
     <p>{status === 'stale' ? '设计或厚度已变化，旧预览与 STL 已失效。请返回制造模式重新检查并生成。'
       : '请先在制造模式点击「检查并生成」，再查看最终模型和下载 STL。'}</p>
     <button type="button" onClick={onGoManufacture}>去检查并生成</button>
-    <StlExportButton result={result} status={status} projectName={projectName}
-      isCurrentResult={isCurrentResult} />
+    {!hideExport && <StlExportButton result={result} status={status} projectName={projectName}
+      isCurrentResult={isCurrentResult} />}
   </section>
 
   return <section className="preview-panel" aria-label="最终模型与导出">
     <div className="preview-header"><div><span className="eyebrow">VALIDATED MANUFACTURING RESULT</span><h1>3D 模型</h1>
       <p>XYZ：{result.bounds_mm ? `${formatMm(result.bounds_mm.size_x)} × ${formatMm(result.bounds_mm.size_y)} × ${formatMm(result.bounds_mm.size_z)}` : '—'} mm
         {' · '}组件：{result.component_count}</p></div>
-      <StlExportButton result={result} status={status} projectName={projectName}
-        isCurrentResult={isCurrentResult} /></div>
+      {!hideExport && <StlExportButton result={result} status={status} projectName={projectName}
+        isCurrentResult={isCurrentResult} />}</div>
     <ThreePreview key={result.manufacturing_result_id} resultId={result.manufacturing_result_id} />
     <details className="diagnostic-details"><summary>诊断详情</summary>
       <small className="manufacturing-result-id">预览与 STL 共用结果编号：{result.manufacturing_result_id}</small>

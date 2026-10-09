@@ -6,7 +6,8 @@ import { fabricBase } from '../document/fabricBase'
 export type ManufacturingStatus = 'idle' | 'building' | 'ready' | 'warning' | 'error' | 'stale'
 type BuildState = { key: string | null; status: ManufacturingStatus; result: ManufacturingBuildResult | null; error: string | null }
 
-export function useManufacturing(dto: PatternDocumentDTO | null, fetcher: typeof fetch = fetch) {
+export function useManufacturing(dto: PatternDocumentDTO | null, fetcher: typeof fetch = fetch,
+  isComputeBusy?: () => boolean) {
   const [heightText, setHeightText] = useState('2.0')
   const [buildState, setBuildState] = useState<BuildState>({ key: null, status: 'idle', result: null, error: null })
   const controller = useRef<AbortController | null>(null)
@@ -14,7 +15,7 @@ export function useManufacturing(dto: PatternDocumentDTO | null, fetcher: typeof
   const base = fabricBase(dto)
   const heightMm = base ? base.thickness_mm : Number(heightText)
   const validHeight = (base !== null || heightText.trim() !== '') && Number.isFinite(heightMm) && heightMm > 0
-  const key = dto && validHeight ? `${dto.document_id}:${dto.document_revision}:${heightMm}` : null
+  const key = dto && validHeight ? `${JSON.stringify(dto)}:${heightMm}` : null
   const keyRef = useRef(key)
   keyRef.current = key
 
@@ -32,6 +33,7 @@ export function useManufacturing(dto: PatternDocumentDTO | null, fetcher: typeof
     activeResultRef.current?.manufacturing_result_id === resultId && keyRef.current === buildState.key,
   [buildState.key])
   const build = useCallback(async () => {
+    if (isComputeBusy?.()) return
     if (!dto || !key || !validHeight) {
       setBuildState({ key, status: 'error', result: null, error: '请先打开有效图案，并输入大于 0 mm 的厚度。' })
       return
@@ -52,7 +54,7 @@ export function useManufacturing(dto: PatternDocumentDTO | null, fetcher: typeof
       if (next.signal.aborted || sequence !== requestSequence.current || keyRef.current !== key) return
       setBuildState({ key, status: 'error', result: null, error: error instanceof Error ? error.message : '制造检查失败。' })
     }
-  }, [dto, heightMm, key, validHeight, fetcher])
+  }, [dto, heightMm, key, validHeight, fetcher, isComputeBusy])
 
   return { heightText: base ? String(base.thickness_mm) : heightText, setHeightText, validHeight, status, result, isCurrentResult,
     error: status === 'stale' ? null : buildState.error, build }

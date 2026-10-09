@@ -51,6 +51,8 @@ class FabricFusionService:
     def build(self, candidate: FabricManufacturingCandidate) -> FinalFabricMesh:
         started = perf_counter()
         source = candidate.report
+        mode = source.get('output_mode','cells_with_base')
+        with_base = mode == 'cells_with_base'
         blocked = [entry for entry in source['attachments'] if entry['status'] in ('INVALID','DETACHED')]
         if blocked or candidate.mesh is None:
             raise FabricFusionFailure('preflight','存在无效或未连接单元，已阻止实体融合。',
@@ -66,8 +68,8 @@ class FabricFusionService:
         fingerprint = sha256(json.dumps({'document_id':source['document_id'],
             'document_revision':source['document_revision'],'backend':version('manifold3d'),
             'interface_overlap_mm':0,'document_fingerprint':source.get('document_fingerprint'),
-            'schema':'f5b-1-balanced'},sort_keys=True).encode())
-        meshes = (candidate.base_mesh,*candidate.cell_meshes)
+            'schema':'fabric-output-2-balanced','output_mode':mode},sort_keys=True).encode())
+        meshes = ((candidate.base_mesh,) if with_base else ()) + candidate.cell_meshes
         for mesh in meshes:
             fingerprint.update(str((mesh.vertices.shape, mesh.faces.shape)).encode())
             fingerprint.update(np.asarray(mesh.vertices,dtype='<f8').tobytes())
@@ -90,7 +92,7 @@ class FabricFusionService:
                         tri_verts=np.asarray(mesh.faces,dtype=np.uint64)))
                     if solid.status() != manifold.Error.NoError or solid.is_empty() or solid.volume() <= 0:
                         raise FabricFusionFailure('boolean_input','输入不是有效的定向封闭实体。',
-                            instance_id=None if index==0 else source['attachments'][index-1]['instance_id'],
+                            instance_id=None if with_base and index==0 else source['attachments'][index-int(with_base)]['instance_id'],
                             backend_status=str(solid.status()))
                     solids.append(solid)
                 prepared = perf_counter()
@@ -109,13 +111,16 @@ class FabricFusionService:
                     'manifold3d-mesh64',bool(mesh.is_watertight))
                 validation = MeshValidator().validate(result)
                 validated = perf_counter()
-                if components != 1 or validation.component_count != 1:
+                if with_base and (components != 1 or validation.component_count != 1):
                     raise FabricFusionFailure('connectivity','融合后仍有分离实体。',
                         connected_component_count=validation.component_count,
                         solid_component_count=components,component_bounds=[
                             part.bounding_box() for part in united.decompose()])
                 volume = float(mesh.volume)
-                if not validation.is_valid or not validation.is_watertight or not np.isfinite(volume) or volume <= 0:
+                if (not validation.is_valid or not validation.is_watertight or not mesh.is_winding_consistent
+                    or not np.isfinite(volume) or volume <= 0 or validation.component_count < 1
+                    or components != validation.component_count
+                    or any(part.volume() <= 0 for part in united.decompose())):
                     raise FabricFusionFailure('mesh_validation','最终网格未通过正式制造检查。',
                         validation_report=asdict(validation),volume_mm3=volume,
                         pre_component_count=source['components']['prefusion_components'],
@@ -134,7 +139,8 @@ class FabricFusionService:
                     'document_id':source['document_id'],'document_revision':source['document_revision'],
                     'document_fingerprint':source.get('document_fingerprint'),
                     'final_fabric_mesh_id':'fabric-final-'+key,'final_fabric_mesh_ready':True,
-                    'fused':True,'export_available':False,'backend':'manifold3d-mesh64',
+                    'output_mode':mode,'fused':with_base or components == 1,
+                    'export_available':False,'backend':'manifold3d-mesh64',
                     'backend_version':version('manifold3d'),'interface_overlap_mm':0,
                     'fusion_strategy':'balanced_tree_mesh64',
                     'exact_contact_component_count':exact_components,

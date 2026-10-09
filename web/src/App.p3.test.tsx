@@ -53,7 +53,7 @@ async function openAndBuild() {
   fireEvent.click(screen.getByRole('button', { name: /制造 Manufacture/ }))
   fireEvent.click(screen.getByRole('button', { name: '检查并生成' }))
   await screen.findByText('模型已生成')
-  fireEvent.click(screen.getByRole('button', { name: /三维预览 3D Preview/ }))
+  fireEvent.click(screen.getByRole('button', { name: /制造 Manufacture/ }))
 }
 
 describe('P3 preview and STL remain tied to the current build', () => {
@@ -66,7 +66,7 @@ describe('P3 preview and STL remain tied to the current build', () => {
     Object.defineProperty(file, 'text', { value: async () => raw })
     fireEvent.change(screen.getByLabelText('选择 PatternDocument 项目文件'), { target: { files: [file] } })
     await screen.findByRole('img', { name: '最终二维几何，单位毫米' })
-    fireEvent.click(screen.getByRole('button', { name: /三维预览 3D Preview/ }))
+    fireEvent.click(screen.getByRole('button', { name: /制造 Manufacture/ }))
     fireEvent.click(screen.getByRole('button', { name: '去检查并生成' }))
     expect(screen.getByRole('button', { name: '检查并生成' })).toBeInTheDocument()
     expect(api.calls.filter((url) => url.endsWith('/manufacturing/build'))).toHaveLength(0)
@@ -75,7 +75,7 @@ describe('P3 preview and STL remain tied to the current build', () => {
   it('offers visible preview and STL export below the manufacturing summary', async () => {
     const api = mockApi()
     const createUrl = vi.fn(() => 'blob:stl')
-    vi.stubGlobal('URL', { ...URL, createObjectURL: createUrl, revokeObjectURL: vi.fn() })
+    vi.stubGlobal('URL', Object.assign(URL, { createObjectURL: createUrl, revokeObjectURL: vi.fn() }))
     const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
     await openAndBuild()
     fireEvent.click(screen.getByRole('button', { name: /制造 Manufacture/ }))
@@ -92,11 +92,11 @@ describe('P3 preview and STL remain tied to the current build', () => {
   it('enables preview/download after build without touching revision, then disables both when stale', async () => {
     const api = mockApi()
     const createUrl = vi.fn(() => 'blob:stl')
-    vi.stubGlobal('URL', { ...URL, createObjectURL: createUrl, revokeObjectURL: vi.fn() })
+    vi.stubGlobal('URL', Object.assign(URL, { createObjectURL: createUrl, revokeObjectURL: vi.fn() }))
     const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
     await openAndBuild()
     expect(screen.getByLabelText('三维模型预览')).toHaveTextContent('mesh-1')
-    expect(screen.getByText(/10 × 10 × 2 mm/)).toBeInTheDocument()
+    expect(screen.getAllByText(/10 × 10 × 2 mm/)).toHaveLength(2)
     expect(screen.getByText('revision 0')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: '导出 STL' }))
     await waitFor(() => expect(click).toHaveBeenCalledOnce())
@@ -104,7 +104,7 @@ describe('P3 preview and STL remain tied to the current build', () => {
     expect(api.calls.filter((url) => url.endsWith('/mesh-1/model.stl'))).toHaveLength(1)
     fireEvent.click(screen.getByRole('button', { name: /制造 Manufacture/ }))
     fireEvent.change(screen.getByLabelText('厚度 mm'), { target: { value: '3' } })
-    fireEvent.click(screen.getByRole('button', { name: /三维预览 3D Preview/ }))
+    fireEvent.click(screen.getByRole('button', { name: /制造 Manufacture/ }))
     expect(screen.getByRole('button', { name: '导出 STL' })).toBeDisabled()
     expect(screen.queryByLabelText('三维模型预览')).toBeNull()
     expect(screen.getByText(/旧预览与 STL 已失效/)).toBeInTheDocument()
@@ -129,7 +129,7 @@ describe('P3 preview and STL remain tied to the current build', () => {
     fireEvent.pointerMove(canvas, { clientX: 25, clientY: 25, pointerId: 1 })
     fireEvent.pointerUp(canvas, { clientX: 30, clientY: 30, pointerId: 1 })
     await screen.findByText('revision 1')
-    fireEvent.click(screen.getByRole('button', { name: /三维预览 3D Preview/ }))
+    fireEvent.click(screen.getByRole('button', { name: /制造 Manufacture/ }))
     expect(screen.queryByLabelText('三维模型预览')).toBeNull()
     expect(screen.getByRole('button', { name: '导出 STL' })).toBeDisabled()
     expect(api.calls.filter((url) => url.endsWith('/mesh-1/model.stl'))).toHaveLength(0)

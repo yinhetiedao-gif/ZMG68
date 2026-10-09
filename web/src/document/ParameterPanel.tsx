@@ -4,13 +4,14 @@ import { recommendedSlider, validateParameter } from './parameterSchema'
 import { useParameterDraft } from './ParameterInteraction'
 import { formatMm } from '../model/formatMm'
 
-function ParameterInput({ definition, value, onCommit }: {
+function ParameterInput({ definition, value, onCommit, onDraft }: {
   definition: ParameterDefinition; value: ParameterValue; onCommit: (value: ParameterValue) => void
+  onDraft?: (value: ParameterValue | null) => void
 }) {
   const id = useId()
   const [focused, setFocused] = useState(false)
   const { draft, pending, change, cancel, submit, commitNumber: commit } = useParameterDraft(value, onCommit,
-    (next) => validateParameter(definition, next))
+    (next) => validateParameter(definition, next), onDraft)
   const reset = <button type="button" className="parameter-reset" aria-label={`重置${definition.label}`}
     title={`恢复默认值：${definition.default}${definition.unit ? ` ${definition.unit}` : ''}`}
     disabled={value === definition.default && !pending}
@@ -54,15 +55,17 @@ function ParameterInput({ definition, value, onCommit }: {
   </div>
 }
 
-export function ParameterPanel({ group, values, onCommit }: {
+export function ParameterPanel({ group, values, onCommit, onDraft }: {
   group: ParameterGroup
   values: Record<string, unknown>
   onCommit: (key: string, value: ParameterValue) => void
+  onDraft?: (key: string, value: ParameterValue | null) => void
 }) {
   return <>{group.parameters.filter((definition) => definition.id in values &&
     validateParameter(definition, definition.type === 'select'
       ? String(values[definition.id]) : values[definition.id] as ParameterValue)).map((definition) =>
     <ParameterInput key={definition.id} definition={definition}
       value={definition.type === 'select' ? String(values[definition.id]) : values[definition.id] as ParameterValue}
+      onDraft={onDraft ? value => onDraft(definition.id, value) : undefined}
       onCommit={(value) => onCommit(definition.id, value)} />)}</>
 }

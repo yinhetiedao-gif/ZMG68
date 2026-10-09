@@ -4,6 +4,8 @@ import { groupFor, validateParameter, type ParameterCatalog } from './parameterS
 import type { FabricBaseConfig } from './fabricBase'
 import type { FabricPlacement, FabricUnitCell } from './fabricCell'
 import type { FabricModifierType } from './fabricModifiers'
+import { setDirectionalFabricHeight } from './fabricModifiers'
+import type { BoundsMM } from '../model/types'
 
 type Binding = { field: 'wave' | 'linear' | 'noise'; values: Record<string, number> }
 export interface FabricPreset {
@@ -42,6 +44,43 @@ export const fabricPresets: FabricPreset[] = [
     bindings: { density: { field: 'noise', values: { threshold: 0.35 } } } },
 ]
 
+export const directionalFabricRecipe = {
+  id: 'direction-gradient', version: 2, label: '方向渐变', units: 'mm', output_mode: 'cells_only',
+  scope: ['output_mode', 'base', 'placement', 'unit_cell', 'height', 'scale.enabled', 'density.enabled', 'orientation.enabled'],
+  base: { type: 'solid', thickness_mm: 0.6, margin_mm: 1 },
+  placement: { mode: 'pattern_points', spacing_x_mm: 5, spacing_y_mm: 5 },
+  cell: { type: 'pyramid', width_mm: 4.8, depth_mm: 4.8, height_mm: 3, size_mode: 'follow_pattern' },
+  field: { type: 'linear', angle: 0, range: 'final_geometry_projection' },
+  height: { min_height_mm: 2, max_height_mm: 6 },
+  other_effects_enabled: false, random_seed: null,
+} as const
+
+export function applyDirectionalFabricRecipe(dto: PatternDocumentDTO, catalog: ParameterCatalog | null,
+  bounds: BoundsMM | null): PatternDocumentDTO {
+  const recipe = directionalFabricRecipe
+  checkValues(catalog, 'fabric_base', 'solid', recipe.base)
+  checkValues(catalog, 'fabric_cell', 'pyramid', recipe.cell)
+  checkValues(catalog, 'fabric_placement', 'regular', recipe.placement)
+  const original = dto.document.metadata.fabric_config as Record<string, any> | undefined
+  const modifiers = { ...original?.field_modifiers }
+  for (const kind of ['scale', 'density', 'orientation']) {
+    if (modifiers[kind]) modifiers[kind] = { ...modifiers[kind], enabled: false }
+  }
+  const configured = { ...dto, document: { ...dto.document, metadata: { ...dto.document.metadata,
+    fabric_config: { ...original, config_version: 1, output_mode: recipe.output_mode,
+      base: { ...original?.base, ...recipe.base }, placement: { ...original?.placement, ...recipe.placement },
+      unit_cell: { ...original?.unit_cell, ...recipe.cell }, field_modifiers: modifiers },
+  } } }
+  const next = setDirectionalFabricHeight(configured, catalog, bounds,
+    { angle: recipe.field.angle, ...recipe.height })
+  const field = next.document.fields.find(item => item.id === (next.document.metadata.web_fabric_height_effect as any).field_id)!
+  return { ...next, document_revision: dto.document_revision + 1,
+    document: { ...next.document, metadata: { ...next.document.metadata,
+      web_fabric_recipe: { id: recipe.id, version: recipe.version, units: recipe.units,
+        scope: [...recipe.scope], field_id: field.id, field_parameters: { ...(field.parameters as object) }, random_seed: null },
+    } } }
+}
+
 function checkValues(catalog: ParameterCatalog | null, category: 'fabric_base' | 'fabric_cell' | 'fabric_placement' | 'fabric_modifier',
   type: string, values: Record<string, unknown>) {
   const group = groupFor(catalog, category, type)
@@ -78,6 +117,6 @@ export function applyFabricPreset(dto: PatternDocumentDTO, presetId: string,
     ? previous as Record<string, unknown> : {}
   return { ...working, document_revision: dto.document_revision + 1,
     document: { ...working.document, metadata: { ...working.document.metadata,
-      fabric_config: { ...config, config_version: 1, base: { ...preset.base },
+      fabric_config: { ...config, ...(!previous ? { output_mode: 'cells_only' } : {}), config_version: 1, base: { ...preset.base },
         placement: { ...preset.placement }, unit_cell: { ...preset.cell }, field_modifiers: modifiers } } } }
 }

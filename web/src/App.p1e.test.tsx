@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { App } from './App'
 import type { PatternDocumentDTO } from './model/types'
@@ -52,6 +52,7 @@ async function open(api: ReturnType<typeof backend>, doc: unknown = fixture()) {
   await waitFor(() => expect(api.pending).toHaveLength(1))
   api.flush()
   await waitFor(() => expect(screen.getByLabelText('参数检查器')).toBeEnabled())
+  fireEvent.click(screen.getByRole('button', { name: '参数场与效果' }))
   return screen.getByRole('img', { name: '最终二维几何，单位毫米' })
 }
 async function ready(api: ReturnType<typeof backend>, options = {}) {
@@ -85,7 +86,7 @@ describe('P1-E continuous parameter editing', () => {
   it('preserves sections and viewport, resets as one history step and handles shortcuts outside inputs', async () => {
     const api = backend()
     const canvas = await open(api)
-    const layoutToggle = screen.getByRole('button', { name: /布局 ·/ })
+    const layoutToggle = screen.getByRole('button', { name: /布局 ·/, hidden: true })
     fireEvent.click(layoutToggle)
     fireEvent.click(screen.getByRole('button', { name: '放大' }))
     const view = canvas.querySelector('g')!.getAttribute('transform')
@@ -127,6 +128,8 @@ describe('P1-E continuous parameter editing', () => {
     const api = backend()
     const canvas = await open(api)
     fireEvent.pointerDown(canvas.querySelector('[data-element-id="a"]')!, { button: 0 })
+    fireEvent.click(screen.getByRole('button', { name: '参数场与效果' }))
+    fireEvent.click(screen.getByRole('button', { name: '参数场与效果' }))
     changeWavelength('60')
     await ready(api)
     const before = canvas.innerHTML
@@ -151,7 +154,7 @@ describe('P1-E continuous parameter editing', () => {
     expect(screen.getByLabelText('波长 (mm)')).toHaveValue(60)
     changeWavelength('80')
     await ready(api, { hide: true })
-    expect(within(screen.getByRole('region', { name: '元素变换' })).getByText(/No selection/)).toBeVisible()
+    expect(screen.getByRole('region', { name: '参数场' })).toBeVisible()
     changeWavelength('60')
     await ready(api)
     expect(canvas.querySelector('[data-element-id="a"]')).not.toBeNull()

@@ -1,5 +1,7 @@
 import { apiBaseUrl } from './client'
+import { HttpRequestError } from './requestErrors'
 import type { PatternDocumentDTO } from '../model/types'
+import { fabricOutputMode, type FabricOutputMode } from '../document/fabricBase'
 
 export interface FabricDesignPreview {
   schema_version: '1.0'
@@ -7,6 +9,7 @@ export interface FabricDesignPreview {
   document_id: string
   document_revision: number
   preview_id: string
+  output_mode?: FabricOutputMode
   placement_mode: 'area_fill' | 'pattern_points'
   unit_size_mode: 'fixed' | 'follow_pattern'
   element_count: number
@@ -58,8 +61,7 @@ export async function requestFabricPreview(dto: PatternDocumentDTO, signal?: Abo
   })
   const raw: unknown = await response.json().catch(() => null)
   if (!response.ok) {
-    const message = raw && typeof raw === 'object' && 'message' in raw ? String(raw.message) : `HTTP ${response.status}`
-    throw new Error(`Fabric 设计预览失败：${message}`)
+    throw new HttpRequestError(response.status, raw)
   }
   const payload = raw as FabricDesignPreview
   if (!payload || payload.kind !== 'fabric_instance_preview')
@@ -67,12 +69,14 @@ export async function requestFabricPreview(dto: PatternDocumentDTO, signal?: Abo
   if (payload.document_id !== requestId || payload.document_revision !== requestRevision)
     throw new Error(`Fabric 预览版本不匹配：请求 ${requestId} / revision ${requestRevision}，响应 ${String(payload.document_id)} / revision ${String(payload.document_revision)}。`)
   if (!Array.isArray(payload.instances) || payload.instances.length !== payload.count
+    || (payload.output_mode ?? 'cells_with_base') !== fabricOutputMode(dto)
     || !['fixed', 'follow_pattern'].includes(payload.unit_size_mode)
     || !Number.isInteger(payload.total_count)
     || !Number.isInteger(payload.active_count) || payload.active_count < 0
     || payload.active_count > payload.count
     || payload.instances.some((instance) => !Number.isFinite(instance.x_mm)
-      || !Number.isFinite(instance.y_mm) || !Number.isFinite(instance.rotation_deg)
+      || !Number.isFinite(instance.y_mm) || !Number.isFinite(instance.z_mm) || !Number.isFinite(instance.rotation_deg)
+      || payload.output_mode === 'cells_only' && instance.z_mm !== 0
       || !Number.isFinite(instance.scale_x) || !Number.isFinite(instance.scale_y)
       || !Number.isFinite(instance.scale) || instance.scale <= 0
       || !Number.isFinite(instance.height_mm) || instance.height_mm <= 0

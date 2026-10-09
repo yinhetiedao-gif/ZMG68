@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 
-export function InspectorSection({ title, label, activeKey, defaultExpanded = true, children }: {
-  title: string; label: string; activeKey?: string | null; defaultExpanded?: boolean; children: ReactNode
+export function InspectorSection({ title, label, activeKey, defaultExpanded = true, hidden = false, children }: {
+  title: string; label: string; activeKey?: string | null; defaultExpanded?: boolean; hidden?: boolean; children: ReactNode
 }) {
   const [expanded, setExpanded] = useState(defaultExpanded)
   const mounted = useRef(false)
@@ -10,7 +10,7 @@ export function InspectorSection({ title, label, activeKey, defaultExpanded = tr
     if (mounted.current && activeKey) setExpanded(true)
     mounted.current = true
   }, [activeKey])
-  return <section className="inspector-section" aria-label={label}>
+  return <section className="inspector-section" aria-label={label} hidden={hidden}>
     <h3><button type="button" className="section-toggle" aria-expanded={expanded} aria-controls={contentId}
       onClick={() => setExpanded((current) => !current)}>
       <span aria-hidden="true">{expanded ? '▾' : '▸'}</span> {title}

@@ -137,7 +137,7 @@ class FabricPlanner:
         if len(base_bounds_mm) != 4 or any(not math.isfinite(value) for value in base_bounds_mm):
             raise ValueError("Fabric Base 范围必须是有限毫米坐标。")
         left, bottom, right, top = base_bounds_mm
-        if right <= left or top <= bottom or not math.isfinite(base_top_z) or base_top_z <= 0:
+        if right <= left or top <= bottom or not math.isfinite(base_top_z) or base_top_z < 0:
             raise ValueError("Fabric Base 范围或顶部高度无效。")
         columns = math.floor((right - left) / placement.spacing_x_mm + 1e-9)
         rows = math.floor((top - bottom) / placement.spacing_y_mm + 1e-9)
@@ -165,7 +165,7 @@ class FabricPlanner:
     def plan_points(self, points: list[FabricPlacementPoint], base_top_z: float,
                     cell: UnitCellDefinition, *, follow_pattern_size: bool = True,
                     preview_limit: bool = True) -> FabricInstancePlan:
-        if not math.isfinite(base_top_z) or base_top_z <= 0:
+        if not math.isfinite(base_top_z) or base_top_z < 0:
             raise ValueError("Fabric Base 顶部高度无效。")
         valid = [point for point in points
                  if point.enabled and isinstance(point.final_geometry_id, str) and point.final_geometry_id

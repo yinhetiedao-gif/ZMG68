@@ -1,14 +1,14 @@
-import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react'
 import {
   BackendOfflineError, checkBackend, ContractMismatchError, EXPECTED_SCHEMA_VERSION,
 } from './api/client'
 import { evaluateDocument } from './api/evaluate'
 import { importImage } from './api/import'
 import { bindImageSource, imageAssetFetcher, type ImageSources } from './api/imageAssets'
-import { analyzePattern, preparePattern, runPatternAction, type PatternAnalysis, type PatternFamily } from './api/pattern'
+import { preparePattern, runPatternAction, type PatternFamily } from './api/pattern'
 import { Workspace2D } from './geometry/Workspace2D'
 import { InspectorControls, type EditAction } from './document/InspectorControls'
-import type { ParameterCatalog } from './document/parameterSchema'
+import { validateParameter, type ParameterCatalog } from './document/parameterSchema'
 import { currentLayoutFamily, editLayoutDraft, initialLayoutDraft, layoutCommitDocument, type LayoutDraft } from './document/layoutDraft'
 import {
   addField, addModifier, bindScalarModifierField, removeField, removeModifier, restoreSnapshot, setFieldEnabled,
@@ -20,16 +20,28 @@ import {
   directSourceElement, millimetresPerUnit, moveSourceElement,
   prepareProject, withMillimetreMapping,
 } from './model/project'
-import { initialBrowserState, type WorkspaceMode } from './state/browserState'
+import { initialBrowserState, workspaceModeFromLocation, type WorkspaceMode } from './state/browserState'
+import { appendPrimitive, createBlankDesign, type PrimitiveType } from './document/nativeDesign'
+import { readReferenceLayer, updateReferenceLayer, type ReferenceLayer } from './document/referenceLayer'
+import { ReferenceLayerPanel } from './document/ReferenceLayerPanel'
+import { useLayoutPreview, useDocumentPreview } from './document/useLayoutPreview'
+import { openLinearSize, linearSizeCandidate, linearSizeGroup, linearSizeDefaults, linearSizeOwner, type LinearSizeDraft } from './document/linearSize'
+import { openRadialSize, radialSizeCandidate, radialSizeGroup, radialSizeDefaults, type RadialSizeDraft } from './document/radialSize'
+import { ParameterPanel } from './document/ParameterPanel'
+import { ParameterInteraction } from './document/ParameterInteraction'
 import { initialDocumentState } from './state/documentState'
 import { ManufacturingPanel } from './manufacturing/ManufacturingPanel'
 import { useManufacturing } from './manufacturing/useManufacturing'
 import { useFabricPreview } from './manufacturing/useFabricPreview'
+import { coordinateComputeRequests } from './manufacturing/computeRequests'
 import { PreviewPanel } from './manufacturing/PreviewPanel'
-import { setFabricBaseType, updateFabricBase } from './document/fabricBase'
-import { setFabricUnitCellType, updateFabricUnitCell, setFabricPlacementMode } from './document/fabricCell'
-import { setFabricModifierEnabled, setFabricModifierField, updateFabricModifier } from './document/fabricModifiers'
-import { applyFabricPreset } from './document/fabricPresets'
+import { FabricThreePreview } from './manufacturing/FabricThreePreview'
+import { temporaryFabricDimensions } from './manufacturing/fabricTemporaryDimensions'
+import { fabricBase, setFabricBaseType, updateFabricBase } from './document/fabricBase'
+import { fabricUnitCell, setFabricUnitCellType, updateFabricUnitCell, setFabricPlacementMode } from './document/fabricCell'
+import { setFabricOutputMode } from './document/fabricBase'
+import { setFabricModifierEnabled, setFabricModifierField, updateFabricModifier, setUniformFabricHeight, setDirectionalFabricHeight } from './document/fabricModifiers'
+import { applyFabricPreset, applyDirectionalFabricRecipe, directionalFabricRecipe } from './document/fabricPresets'
 import { clearDraft, loadBeforeExampleDraft, loadDraft, saveBeforeExampleDraft, saveDraft,
   type DraftUiState, type LocalDraft, type SourceAssetDraft } from './draft/localDraft'
 import { createExampleDocument, exampleIdFromDocument, examples, type BuiltInExample, type ExampleId } from './examples/catalog'
@@ -51,13 +63,24 @@ const patternItems = [
 const modes: { id: WorkspaceMode; label: string; secondary: string }[] = [
   { id: 'design', label: '① 设计', secondary: 'Design' },
   { id: 'manufacture', label: '② 检查制造', secondary: 'Manufacture' },
-  { id: 'preview', label: '③ 预览与导出', secondary: '3D Preview' },
 ]
 
 function pendingLayoutFor(dto: PatternDocumentDTO, draft: LayoutDraft | null): LayoutDraft | null {
   return draft && (draft.changed || draft.family !== currentLayoutFamily(dto)) &&
     draft.sourceRevision === dto.document_revision &&
     (draft.family === 'free' || draft.proposal?.document_id === dto.document_id) ? draft : null
+}
+
+function retainPendingFabricLayout(draft: LayoutDraft, next: PatternDocumentDTO): LayoutDraft {
+  const metadata = draft.proposal?.document.metadata
+  return { ...draft, sourceRevision: next.document_revision, proposal: draft.proposal ? {
+    ...draft.proposal, document_revision: next.document_revision,
+    document: { ...draft.proposal.document, fields: next.document.fields, metadata: { ...metadata,
+      fabric_config: next.document.metadata.fabric_config,
+      web_fabric_height_effect: next.document.metadata.web_fabric_height_effect,
+      web_fabric_recipe: next.document.metadata.web_fabric_recipe,
+    } },
+  } : null }
 }
 
 function ExampleCard({ example, onOpen, disabled }: { example: BuiltInExample; onOpen: (id: ExampleId) => void; disabled: boolean }) {
@@ -80,12 +103,31 @@ export function App() {
   const [fabricStlTestExportEnabled, setFabricStlTestExportEnabled] = useState<boolean | undefined>()
   const [releaseHealth, setReleaseHealth] = useState<import('./api/client').HealthResponse | null>(null)
   const [retry, setRetry] = useState(0)
-  const [browser, setBrowser] = useState(initialBrowserState)
+  const [browser, setBrowser] = useState(() => ({ ...initialBrowserState, activeMode: workspaceModeFromLocation() }))
+  const [designContext, setDesignContext] = useState<'layout' | 'element' | 'effects' | 'reference' | 'linear' | null>(null)
+  const [linearDraft, setLinearDraft] = useState<LinearSizeDraft | RadialSizeDraft | null>(null)
+  const [linearSync, setLinearSync] = useState(0)
+  const [referenceLayer, setReferenceLayer] = useState<ReferenceLayer | null>(null)
+  const referenceLayerRef = useRef<ReferenceLayer | null>(null); referenceLayerRef.current = referenceLayer
+  const [referenceDraft, setReferenceDraft] = useState<ReferenceLayer | null>(null)
+  const [referenceUrl, setReferenceUrl] = useState('')
+  const referenceInputRef = useRef<HTMLInputElement>(null)
+  const referenceReadSequence = useRef(0)
+  useEffect(() => {
+    if (!referenceLayer) { setReferenceUrl(''); return }
+    const url = URL.createObjectURL(referenceLayer.blob)
+    setReferenceUrl(url)
+    return () => URL.revokeObjectURL(url)
+  }, [referenceLayer?.blob])
   const [project, setProject] = useState(initialDocumentState)
   const imageSourcesRef = useRef<ImageSources>({})
-  const [assetFetch] = useState(() => imageAssetFetcher(() => imageSourcesRef.current))
-  const manufacturing = useManufacturing(project.currentDocument, assetFetch)
-  const fabricPreview = useFabricPreview(project.currentDocument, assetFetch)
+  const [computeBusy, setComputeBusy] = useState(false)
+  const [computeRequests] = useState(() => coordinateComputeRequests(
+    imageAssetFetcher(() => imageSourcesRef.current), setComputeBusy))
+  const assetFetch = computeRequests.fetcher
+  const manufacturing = useManufacturing(project.currentDocument, assetFetch, computeRequests.isBusy)
+  const [recipeSaving, setRecipeSaving] = useState(false)
+  const recipeSavingRef = useRef(false)
   const [projectError, setProjectError] = useState<string | null>(null)
   const [exampleChooserOpen, setExampleChooserOpen] = useState(false)
   const [draftNotice, setDraftNotice] = useState<string | null>(null)
@@ -101,6 +143,8 @@ export function App() {
   const [mapping, setMapping] = useState<{ dto: PatternDocumentDTO; fileName: string; warnings: string[] } | null>(null)
   const [mappingValue, setMappingValue] = useState('')
   const [pendingPreview, setPendingPreview] = useState<{ id: string; dx: number; dy: number } | null>(null)
+  const [elementDraft, setElementDraft] = useState<Record<string, number>>({})
+  useEffect(() => setElementDraft({}), [project.documentRevision, browser.selectedElementIds[0]])
   const [fitToken, setFitToken] = useState(0)
   const historyRef = useRef<{ past: PatternDocumentDTO[]; future: PatternDocumentDTO[] }>({ past: [], future: [] })
   const [historyCount, setHistoryCount] = useState({ past: 0, future: 0 })
@@ -112,23 +156,20 @@ export function App() {
   const [importing, setImporting] = useState(false)
   const evaluateController = useRef<AbortController | null>(null)
   const evaluateSequence = useRef(0)
-  const analyzeController = useRef<AbortController | null>(null)
-  const analyzeSequence = useRef(0)
-  const analyzeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const [patternAnalysis, setPatternAnalysis] = useState<PatternAnalysis | null>(null)
-  const [analysisStatus, setAnalysisStatus] = useState<'idle' | 'stale' | 'loading' | 'ready' | 'error'>('idle')
-  const [analysisError, setAnalysisError] = useState<string | null>(null)
   const [applyingPattern, setApplyingPattern] = useState(false)
   const applyingPatternRef = useRef(false)
   const [selectedFamily, setSelectedFamily] = useState<PatternFamily | null>(null)
   const [selectedFieldId, setSelectedFieldId] = useState('')
   const [layoutDraft, setLayoutDraft] = useState<LayoutDraft | null>(null)
+  const [layoutPreviewSeed, setLayoutPreviewSeed] = useState<{ key: string; result: import('./model/types').EvaluateResponse } | null>(null)
   const [preparingLayout, setPreparingLayout] = useState(false)
   const layoutSequence = useRef(0)
   const activeDocumentRef = useRef<PatternDocumentDTO | null>(null)
   const lastValidDocumentRef = useRef<PatternDocumentDTO | null>(null)
   const pendingControls = useRef(new Set<string>())
   const [parameterPending, setParameterPending] = useState(false)
+  const [cellDraft, setCellDraft] = useState<Record<string, number>>({})
+  const [manufacturingActionHost, setManufacturingActionHost] = useState<HTMLDivElement | null>(null)
   const [parameterSyncVersion, setParameterSyncVersion] = useState(0)
   const [canvasEditing, setCanvasEditing] = useState(false)
   const onParameterPending = useCallback((id: string, pending: boolean) => {
@@ -136,6 +177,45 @@ export function App() {
     else pendingControls.current.delete(id)
     setParameterPending(pendingControls.current.size > 0)
   }, [])
+  const onUnitCellDraft = useCallback((key: string, value: import('./document/parameterSchema').ParameterValue | null) => {
+    setCellDraft(previous => {
+      if (typeof value === 'number' && previous[key] === value || value === null && !(key in previous)) return previous
+      const next = { ...previous }
+      if (typeof value === 'number') next[key] = value
+      else delete next[key]
+      return next
+    })
+  }, [])
+  useEffect(() => setCellDraft({}), [project.currentDocument?.document_id])
+  const fabricPreview = useFabricPreview(project.currentDocument, assetFetch, computeRequests.isBusy, {
+    automatic: browser.activeMode !== 'design' && connection.kind === 'online' && Boolean(fabricUnitCell(project.currentDocument)),
+    blocked: parameterPending || recipeSaving || project.evaluateStatus !== 'ready', computeBusy,
+  })
+  const fabricDisplayPlan = useMemo(() => temporaryFabricDimensions(fabricPreview.displayResult,
+    fabricPreview.displayDocument, project.currentDocument, cellDraft),
+    [fabricPreview.displayResult, fabricPreview.displayDocument, project.currentDocument, cellDraft])
+  const linearActive = designContext === 'linear' && browser.activeMode === 'design' && Boolean(linearDraft)
+  const linearCurrent = Boolean(linearDraft && linearDraft.sourceKey === JSON.stringify(project.currentDocument))
+  const sizeGroup = linearDraft?.kind === 'radial' ? radialSizeGroup(parameterCatalog, linearDraft.source, linearDraft.bounds) : linearSizeGroup(parameterCatalog)
+  const linearProposal = useMemo(() => {
+    if (!linearActive || !linearCurrent || !linearDraft) return { dto: null, error: null }
+    try { return { dto: linearDraft.kind === 'radial' ? radialSizeCandidate(linearDraft, parameterCatalog) : linearSizeCandidate(linearDraft, parameterCatalog), error: null } }
+    catch (error) { return { dto: null, error: error instanceof Error ? error.message : '渐变参数无效。' } }
+  }, [linearActive, linearCurrent, linearDraft, parameterCatalog])
+  const stagedLinear = useDocumentPreview(linearProposal.dto, assetFetch, null,
+    linearActive && linearCurrent ? linearDraft!.sourceKey : '')
+  useEffect(() => {
+    if (designContext !== 'linear' || browser.activeMode !== 'design') setLinearDraft(null)
+  }, [designContext, browser.activeMode])
+  const geometryInputsPending = linearActive || parameterPending || canvasEditing || Boolean(project.currentDocument && pendingLayoutFor(project.currentDocument, layoutDraft))
+  const inputsReady = useRef(false)
+  const inputSnapshot = useRef(project.currentDocument); inputSnapshot.current = project.currentDocument
+  inputsReady.current = !geometryInputsPending && project.evaluateStatus === 'ready'
+  const canUseInputs = useCallback(() => inputsReady.current && pendingControls.current.size === 0
+    && activeDocumentRef.current === inputSnapshot.current, [])
+  const safeCurrentResult = useCallback((id: string) => canUseInputs() && manufacturing.isCurrentResult(id), [manufacturing.isCurrentResult, canUseInputs])
+  const stagedLayout = useLayoutPreview(layoutDraft, browser.activeMode === 'design' && !preparingLayout && !parameterPending
+    && Boolean(project.currentDocument && pendingLayoutFor(project.currentDocument, layoutDraft)), assetFetch, layoutPreviewSeed)
 
   const reconnect = useCallback(() => setRetry((value) => value + 1), [])
   const publishHistory = (next: { past: PatternDocumentDTO[]; future: PatternDocumentDTO[] }) => {
@@ -166,8 +246,6 @@ export function App() {
   }, [retry])
   useEffect(() => () => evaluateController.current?.abort(), [])
   useEffect(() => () => {
-    analyzeController.current?.abort()
-    if (analyzeTimer.current) clearTimeout(analyzeTimer.current)
     if (draftTimer.current) clearTimeout(draftTimer.current)
   }, [])
   useEffect(() => {
@@ -190,7 +268,7 @@ export function App() {
     sourceAsset: SourceAssetDraft | null, uiState: DraftUiState): Promise<LocalDraft> => {
     const sequence = ++draftSaveSequence.current
     setDraftSaveStatus('saving')
-    const metadata = { ...uiState, image_sources: imageSourcesRef.current }
+    const metadata = { reference_layer: referenceLayerRef.current, ...uiState, image_sources: imageSourcesRef.current }
     const next = draftWrites.current.catch(() => undefined).then(() => saveDraft(dto, fileName, sourceAsset, metadata))
     draftWrites.current = next
     return next.then((saved) => {
@@ -218,7 +296,7 @@ export function App() {
     }, 450)
     return () => { if (draftTimer.current) clearTimeout(draftTimer.current) }
   }, [project.currentDocument, project.evaluateStatus, project.fileName, layoutDraft,
-    activeExampleSession, persistDraft])
+    activeExampleSession, persistDraft, referenceLayer])
 
   useEffect(() => {
     if (draftSaveStatus !== 'saving' && draftSaveStatus !== 'error') return
@@ -243,46 +321,12 @@ export function App() {
     }
   }
 
-  const invalidatePatternAnalysis = useCallback(() => {
-    if (analyzeTimer.current) clearTimeout(analyzeTimer.current)
-    analyzeTimer.current = null
-    analyzeController.current?.abort()
-    ++analyzeSequence.current
-    setAnalysisStatus('stale')
-    setAnalysisError(null)
-  }, [])
-
-  const requestPatternAnalysis = useCallback((dto: PatternDocumentDTO, delayMs = 0) => {
-    invalidatePatternAnalysis()
-    const sequence = analyzeSequence.current
-    const start = () => {
-      if (sequence !== analyzeSequence.current) return
-      analyzeTimer.current = null
-      const controller = new AbortController()
-      analyzeController.current = controller
-      setAnalysisStatus('loading')
-      void analyzePattern(dto, controller.signal).then((result) => {
-        if (sequence !== analyzeSequence.current) return
-        setPatternAnalysis(result)
-        setAnalysisStatus('ready')
-      }).catch((error: unknown) => {
-        if (controller.signal.aborted || sequence !== analyzeSequence.current) return
-        setAnalysisStatus('error')
-        setAnalysisError(error instanceof Error ? error.message : '图案分析失败。')
-      })
-    }
-    if (delayMs > 0) analyzeTimer.current = setTimeout(start, delayMs)
-    else start()
-  }, [invalidatePatternAnalysis])
-
   const runEvaluate = useCallback((dto: PatternDocumentDTO, options: {
     fileName?: string; warnings?: string[]; fitOnSuccess?: boolean
     rollback?: PatternDocumentDTO
     onFailure?: () => void
-    analyzeDelayMs?: number
   } = {}) => {
     evaluateController.current?.abort()
-    invalidatePatternAnalysis()
     activeDocumentRef.current = dto
     const controller = new AbortController()
     evaluateController.current = controller
@@ -308,7 +352,6 @@ export function App() {
         return remaining.length === current.selectedElementIds.length ? current : { ...current, selectedElementIds: remaining }
       })
       if (options.fitOnSuccess) setFitToken((value) => value + 1)
-      requestPatternAnalysis(dto, options.analyzeDelayMs ?? 400)
     }).catch((error: unknown) => {
       if (controller.signal.aborted || sequence !== evaluateSequence.current) return
       options.onFailure?.()
@@ -321,12 +364,11 @@ export function App() {
         evaluateError: error instanceof Error ? error.message : '二维求值失败。',
       }))
       setPendingPreview(null)
-      if (options.rollback) requestPatternAnalysis(options.rollback, 400)
     })
-  }, [invalidatePatternAnalysis, requestPatternAnalysis, assetFetch])
+  }, [assetFetch])
 
   const acceptProject = (dto: PatternDocumentDTO, fileName: string, warnings: string[], options: {
-    pendingLayout?: LayoutDraft | null; exampleSessionActive?: boolean; restored?: boolean
+    pendingLayout?: LayoutDraft | null; exampleSessionActive?: boolean; restored?: boolean; referenceLayer?: ReferenceLayer | null
   } = {}) => {
     const pending = pendingLayoutFor(dto, options.pendingLayout ?? null)
     setRestorableDraft(null)
@@ -335,6 +377,10 @@ export function App() {
     ++layoutSequence.current
     setSelectedFamily(pending?.family ?? currentLayoutFamily(dto))
     setSelectedFieldId('')
+    setDesignContext(exampleIdFromDocument(dto) === 'gradient-grid' ? 'effects' : exampleIdFromDocument(dto) ? 'layout' : null)
+    setReferenceLayer(options.referenceLayer ?? null)
+    referenceLayerRef.current = options.referenceLayer ?? null
+    setReferenceDraft(null)
     setLayoutDraft(pending ?? initialLayoutDraft(dto))
     setPreparingLayout(false)
     setMapping(null)
@@ -345,8 +391,8 @@ export function App() {
       ? '已恢复上次编辑及未应用的布局参数。刷新后撤销历史不会保留。'
       : '已恢复上次编辑。刷新后撤销历史不会保留。' : null)
     publishHistory({ past: [], future: [] })
-    setBrowser((current) => ({ ...current, selectedElementIds: [], activeMode: 'design' }))
-    runEvaluate(dto, { fileName, warnings, fitOnSuccess: true, analyzeDelayMs: 0 })
+    setBrowser((current) => ({ ...current, selectedElementIds: [], activeMode: options.restored ? workspaceModeFromLocation() : 'design' }))
+    runEvaluate(dto, { fileName, warnings, fitOnSuccess: true })
   }
   const openExample = async (id: ExampleId) => {
     if (importing || !connected) return
@@ -363,6 +409,7 @@ export function App() {
           : null
       if (previous) setPreExampleDraft(await saveBeforeExampleDraft(previous.dto, previous.fileName, previous.asset,
         { pending_layout: previous.pending, example_session_active: false,
+          reference_layer: project.currentDocument ? referenceLayer : restorableDraft?.reference_layer,
           image_sources: project.currentDocument ? imageSourcesRef.current : restorableDraft?.image_sources }))
       const identifier = globalThis.crypto?.randomUUID?.() ?? `example-${Date.now()}-${Math.random().toString(16).slice(2)}`
       const dto = createExampleDocument(id, identifier)
@@ -434,8 +481,8 @@ export function App() {
   }
   const selectedId = browser.selectedElementIds[0] ?? null
   const selected = project.finalGeometry.find((item) => item.id === selectedId) ?? null
-  const canEditDocument = project.evaluateStatus === 'ready' || (project.evaluateStatus === 'error'
-    && lastValidDocumentRef.current?.document_id === project.currentDocument?.document_id)
+  const canEditDocument = !recipeSaving && (project.evaluateStatus === 'ready' || (project.evaluateStatus === 'error'
+    && lastValidDocumentRef.current?.document_id === project.currentDocument?.document_id))
   const sourceCanDrag = (item: FinalGeometry) => {
     const dto = project.currentDocument
     const source = dto && directSourceElement(dto, item.id, item.x, item.y)
@@ -457,7 +504,40 @@ export function App() {
       setDraftSaveStatus(previousSaveStatus)
       setSelectedFamily(currentLayoutFamily(before))
       setLayoutDraft(initialLayoutDraft(before))
-    }, analyzeDelayMs: 400 })
+    } })
+  }
+
+  const applyFabricRecipe = async (presetId: string) => {
+    const dto = project.currentDocument
+    if (!dto || !canEditDocument || recipeSavingRef.current) return
+    recipeSavingRef.current = true; setRecipeSaving(true)
+    try {
+      await saveBeforeReplacement()
+      if (activeDocumentRef.current !== dto) throw new Error('保护作品期间设计已变化，请重新应用配方。')
+      const pending = pendingLayoutFor(dto, layoutDraft)
+      const next = presetId === directionalFabricRecipe.id
+        ? applyDirectionalFabricRecipe(dto, parameterCatalog, project.bounds)
+        : applyFabricPreset(dto, presetId, parameterCatalog)
+      commitDocument(next, dto)
+      // A Fabric edit must not Apply or lose a separate unconfirmed Layout form.
+      if (pending) setLayoutDraft(retainPendingFabricLayout(pending, next))
+    } catch (error) { setProjectError(error instanceof Error ? error.message : 'Fabric 配方应用失败。') }
+    finally { recipeSavingRef.current = false; setRecipeSaving(false) }
+  }
+  const editFabricHeight = (mode: 'uniform' | 'directional', key?: string, value?: import('./document/parameterSchema').ParameterValue) => {
+    const dto = project.currentDocument
+    if (!dto || !canEditDocument) return
+    try {
+      const pending = pendingLayoutFor(dto, layoutDraft)
+      const next = mode === 'uniform' ? setUniformFabricHeight(dto, parameterCatalog)
+        : setDirectionalFabricHeight(dto, parameterCatalog, project.bounds,
+          key && typeof value === 'number' ? { [key]: value } : {})
+      commitDocument(next, dto)
+      if (pending) setLayoutDraft(retainPendingFabricLayout(pending, next))
+    } catch (error) {
+      setProjectError(error instanceof Error ? error.message : '高度设置失败。')
+      setParameterSyncVersion(version => version + 1)
+    }
   }
   const resetExample = () => {
     const before = project.currentDocument
@@ -475,6 +555,9 @@ export function App() {
     if (!dto || !connected || !hasEditableGeometry) return
     const sequence = ++layoutSequence.current
     setSelectedFamily(family)
+    setDesignContext('layout')
+    setBrowser(current => ({ ...current, activeMode: 'design' }))
+    setLayoutPreviewSeed(null)
     setProjectError(null)
     if (family === 'free') {
       setLayoutDraft({ family, sourceRevision: dto.document_revision, proposal: null, changed: false })
@@ -491,8 +574,10 @@ export function App() {
     try {
       // An empty parameter set asks the existing Python engine for editable layout defaults.
       const result = await preparePattern(dto, family, {})
-      if (sequence === layoutSequence.current && activeDocumentRef.current === dto)
+      if (sequence === layoutSequence.current && activeDocumentRef.current === dto) {
         setLayoutDraft({ family, sourceRevision: dto.document_revision, proposal: result.proposed_document, changed: false })
+        if (result.preview) setLayoutPreviewSeed({ key: JSON.stringify(result.proposed_document), result: result.preview })
+      }
     } catch (error) {
       if (sequence === layoutSequence.current) setProjectError(error instanceof Error ? error.message : '布局提案准备失败。')
     } finally {
@@ -530,6 +615,56 @@ export function App() {
     setPreparingLayout(false)
     setProjectError(null)
   }
+  const selectLinearSize = (kind: 'linear' | 'radial' = 'linear') => {
+    const dto = project.currentDocument
+    if (!dto || !canEditDocument || !project.bounds || !linearSizeGroup(parameterCatalog)) return
+    if (pendingLayoutFor(dto, layoutDraft) || preparingLayout || parameterPending) {
+      setProjectError('请先应用或取消未完成的布局/参数修改，再打开尺寸渐变。'); return
+    }
+    setLinearDraft(kind === 'radial' ? openRadialSize(dto, project.bounds) : openLinearSize(dto, project.bounds)); setLinearSync(value => value + 1)
+    setDesignContext('linear'); setBrowser(current => ({ ...current, activeMode: 'design' })); setProjectError(null)
+  }
+  const applyLinearSize = () => {
+    const dto = project.currentDocument
+    if (!dto || !linearDraft || !canEditDocument || canvasEditing || parameterPending || !stagedLinear.result || !linearProposal.dto ||
+      linearDraft.sourceKey !== JSON.stringify(dto) || activeDocumentRef.current !== dto || pendingLayoutFor(dto, layoutDraft)) return
+    commitDocument({ ...linearProposal.dto, document_revision: dto.document_revision + 1 }, dto)
+    setLinearDraft(null); setDesignContext('effects')
+  }
+  const addPrimitive = (type: PrimitiveType) => {
+    if (!connected || importing || parameterPending) return
+    const before = project.currentDocument
+    if (before && (!canEditDocument || pendingLayoutFor(before, layoutDraft))) {
+      setProjectError('请先应用或取消未完成的布局/参数修改，再添加图形。'); return
+    }
+    if (!before && restorableDraft) { setDraftNotice('请先恢复上次作品，或点击“新建项目”确认后再添加图形。'); return }
+    try {
+      const next = appendPrimitive(before ?? createBlankDesign(crypto.randomUUID()), type)
+      if (before) commitDocument(next.dto, before)
+      else {
+        acceptProject(next.dto, '原生二维设计', [])
+        publishHistory({ past: [createBlankDesign(next.dto.document_id)], future: [] })
+      }
+      setBrowser(current => ({ ...current, selectedElementIds: [next.id], activeMode: 'design' }))
+      setDesignContext('element')
+    } catch (error) { setProjectError(error instanceof Error ? error.message : '无法添加图形。') }
+  }
+  const onReferenceFile = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]; event.target.value = ''
+    if (!file || !connected || importing || parameterPending) return
+    const dto = project.currentDocument
+    const sequence = ++referenceReadSequence.current
+    if (!dto && restorableDraft) { setDraftNotice('请先恢复上次作品，或点击“新建项目”确认后再添加底图。'); return }
+    if (dto && !canEditDocument) return
+    try {
+      const target = dto ?? createBlankDesign(crypto.randomUUID())
+      const layer = await readReferenceLayer(file, target)
+      if (sequence !== referenceReadSequence.current || activeDocumentRef.current !== dto) return
+      if (!dto) acceptProject(target, '原生二维设计', [])
+      setReferenceLayer(layer); setReferenceDraft(null); setDesignContext('reference')
+      setBrowser(current => ({ ...current, activeMode: 'design', selectedElementIds: [] }))
+    } catch (error) { setProjectError(error instanceof Error ? error.message : '参考底图载入失败。') }
+  }
   const commitDrag = (id: string, dx: number, dy: number) => {
     const dto = project.currentDocument
     const final = project.finalGeometry.find((item) => item.id === id)
@@ -545,6 +680,11 @@ export function App() {
   const editParameter = (action: EditAction) => {
     const dto = project.currentDocument
     if (!dto || !canEditDocument) return
+    if (pendingLayoutFor(dto, layoutDraft)) {
+      setProjectError('请先应用或取消布局修改，再编辑图形或效果。')
+      setParameterSyncVersion(version => version + 1)
+      return
+    }
     try {
       let next: PatternDocumentDTO
       if (action.kind === 'field_add') {
@@ -634,7 +774,7 @@ export function App() {
   const scale = project.currentDocument ? millimetresPerUnit(project.currentDocument.document) ?? 1 : 1
   const committedFamily = project.currentDocument ? currentLayoutFamily(project.currentDocument) : 'free'
   const interactionStatus = project.evaluateStatus === 'loading' ? 'Evaluating · 正在计算'
-    : parameterPending || canvasEditing || (project.currentDocument && pendingLayoutFor(project.currentDocument, layoutDraft))
+    : linearActive || parameterPending || canvasEditing || (project.currentDocument && pendingLayoutFor(project.currentDocument, layoutDraft))
       ? 'Editing · 待提交'
       : project.evaluateError || projectError ? 'Error · 修改未完成，可重试或撤销'
         : 'Ready · 就绪'
@@ -647,6 +787,7 @@ export function App() {
       pendingLayout: restorableDraft.pending_layout,
       exampleSessionActive: restorableDraft.example_session_active,
       restored: true,
+      referenceLayer: restorableDraft.reference_layer,
     })
   }
   const restorePreExampleDraft = async () => {
@@ -656,7 +797,7 @@ export function App() {
       sourceAssetRef.current = preExampleDraft.source_asset
       imageSourcesRef.current = preExampleDraft.image_sources ?? {}
       acceptProject(preExampleDraft.dto, preExampleDraft.file_name ?? '示例前的作品', [], {
-        pendingLayout: preExampleDraft.pending_layout, restored: true,
+        pendingLayout: preExampleDraft.pending_layout, restored: true, referenceLayer: preExampleDraft.reference_layer,
       })
     } catch (error) {
       setProjectError(error instanceof Error ? error.message : '无法恢复示例前的作品。')
@@ -714,7 +855,7 @@ export function App() {
       </div>
     </header>
 
-    <div className="work-area">
+    <div className={`work-area ${browser.activeMode !== 'design' ? 'manufacture-layout' : ''}`}>
       <aside className="sidebar" aria-label="左侧工具栏">
         <div className="sidebar-intro"><span className="eyebrow">WORKSPACE / 工作台</span><p>导入图片，设计可直接编辑的二维图案。</p></div>
         <section className="side-group" aria-label="素材来源">
@@ -724,7 +865,6 @@ export function App() {
               onClick={() => imageInputRef.current?.click()}><span className="side-item-mark">▧</span>导入 PNG / JPG</button>
             <button className="side-item" type="button" disabled={importing || !connected}
               onClick={() => svgInputRef.current?.click()}><span className="side-item-mark">◇</span>导入 SVG</button>
-            <button className="side-item" type="button" disabled title="即将开放"><span className="side-item-mark">◯</span>基础形状 Shapes</button>
           </div>
         </section>
         {project.currentDocument && <section className="side-group" aria-label="内置示例">
@@ -734,39 +874,47 @@ export function App() {
           {exampleChooserOpen && <div className="sidebar-examples">{examples.map((example) => <ExampleCard
             key={example.id} example={example} onOpen={(id) => void openExample(id)} disabled={!connected || importing} />)}</div>}
         </section>}
-        <section className="side-group" aria-label="图案结构">
-          <div className="group-heading"><span>02</span><h2>图案结构</h2></div>
+        <section className="side-group" aria-label="图案逻辑">
+          <div className="group-heading"><span>02</span><h2>图案逻辑</h2></div>
           <p className="pattern-analysis-status">当前结构：{patternItems.find((item) => item.id === committedFamily)?.label}</p>
           <div className="side-items">{patternItems.map((item) => {
             const available = Boolean(project.currentDocument && connected && !applyingPattern
               && (item.id === 'free' || hasEditableGeometry))
-            const recommended = analysisStatus === 'ready'
-              && patternAnalysis?.document_id === project.currentDocument?.document_id
-              && patternAnalysis?.document_revision === project.documentRevision
-              && patternAnalysis?.recommended_family === item.id
             return <button className={`side-item ${selectedFamily === item.id ? 'selected' : ''}`} key={item.id}
               type="button" disabled={!available} aria-pressed={selectedFamily === item.id}
               title={available ? '仅选择候选结构，不改变元素位置。' : '请先导入有效的二维图案。'}
               onClick={() => void selectLayout(item.id)}>
               <span className="side-item-mark" aria-hidden="true">{item.mark}</span>
-              <span>{item.label}</span>{recommended && <small>推荐 {Math.round((patternAnalysis?.confidence ?? 0) * 100)}%</small>}
+              <span>{item.label}</span>
               {!available && <span className="soon-dot" aria-hidden="true" />}
             </button>
           })}</div>
-          <p className="pattern-analysis-status" role="status">
-            {analysisStatus === 'loading' ? '正在分析图案；结构仍可尝试使用。'
-              : analysisStatus === 'stale' ? '图案已修改，推荐结果待更新；结构仍可使用。'
-                : analysisStatus === 'ready' && patternAnalysis?.analysis_status === 'matched'
-                  ? `推荐：${patternItems.find((item) => item.id === patternAnalysis?.recommended_family)?.label}（${Math.round((patternAnalysis?.confidence ?? 0) * 100)}%）`
-                  : analysisStatus === 'ready' ? '暂无可靠推荐；可手动尝试图案结构。'
-                    : analysisStatus === 'error' ? `分析失败：${analysisError}；结构仍可尝试使用。`
-                      : '导入图案后自动分析结构。'}
-          </p>
-          {analysisStatus === 'ready' && patternAnalysis?.recommended_family &&
-            <button type="button" disabled={!hasEditableGeometry} onClick={() => void selectLayout(patternAnalysis.recommended_family!)}>
-              使用推荐
-            </button>}
           {selectedFamily && <p className="pattern-analysis-status">已选：{patternItems.find((item) => item.id === selectedFamily)?.label}。在右侧调整并应用。</p>}
+        </section>
+        <section className="side-group" aria-label="基础图形">
+          <div className="group-heading"><span>03</span><h2>基础图形</h2></div>
+          <div className="side-items">{([['circle', '圆形'], ['ellipse', '椭圆'], ['rect', '矩形']] as const).map(([type, label]) =>
+            <button className="side-item" key={type} type="button" disabled={!connected || importing || parameterPending}
+              onClick={() => addPrimitive(type)}>＋ 添加{label}</button>)}</div>
+          <small>添加一个独立图形，不替换当前图案。</small>
+        </section>
+        <section className="side-group" aria-label="参考底图">
+          <div className="group-heading"><span>04</span><h2>添加底图</h2></div>
+          <button className="side-item" type="button" disabled={!connected || importing || parameterPending}
+            onClick={() => referenceInputRef.current?.click()}>{referenceLayer ? '更换参考底图' : '添加参考底图'}</button>
+          {referenceLayer && <button className="side-item" type="button" onClick={() => setDesignContext('reference')}>底图属性</button>}
+          <small>仅二维参考，不生成图案，不进入 STL。</small>
+        </section>
+        <section className="side-group" aria-label="参数场与效果">
+          <button className="side-item" type="button" disabled={!project.currentDocument}
+            onClick={() => { setDesignContext('effects'); setBrowser(current => ({ ...current, activeMode: 'design' })) }}>参数场与效果</button>
+          <span className="eyebrow">尺寸变化效果</span>
+          <button type="button" className={`side-item ${linearActive && linearDraft?.kind === 'linear' ? 'selected' : ''}`}
+            disabled={!canEditDocument || !project.bounds || !linearSizeGroup(parameterCatalog)}
+            onClick={() => selectLinearSize()}>线性尺寸渐变</button>
+          <button type="button" className={`side-item ${linearActive && linearDraft?.kind === 'radial' ? 'selected' : ''}`}
+            disabled={!canEditDocument || !project.bounds || !project.currentDocument || !radialSizeGroup(parameterCatalog, project.currentDocument)}
+            onClick={() => selectLinearSize('radial')}>径向尺寸渐变</button>
         </section>
         <div className="sidebar-footnote"><span className="footnote-icon">i</span><p>也可将 PNG、JPG 或 SVG 拖入画布。</p></div>
       </aside>
@@ -792,12 +940,29 @@ export function App() {
         </div>
         <div className="canvas-stage" onDragOver={(event) => event.preventDefault()} onDrop={onDrop}>
           {browser.activeMode === 'design' && project.currentDocument && project.evaluateStatus !== 'idle' ? (
-            <Workspace2D geometry={project.finalGeometry} bounds={project.bounds} mmPerUnit={scale}
+            <Workspace2D geometry={(linearActive && linearCurrent ? stagedLinear.displayResult?.geometry ?? project.finalGeometry : stagedLayout.result?.geometry ?? project.finalGeometry).map(item => designContext === 'element' && item.id === selectedId && sourceCanDrag(item)
+              ? { ...item, ...elementDraft } : item)} bounds={stagedLayout.result?.bounds_mm ?? project.bounds ?? (referenceLayer ? {
+                min_x: referenceLayer.x_mm - referenceLayer.width_mm / 2, min_y: referenceLayer.y_mm - referenceLayer.height_mm / 2,
+                max_x: referenceLayer.x_mm + referenceLayer.width_mm / 2, max_y: referenceLayer.y_mm + referenceLayer.height_mm / 2,
+                width: referenceLayer.width_mm, height: referenceLayer.height_mm, units: 'mm',
+              } : null)} mmPerUnit={scale}
+              referenceLayer={referenceLayer && referenceUrl ? { ...(referenceDraft ?? referenceLayer), url: referenceUrl } : null}
+              onSelectReference={() => { setDesignContext('reference'); setBrowser(current => ({ ...current, selectedElementIds: [] })) }}
               view={browser.viewTransform}
               onViewChange={(viewTransform) => setBrowser((current) => ({ ...current, viewTransform }))}
               selectedId={selectedId}
-              onSelect={(id) => setBrowser((current) => ({ ...current, selectedElementIds: id ? [id] : [] }))}
-              canDrag={sourceCanDrag} onDragCommit={commitDrag} pendingPreview={pendingPreview} fitToken={fitToken}
+              onSelect={(id) => { if (linearActive && !id) return; setBrowser((current) => ({ ...current, selectedElementIds: id ? [id] : [] })); setDesignContext(id ? 'element' : null) }}
+              gradientControl={linearActive && linearCurrent && canEditDocument ? linearDraft : null}
+              onGradientChange={values => {
+                if (!linearCurrent || !canEditDocument || !sizeGroup) return
+                const valid = Object.entries(values).every(([key, value]) => {
+                  const definition = sizeGroup.parameters.find(item => item.id === key)
+                  return definition && validateParameter(definition, value)
+                })
+                if (valid) setLinearDraft(current => !current ? null : current.kind === 'radial'
+                  ? { ...current, values: { ...current.values, ...values } } : { ...current, values: { ...current.values, ...values } })
+              }}
+              canDrag={item => !linearActive && !pendingLayoutFor(project.currentDocument!, layoutDraft) && sourceCanDrag(item)} onDragCommit={commitDrag} pendingPreview={pendingPreview} fitToken={fitToken}
               onEditingChange={setCanvasEditing} />
           ) : browser.activeMode === 'design' ? (
             <section className="empty-state" aria-label="空白设计工作区">
@@ -811,10 +976,125 @@ export function App() {
               <div className="empty-examples">{examples.map((example) => <ExampleCard
                 key={example.id} example={example} onOpen={(id) => void openExample(id)} disabled={!connected || importing} />)}</div>
             </section>
-          ) : browser.activeMode === 'manufacture' ? (
+          ) : fabricBase(project.currentDocument) ? null : <PreviewPanel hideExport result={manufacturing.result} status={manufacturing.status}
+            projectName={project.fileName} isCurrentResult={safeCurrentResult}
+            document={project.currentDocument} fabricPreview={fabricPreview.result}
+            fabricStlTestExportEnabled={fabricStlTestExportEnabled}
+            onGoManufacture={() => setBrowser((current) => ({ ...current, activeMode: 'manufacture' }))} />}
+          {fabricBase(project.currentDocument) && <section className="fabric-live-stage" hidden={browser.activeMode === 'design'} aria-label="中央 Fabric 设计预览">
+            <header className="fabric-live-heading"><strong>3D 设计预览</strong><small>设计预览不代表最终制造已通过</small>
+              <span role="status">{parameterPending ? Object.keys(cellDraft).length && fabricDisplayPlan !== fabricPreview.displayResult
+                ? '临时显示 · 松手提交后校准' : '有未提交参数 · 松手后自动更新'
+                : fabricPreview.status === 'building' ? '正在更新 · 保留上次有效画面' : fabricPreview.status === 'stale' ? '设计已变化 · 等待更新' : fabricPreview.error ?? ''}</span></header>
+            {fabricDisplayPlan ? <FabricThreePreview key={project.currentDocument?.document_id} plan={fabricDisplayPlan} />
+              : <div className="preview-empty"><p>{!fabricUnitCell(project.currentDocument) ? '在右侧选择单元类型，即可查看设计预览。' : fabricPreview.error ?? '正在准备设计预览，请稍候。'}</p></div>}
+          </section>}
+          {project.evaluateStatus === 'loading' && <div className="viewer-notice" role="status">Python 正在计算最终二维几何…</div>}
+          {linearActive && <div className="viewer-notice" role="status">未应用的尺寸渐变预览 · {!linearCurrent ? '正式设计已变化，请重新打开效果' :
+            linearProposal.error ?? stagedLinear.error ?? (stagedLinear.pending ? '正在计算最新输入 · 保留上次有效画面' : '点击右侧应用，或取消恢复')}</div>}
+          {browser.activeMode === 'design' && project.currentDocument && pendingLayoutFor(project.currentDocument, layoutDraft) &&
+            <div className="viewer-notice" role="status">未应用的布局预览 · {stagedLayout.pending ? '正在计算最新输入' : stagedLayout.error ?? '点击右侧应用，或取消恢复'} </div>}
+          {importing && <div className="viewer-notice" role="status">Python 正在转换图片为可编辑元素…</div>}
+          {project.evaluateError && <div className="viewer-error" role="alert">{project.evaluateError}</div>}
+          {projectError && <div className="viewer-error" role="alert">{projectError}</div>}
+          {browser.activeMode === 'design' && project.warnings.length > 0 &&
+            <div className="viewer-warning" role="note">{project.warnings.join(' ')}</div>}
+          {mapping && <div className="mapping-overlay" role="dialog" aria-label="设置毫米映射">
+            <div className="mapping-card">
+              <h2>项目缺少毫米映射</h2>
+              <p>旧项目使用 SVG 单位。请提供真实比例；软件不会猜测打印尺寸。</p>
+              <label>1 SVG 单位对应多少 mm
+                <input type="number" min="0.000001" step="any" value={mappingValue}
+                  onChange={(event) => setMappingValue(event.target.value)} />
+              </label>
+              <div><button type="button" onClick={() => setMapping(null)}>取消</button>
+                <button type="button" onClick={confirmMapping}>按此比例打开</button></div>
+            </div>
+          </div>}
+        </div>
+        <nav className="mode-bar" aria-label="工作模式">
+          <div className="mode-label">模式</div>
+          {modes.map((mode) =>
+            <button key={mode.id} type="button" className={`mode-button ${browser.activeMode === mode.id ? 'selected' : ''}`}
+              data-step-state={browser.activeMode === mode.id ? 'current' : mode.id === 'design' && project.currentDocument
+                || mode.id === 'manufacture' && manufacturing.result && manufacturing.isCurrentResult(manufacturing.result.manufacturing_result_id)
+                ? 'complete' : 'not-ready'}
+              aria-label={`${mode.id === 'manufacture' ? '制造' : '设计'} ${mode.secondary}`}
+              aria-current={browser.activeMode === mode.id ? 'page' : undefined}
+              onClick={() => setBrowser((current) => ({ ...current, activeMode: mode.id }))}>
+              <span>{mode.label}</span><small>{mode.secondary}</small>
+            </button>)}
+          <span className="mode-bar-spacer" /><span className="interaction-status" role="status" aria-label="编辑状态">{interactionStatus}</span>
+        </nav>
+      </main>
+
+      <aside className={`inspector ${browser.activeMode !== 'design' ? 'manufacture-inspector' : ''}`} aria-label="右侧检查器">
+        <div className="inspector-title"><div><span className="eyebrow">PROPERTIES</span><h2>检查器</h2></div><span className="inspector-dots" aria-hidden="true">•••</span></div>
+        <div className="inspector-content">
+        {!project.currentDocument && <div className="inspector-empty"><span className="inspect-glyph" aria-hidden="true">⌗</span><strong>未选择对象</strong><p>No selection</p><small>点击元素可查看其世界毫米信息。</small></div>}
+        {project.currentDocument && <div style={{ display: browser.activeMode === 'design' ? undefined : 'none' }}><InspectorControls key={project.currentDocument.document_id}
+          context={designContext === 'reference' || designContext === 'linear' || !designContext ? 'none' : designContext}
+          onElementDraft={(key, value) => setElementDraft(current => {
+            const next = { ...current }; if (typeof value === 'number') next[key] = value; else delete next[key]; return next
+          })}
+          syncToken={`${project.documentRevision}:${project.evaluateStatus}:${parameterSyncVersion}`} onPending={onParameterPending}
+          dto={project.currentDocument} selected={selected} parameterCatalog={parameterCatalog}
+          selectedFieldId={selectedFieldId} onSelectField={setSelectedFieldId}
+          imageSourceNames={Object.fromEntries(project.currentDocument.assets.map((asset) =>
+            [asset.role.slice(6), imageSourcesRef.current[asset.asset_id]?.filename ?? '源图片待恢复']))}
+          layoutSelection={selectedFamily} layoutDraft={layoutDraft} layoutBusy={preparingLayout}
+          onApplyLayout={() => void applyLayout()} onCancelLayout={cancelLayout}
+          layoutActionsDisabled={!connected || !hasEditableGeometry || applyingPattern}
+          gradientExample={exampleIdFromDocument(project.currentDocument) === 'gradient-grid'}
+          onLayoutDraftEdit={(key, value) => {
+            try { setLayoutDraft((draft) => draft ? editLayoutDraft(draft, key, value, parameterCatalog) : draft) }
+            catch (error) {
+              setProjectError(error instanceof Error ? error.message : '布局参数无效。')
+              setParameterSyncVersion((version) => version + 1)
+            }
+          }}
+          onEdit={editParameter} disabled={!canEditDocument} />
+          {!designContext && <p className="inspector-readonly">在左侧选择图案逻辑、参数场或底图，或点击画布中的图形以编辑。</p>}
+          {linearActive && linearDraft && sizeGroup && <section aria-label={linearDraft.kind === 'radial' ? '径向尺寸渐变参数' : '线性尺寸渐变参数'}>
+            <h3>{linearDraft.kind === 'radial' ? '径向尺寸渐变' : '线性尺寸渐变'}</h3>
+            <p className="layout-pending" role="status">有未应用修改</p>
+            <p className="inspector-readonly">{linearDraft.kind === 'radial'
+              ? '作用于全部有效图案元素，保留原中心与布局。按到中心的直线距离变化；半径处及范围外保持外围比例。线性及其他尺寸效果仍按原顺序叠加。'
+              : '作用于全部有效图案元素，保留原中心与布局。方向起点为最小比例，终点为最大比例；范围外保持端点值。'}</p>
+            <p className="inspector-readonly">范围：X {linearDraft.bounds.min_x.toFixed(2)}–{linearDraft.bounds.max_x.toFixed(2)} mm，Y {linearDraft.bounds.min_y.toFixed(2)}–{linearDraft.bounds.max_y.toFixed(2)} mm。</p>
+            {project.currentDocument.document.modifiers.some(item => item.type === 'size' && item.enabled !== false && item.id !== linearSizeOwner(project.currentDocument!)?.modifier.id) &&
+              <p className="inspector-readonly">其他尺寸效果仍按现有顺序叠加；本效果不会关闭它们。</p>}
+            <ParameterInteraction.Provider value={{ syncToken: String(linearSync), onPending: onParameterPending }}>
+              <fieldset disabled={!linearCurrent || !canEditDocument} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
+                <ParameterPanel group={sizeGroup} values={{ ...linearDraft.values }} onCommit={(key, value) => {
+                  if (typeof value === 'number') setLinearDraft(current => !current ? null : current.kind === 'radial'
+                    ? { ...current, values: { ...current.values, [key]: value } } : { ...current, values: { ...current.values, [key]: value } })
+                }} />
+              </fieldset>
+            </ParameterInteraction.Provider>
+            <p className="inspector-readonly">画布控制点拖动中限频自动预览；数值控件松手或确认后自动预览。控制点松手仍未应用，点击应用才提交。未应用输入不会保存；刷新或切换上下文将丢弃它们。</p>
+            <div className="layout-inspector-actions">
+              <button type="button" onClick={() => { setLinearDraft(current => current ? current.kind === 'radial'
+                ? { ...current, values: radialSizeDefaults(current.bounds) } : { ...current, values: { ...linearSizeDefaults } } : null); setLinearSync(value => value + 1) }}>恢复默认</button>
+              <button type="button" onClick={() => { setLinearDraft(null); setDesignContext('effects') }}>取消效果</button>
+              <button type="button" className="ui-primary" disabled={!canEditDocument || !linearCurrent || canvasEditing || parameterPending || !stagedLinear.result || !linearProposal.dto}
+                onClick={applyLinearSize}>应用效果</button>
+            </div>
+          </section>}
+          {designContext === 'reference' && referenceLayer && <ReferenceLayerPanel layer={referenceLayer}
+            onCommit={(key, value) => {
+              try { setReferenceLayer(updateReferenceLayer(referenceLayer, key, value)); setReferenceDraft(null) }
+              catch (error) { setProjectError(error instanceof Error ? error.message : '底图参数无效。') }
+            }} onDraft={(key, value) => {
+              try { setReferenceDraft(value === null ? null : updateReferenceLayer(referenceLayer, key, value)) }
+              catch { setReferenceDraft(null) }
+            }} onRemove={() => { setReferenceLayer(null); setReferenceDraft(null); setDesignContext(null) }} />}
+        </div>}
+        <div className="manufacturing-inspector-form" hidden={browser.activeMode === 'design'}>
             <ManufacturingPanel heightText={manufacturing.heightText} onHeightChange={manufacturing.setHeightText}
               projectWarnings={project.warnings}
               document={project.currentDocument} designBounds={project.bounds} parameterCatalog={parameterCatalog}
+              actionHost={manufacturingActionHost} parametersDisabled={!canEditDocument} onUnitCellDraft={onUnitCellDraft} canUseInputs={canUseInputs}
               canEditSize={canEditDocument && project.evaluateStatus === 'ready'}
               onConfirmRealSize={(width, height) => {
                 const dto = project.currentDocument
@@ -837,6 +1117,12 @@ export function App() {
                 if (!dto || !canEditDocument) return
                 try { commitDocument(updateFabricBase(dto, key, value, parameterCatalog), dto) }
                 catch (error) { setProjectError(error instanceof Error ? error.message : 'Fabric Base 参数无效。') }
+              }}
+              onOutputMode={(mode) => {
+                const dto = project.currentDocument
+                if (!dto || !canEditDocument) return
+                try { commitDocument(setFabricOutputMode(dto, mode), dto) }
+                catch (error) { setProjectError(error instanceof Error ? error.message : '输出方式无效。') }
               }}
               onUnitCellType={(type) => {
                 const dto = project.currentDocument
@@ -874,87 +1160,24 @@ export function App() {
                 try { commitDocument(updateFabricModifier(dto, type, key, value, parameterCatalog), dto) }
                 catch (error) { setProjectError(error instanceof Error ? error.message : 'Fabric Modifier 参数无效。') }
               }}
-              onFabricPreset={(presetId) => {
-                const dto = project.currentDocument
-                if (!dto || !canEditDocument) return
-                try { commitDocument(applyFabricPreset(dto, presetId, parameterCatalog), dto) }
-                catch (error) { setProjectError(error instanceof Error ? error.message : 'Fabric 预设无效。') }
-              }}
+              onFabricPreset={presetId => void applyFabricRecipe(presetId)} recipeSaving={recipeSaving}
+              onHeightEffect={mode => editFabricHeight(mode)}
+              onDirectionalHeightParameter={(key, value) => editFabricHeight('directional', key, value)}
+              heightSyncToken={`${project.documentRevision}:${project.evaluateStatus}:${parameterSyncVersion}`}
+              onHeightPending={onParameterPending}
+              computeBusy={computeBusy} isComputeBusy={computeRequests.isBusy}
               fabricPreviewStatus={fabricPreview.status} fabricPreviewResult={fabricPreview.result}
-              fabricPreviewError={fabricPreview.error} onUpdateFabricPreview={() => void fabricPreview.update()}
+              fabricPreviewError={fabricPreview.error} onUpdateFabricPreview={() => { if (canUseInputs()) void fabricPreview.update() }}
               candidateFetcher={assetFetch}
               fabricStlTestExportEnabled={fabricStlTestExportEnabled}
               validHeight={manufacturing.validHeight} canBuild={connected && project.evaluateStatus === 'ready'
-                && Boolean(project.currentDocument) && manufacturing.validHeight}
-              onBuild={() => void manufacturing.build()} status={manufacturing.status}
+                && Boolean(project.currentDocument) && manufacturing.validHeight && !geometryInputsPending}
+              onBuild={() => { if (canUseInputs()) void manufacturing.build() }} status={manufacturing.status}
               result={manufacturing.result} error={manufacturing.error} projectName={project.fileName}
-              isCurrentResult={manufacturing.isCurrentResult}
+              isCurrentResult={safeCurrentResult}
               onBackDesign={() => setBrowser((current) => ({ ...current, activeMode: 'design' }))}
-              onPreview={() => setBrowser((current) => ({ ...current, activeMode: 'preview' }))} />
-          ) : <PreviewPanel result={manufacturing.result} status={manufacturing.status}
-            projectName={project.fileName} isCurrentResult={manufacturing.isCurrentResult}
-            document={project.currentDocument} fabricPreview={fabricPreview.result}
-            fabricStlTestExportEnabled={fabricStlTestExportEnabled}
-            onGoManufacture={() => setBrowser((current) => ({ ...current, activeMode: 'manufacture' }))} />}
-          {project.evaluateStatus === 'loading' && <div className="viewer-notice" role="status">Python 正在计算最终二维几何…</div>}
-          {importing && <div className="viewer-notice" role="status">Python 正在转换图片为可编辑元素…</div>}
-          {project.evaluateError && <div className="viewer-error" role="alert">{project.evaluateError}</div>}
-          {projectError && <div className="viewer-error" role="alert">{projectError}</div>}
-          {browser.activeMode === 'design' && project.warnings.length > 0 &&
-            <div className="viewer-warning" role="note">{project.warnings.join(' ')}</div>}
-          {mapping && <div className="mapping-overlay" role="dialog" aria-label="设置毫米映射">
-            <div className="mapping-card">
-              <h2>项目缺少毫米映射</h2>
-              <p>旧项目使用 SVG 单位。请提供真实比例；软件不会猜测打印尺寸。</p>
-              <label>1 SVG 单位对应多少 mm
-                <input type="number" min="0.000001" step="any" value={mappingValue}
-                  onChange={(event) => setMappingValue(event.target.value)} />
-              </label>
-              <div><button type="button" onClick={() => setMapping(null)}>取消</button>
-                <button type="button" onClick={confirmMapping}>按此比例打开</button></div>
-            </div>
-          </div>}
+              onPreview={() => setBrowser((current) => ({ ...current, activeMode: 'manufacture' }))} />
         </div>
-        <nav className="mode-bar" aria-label="工作模式">
-          <div className="mode-label">模式</div>
-          {modes.map((mode) =>
-            <button key={mode.id} type="button" className={`mode-button ${browser.activeMode === mode.id ? 'selected' : ''}`}
-              data-step-state={browser.activeMode === mode.id ? 'current' : mode.id === 'design' && project.currentDocument
-                || mode.id === 'manufacture' && manufacturing.result && manufacturing.isCurrentResult(manufacturing.result.manufacturing_result_id)
-                || mode.id === 'preview' && (fabricPreview.result || manufacturing.result && manufacturing.isCurrentResult(manufacturing.result.manufacturing_result_id))
-                ? 'complete' : 'not-ready'}
-              aria-label={`${mode.id === 'manufacture' ? '制造' : mode.id === 'preview' ? '三维预览' : '设计'} ${mode.secondary}`}
-              aria-current={browser.activeMode === mode.id ? 'page' : undefined}
-              onClick={() => setBrowser((current) => ({ ...current, activeMode: mode.id }))}>
-              <span>{mode.label}</span><small>{mode.secondary}</small>
-            </button>)}
-          <span className="mode-bar-spacer" /><span className="interaction-status" role="status" aria-label="编辑状态">{interactionStatus}</span>
-        </nav>
-      </main>
-
-      <aside className="inspector" aria-label="右侧检查器">
-        <div className="inspector-title"><div><span className="eyebrow">PROPERTIES</span><h2>检查器</h2></div><span className="inspector-dots" aria-hidden="true">•••</span></div>
-        {!project.currentDocument && <div className="inspector-empty"><span className="inspect-glyph" aria-hidden="true">⌗</span><strong>未选择对象</strong><p>No selection</p><small>点击元素可查看其世界毫米信息。</small></div>}
-        {project.currentDocument && <div style={{ display: browser.activeMode === 'design' ? undefined : 'none' }}><InspectorControls key={project.currentDocument.document_id}
-          syncToken={`${project.documentRevision}:${project.evaluateStatus}:${parameterSyncVersion}`} onPending={onParameterPending}
-          dto={project.currentDocument} selected={selected} parameterCatalog={parameterCatalog}
-          selectedFieldId={selectedFieldId} onSelectField={setSelectedFieldId}
-          imageSourceNames={Object.fromEntries(project.currentDocument.assets.map((asset) =>
-            [asset.role.slice(6), imageSourcesRef.current[asset.asset_id]?.filename ?? '源图片待恢复']))}
-          layoutSelection={selectedFamily} layoutDraft={layoutDraft} layoutBusy={preparingLayout}
-          onApplyLayout={() => void applyLayout()} onCancelLayout={cancelLayout}
-          layoutActionsDisabled={!connected || !hasEditableGeometry || applyingPattern}
-          gradientExample={exampleIdFromDocument(project.currentDocument) === 'gradient-grid'}
-          onLayoutDraftEdit={(key, value) => {
-            try { setLayoutDraft((draft) => draft ? editLayoutDraft(draft, key, value, parameterCatalog) : draft) }
-            catch (error) {
-              setProjectError(error instanceof Error ? error.message : '布局参数无效。')
-              setParameterSyncVersion((version) => version + 1)
-            }
-          }}
-          onEdit={editParameter} disabled={!canEditDocument} /></div>}
-        {project.currentDocument && browser.activeMode !== 'design' &&
-          <p className="inspector-readonly">设计参数位于「① 设计」。当前步骤专注制造结果与导出。</p>}
         <div className={`connection-card ${connection.kind}`}>
           <div className="connection-card-head"><span>连接状态</span><span className="connection-state-text">{connected ? '已连接' : connection.kind === 'checking' ? '检查中' : connection.kind === 'offline' ? '离线' : '协议不兼容'}</span></div>
           {!connected && <p>{connection.message}</p>}
@@ -969,6 +1192,8 @@ export function App() {
             <p>{connection.message}</p>
           </details>
         </div>
+        </div>
+        <div className="manufacturing-action-dock" hidden={browser.activeMode === 'design'} ref={setManufacturingActionHost} />
       </aside>
     </div>
     {/* Test fixture loader only; absent from development/production UI and accessibility tree. */}
@@ -978,6 +1203,8 @@ export function App() {
       aria-label="选择 PNG 或 JPG 图片" onChange={onImageFile} />
     <input ref={svgInputRef} type="file" accept=".svg,image/svg+xml" className="visually-hidden"
       aria-label="选择 SVG 图片" onChange={onImageFile} />
+    <input ref={referenceInputRef} type="file" accept=".png,.jpg,.jpeg,image/png,image/jpeg" className="visually-hidden"
+      aria-label="选择二维参考底图" onChange={event => void onReferenceFile(event)} />
     <input ref={fieldImageInputRef} type="file" accept=".png,.jpg,.jpeg,image/png,image/jpeg"
       className="visually-hidden" aria-label="选择图片场源文件" onChange={(event) => {
         const file = event.target.files?.[0]

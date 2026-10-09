@@ -64,6 +64,8 @@ async function open() {
   const file = new File([json], 'p1d.pattern.json', { type: 'application/json' })
   Object.defineProperty(file, 'text', { value: async () => json })
   fireEvent.change(screen.getByLabelText('选择 PatternDocument 项目文件'), { target: { files: [file] } })
+  await screen.findByRole('img', { name: '最终二维几何，单位毫米' })
+  fireEvent.click(screen.getByRole('button', { name: '参数场与效果' }))
   await waitFor(() => expect(screen.getByRole('button', { name: '＋ 尺寸' })).toBeEnabled())
   await waitFor(() => expect(screen.getByRole('button', { name: '＋ 位置/变形' })).toBeEnabled())
 }
@@ -118,6 +120,7 @@ describe('P1-D Web Modifier Stack', () => {
     }).modifiers[0].enabled)).toBe(false)
     const canvas = screen.getByRole('img', { name: '最终二维几何，单位毫米' })
     fireEvent.pointerDown(canvas.querySelector('[data-element-id="a"]')!, { button: 0 })
+    fireEvent.click(screen.getByRole('button', { name: '参数场与效果' }))
     fireEvent.change(screen.getByLabelText('形状替换 · a'), { target: { value: 'star' } })
     await waitFor(() => expect(evaluations(requests)).toHaveLength(5))
     expect((latest(requests).document.metadata['xiaomang_pattern_lab.placement_assignment'] as {

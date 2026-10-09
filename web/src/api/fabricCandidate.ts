@@ -1,14 +1,17 @@
 import { apiBaseUrl } from './client'
+import { HttpRequestError } from './requestErrors'
 import type { PatternDocumentDTO } from '../model/types'
+import { fabricOutputMode, type FabricOutputMode } from '../document/fabricBase'
 
 export interface FabricCandidateReport {
   schema_version: '1.0'; kind: 'fabric_manufacturing_candidate'
   document_id: string; document_revision: number
+  output_mode?: FabricOutputMode
   fused: false; export_available: false
   status: 'checked' | 'warning' | 'error'
   instance_count: number; enabled_instance_count: number
   bounds_mm: number[][] | null
-  attachment_counts: Record<'ATTACHED' | 'MARGINAL' | 'DETACHED' | 'INVALID', number>
+  attachment_counts: Record<'ATTACHED' | 'MARGINAL' | 'DETACHED' | 'INVALID', number> & { VALID?: number }
   issues: { level: string; code: string; message: string }[]
   attachments: { instance_id: string; source_id: string | null; final_geometry_id: string | null;
     status: string; contact_area_mm2: number; gap_mm: number | null;
@@ -21,11 +24,13 @@ export async function requestFabricCandidate(dto: PatternDocumentDTO, signal?: A
     method: 'POST', headers: { 'Content-Type': 'application/json' }, signal,
     body: JSON.stringify({ document: dto, document_revision: dto.document_revision }),
   })
-  const data = await response.json()
-  if (!response.ok) throw new Error(data.error?.message ?? '可制造性检查失败。')
-  const counts = ['ATTACHED', 'MARGINAL', 'DETACHED', 'INVALID'] as const
+  const data = await response.json().catch(() => null)
+  if (!response.ok) throw new HttpRequestError(response.status, data)
+  if (!data) throw new Error('可制造性检查响应格式不正确。')
+  const counts = data.output_mode === 'cells_only' ? ['ATTACHED', 'MARGINAL', 'DETACHED', 'INVALID', 'VALID'] : ['ATTACHED', 'MARGINAL', 'DETACHED', 'INVALID']
   if (data.schema_version !== '1.0' || data.kind !== 'fabric_manufacturing_candidate'
     || data.document_id !== dto.document_id || data.document_revision !== dto.document_revision
+    || (data.output_mode ?? 'cells_with_base') !== fabricOutputMode(dto)
     || data.fused !== false || data.export_available !== false
     || !['checked', 'warning', 'error'].includes(data.status)
     || !Number.isInteger(data.instance_count) || data.instance_count < 0

@@ -2,6 +2,17 @@ import type { PatternDocumentDTO } from '../model/types'
 import { groupFor, validateParameter, type ParameterCatalog, type ParameterValue } from './parameterSchema'
 
 export type FabricBaseType = 'solid' | 'grid'
+export type FabricOutputMode = 'cells_only' | 'cells_with_base'
+export function fabricOutputMode(dto: PatternDocumentDTO | null): FabricOutputMode {
+  return (dto?.document?.metadata?.fabric_config as Record<string, unknown> | undefined)?.output_mode === 'cells_only'
+    ? 'cells_only' : 'cells_with_base'
+}
+export function setFabricOutputMode(dto: PatternDocumentDTO, mode: FabricOutputMode): PatternDocumentDTO {
+  if (!fabricBase(dto) || !['cells_only', 'cells_with_base'].includes(mode)) throw new Error('Fabric 输出方式无效。')
+  if (fabricOutputMode(dto) === mode) return dto
+  return { ...dto, document_revision: dto.document_revision + 1, document: { ...dto.document,
+    metadata: { ...dto.document.metadata, fabric_config: { ...(dto.document.metadata.fabric_config as object), output_mode: mode } } } }
+}
 export interface FabricBaseConfig {
   type: FabricBaseType
   thickness_mm: number
@@ -32,7 +43,7 @@ function changed(dto: PatternDocumentDTO, base: FabricBaseConfig | null): Patter
     const previous = metadata.fabric_config
     const config = previous && typeof previous === 'object' && !Array.isArray(previous)
       ? previous as Record<string, unknown> : {}
-    metadata.fabric_config = { ...config, config_version: 1, base }
+    metadata.fabric_config = { ...config, ...(!previous ? { output_mode: 'cells_only' } : {}), config_version: 1, base }
   }
   else delete metadata.fabric_config
   return { ...dto, document_revision: dto.document_revision + 1,

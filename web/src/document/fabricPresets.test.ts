@@ -40,13 +40,24 @@ describe('F3.5 Fabric presets', () => {
     expect(first.document_revision).toBe(dto.document_revision + 1)
     expect(first.document.elements).toBe(dto.document.elements)
     expect(dto.document.metadata).toEqual({})
-    expect(first.document.metadata.fabric_config).toMatchObject({ base: preset.base,
+    expect(first.document.metadata.fabric_config).toMatchObject({ output_mode: 'cells_only', base: preset.base,
       placement: preset.placement, unit_cell: preset.cell })
     const modifiers = (first.document.metadata.fabric_config as Record<string, unknown>).field_modifiers as Record<string, { field_id: string }>
     expect(Object.values(modifiers).every((modifier) => first.document.fields.some((field) => field.id === modifier.field_id))).toBe(true)
     const undone = restoreSnapshot(dto, first.document_revision)
     expect(undone.document).toEqual(dto.document)
     expect(undone.document_revision).toBe(dto.document_revision + 2)
+  })
+
+  it('applying an old preset preserves the existing legacy or explicit output mode', () => {
+    for (const mode of [undefined, 'cells_only', 'cells_with_base']) {
+      const existing = structuredClone(dto)
+      existing.document.metadata.fabric_config = { config_version: 1,
+        base: { type: 'solid', thickness_mm: .6, margin_mm: 0 },
+        ...(mode ? { output_mode: mode } : {}) }
+      const next = applyFabricPreset(existing, 'soft-texture', catalog)
+      expect((next.document.metadata.fabric_config as Record<string, unknown>).output_mode).toBe(mode)
+    }
   })
 
   it('reuses an active field and replaces only Fabric design configuration', () => {

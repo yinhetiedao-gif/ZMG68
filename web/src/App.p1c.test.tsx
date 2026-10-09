@@ -62,6 +62,8 @@ async function open() {
   const file = new File([json], 'field.pattern.json', { type: 'application/json' })
   Object.defineProperty(file, 'text', { value: async () => json })
   fireEvent.change(screen.getByLabelText('选择 PatternDocument 项目文件'), { target: { files: [file] } })
+  await screen.findByRole('img', { name: '最终二维几何，单位毫米' })
+  fireEvent.click(screen.getByRole('button', { name: '参数场与效果' }))
   await waitFor(() => expect(screen.getByRole('button', { name: '＋ 添加参数场' })).toBeEnabled())
   await waitFor(() => expect(screen.getByRole('slider', { name: '波长滑杆' })).toBeEnabled())
 }

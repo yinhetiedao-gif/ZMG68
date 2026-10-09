@@ -49,6 +49,14 @@ class WebStagingTests(unittest.TestCase):
                     busy = client.post("/api/v1/manufacturing/build", json=payload)
                     self.assertEqual(busy.status_code, 429)
                     self.assertEqual(busy.json()["code"], "staging_busy")
+                    # These are the same compute slot, not three independent UI tasks.
+                    for endpoint in ("preview", "candidate", "fusion"):
+                        conflict = client.post(f"/api/v1/fabric/{endpoint}", json={
+                            "document": dto.to_dict(), "document_revision": dto.document_revision})
+                        self.assertEqual(conflict.status_code, 429, endpoint)
+                        self.assertEqual(conflict.json()["code"], "staging_busy")
+                        self.assertIn("另一项", conflict.json()["message"])
+                    self.assertEqual(client.get("/api/v1/health").status_code, 200)
                 finally:
                     release.set()
                 self.assertEqual(first.result(timeout=20).status_code, 200)

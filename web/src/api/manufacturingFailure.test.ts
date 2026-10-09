@@ -14,13 +14,13 @@ describe('manufacturing failure diagnostics', () => {
       json: async () => ({ code: 'manufacturing_validation_failed', message: 'Mesh 存在退化三角面',
         details: { failure_id: '20261001T120000000000Z-abc123' } }) } as Response)
     await expect(buildManufacturing(dto, 2, undefined, fetcher)).rejects.toThrow(
-      'Mesh 存在退化三角面 · failure_id: 20261001T120000000000Z-abc123')
+      '制造检查失败：Mesh 存在退化三角面（HTTP 422） · failure_id: 20261001T120000000000Z-abc123')
     expect(fetcher).toHaveBeenCalledTimes(1)
   })
 
   it('does not invent a failure ID when production response has none', async () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue({ ok: false, status: 422,
       json: async () => ({ code: 'manufacturing_validation_failed', message: '几何无效', details: null }) } as Response)
-    await expect(buildManufacturing(dto, 2, undefined, fetcher)).rejects.toThrow(/^制造检查失败：几何无效$/)
+    await expect(buildManufacturing(dto, 2, undefined, fetcher)).rejects.toThrow(/^制造检查失败：几何无效（HTTP 422）$/)
   })
 })

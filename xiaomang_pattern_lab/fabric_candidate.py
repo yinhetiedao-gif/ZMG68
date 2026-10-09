@@ -93,15 +93,20 @@ def _contact_section(component, local_z, epsilon):
 
 def build_fabric_candidate(plan: FabricInstancePlan | None, base: BaseDefinition,
                            design_bounds_mm, *, document_id: str,
-                           document_revision: int) -> FabricManufacturingCandidate:
+                           document_revision: int, output_mode: str = 'cells_with_base') -> FabricManufacturingCandidate:
     started = perf_counter()
     epsilon = ManufacturingGeometryAdapter().epsilon_mm
     area_epsilon = MeshValidator().degenerate_face_epsilon_mm2
-    geometry = FabricBaseBuilder().geometry(design_bounds_mm, base)
-    base_result = TrimeshBackend().extrude(geometry, base.thickness_mm)
+    if output_mode not in ('cells_only','cells_with_base'):
+        raise ValueError('不支持的 Fabric 输出方式。')
+    with_base = output_mode == 'cells_with_base'
+    base_result = None
+    if with_base:
+        geometry = FabricBaseBuilder().geometry(design_bounds_mm, base)
+        base_result = TrimeshBackend().extrude(geometry, base.thickness_mm)
     # Same actual F1 material, including Grid holes. This 2D material union is
     # for contact measurement only, never Boolean/fusion of candidate meshes.
-    triangles = base_result.mesh.vertices[base_result.mesh.faces]
+    triangles = base_result.mesh.vertices[base_result.mesh.faces] if base_result else np.empty((0,3,3))
     top = triangles[np.all(abs(triangles[:,:,2]-base.thickness_mm) <= epsilon,axis=1)]
     # Index the actual extruded top triangles once. Grid contact queries only
     # visit nearby material, not every hole or every other cell (no N² loop).
@@ -119,7 +124,7 @@ def build_fabric_candidate(plan: FabricInstancePlan | None, base: BaseDefinition
     prototype_at = perf_counter()
     entries, meshes, transforms = [], [], []
     issues = [_message('INFO','unfused_candidate',
-        '这是未融合候选；共面接触不代表已融合，最终 Fabric STL 尚未开放。')]
+        '这是制造候选；仍需最终几何校验。' if not with_base else '这是未融合候选；共面接触不代表已融合。')]
     transform_ms = contact_ms = bounds_ms = 0.
     all_finite = True
     component_attached = component_detached = 0
@@ -170,7 +175,7 @@ def build_fabric_candidate(plan: FabricInstancePlan | None, base: BaseDefinition
         contact_started = perf_counter()
         part_status, areas = [], []
         gap = overlap = None
-        if mesh is not None:
+        if mesh is not None and with_base:
             gap = float(lower[2]-base.thickness_mm)
             overlap = max(0.,min(base.thickness_mm,float(upper[2]))-max(0.,float(lower[2])))
             if lower[2] < -epsilon:
@@ -200,7 +205,10 @@ def build_fabric_candidate(plan: FabricInstancePlan | None, base: BaseDefinition
                 problems.append(_message('ERROR','missing_bottom','无法获取可靠单元底面。'))
             component_attached += part_status.count('ATTACHED')
             component_detached += sum(s != 'ATTACHED' for s in part_status)
+        if mesh is not None and not with_base and abs(float(lower[2])) > epsilon:
+            problems.append(_message('ERROR','invalid_bottom_z','无基底单元必须从 Z=0 开始。',bottom_z_mm=float(lower[2])))
         state = ('INVALID' if any(p['level']=='ERROR' for p in problems) else
+                 'VALID' if not with_base else
                  'DETACHED' if 'DETACHED' in part_status else
                  'MARGINAL' if 'MARGINAL' in part_status else
                  'INVALID' if 'INVALID' in part_status else 'ATTACHED')
@@ -225,40 +233,43 @@ def build_fabric_candidate(plan: FabricInstancePlan | None, base: BaseDefinition
     assembled_at = perf_counter()
     # Concatenation preserves separate bodies and shared/coplanar interfaces.
     # It is intentionally NOT a ManufacturingMeshResult or exportable artifact.
-    mesh = trimesh.util.concatenate([base_result.mesh,*meshes]) if all_finite else None
+    operands = ([base_result.mesh] if base_result else []) + meshes
+    mesh = trimesh.util.concatenate(operands) if all_finite and operands else None
     assembly_ms = (perf_counter()-assembled_at)*1000
     bounds_started = perf_counter()
     bounds = mesh.bounds.tolist() if mesh is not None else None
     bounds_ms += (perf_counter()-bounds_started)*1000
     counts = {key:sum(e['status']==key for e in entries) for key in
-              ('ATTACHED','MARGINAL','DETACHED','INVALID')}
+              (('ATTACHED','MARGINAL','DETACHED','INVALID') if with_base else ('ATTACHED','MARGINAL','DETACHED','INVALID','VALID'))}
     if not entries:
-        issues.append(_message('WARNING','no_enabled_cells','没有启用的单元；候选仅包含底布。'))
+        issues.append(_message('WARNING' if with_base else 'ERROR','no_enabled_cells',
+            '没有启用的单元；候选仅包含底布。' if with_base else '没有启用的单元，不能生成空 STL。'))
     if len(entries) >= 1000:
         issues.append(_message('WARNING','large_instance_count','实例数量较大，最终制造可能较慢。'))
     if bounds is not None and max(abs(v) for row in bounds for v in row) > 10000:
         issues.append(_message('WARNING','extreme_bounds','候选坐标范围超过 10000 mm，请核对真实尺寸。'))
     report = {'schema_version':'1.0','kind':'fabric_manufacturing_candidate',
+        'output_mode':output_mode,
         'document_id':document_id,'document_revision':document_revision,
-        'status':'error' if counts['INVALID'] else 'warning' if counts['MARGINAL']+counts['DETACHED']
+        'status':'error' if counts['INVALID'] or not with_base and not entries else 'warning' if counts['MARGINAL']+counts['DETACHED']
             or any(issue['level']=='WARNING' for issue in issues) else 'checked',
         'fused':False,'export_available':False,'bounds_mm':bounds,
         'instance_count':len(plan.instances) if plan else 0,'enabled_instance_count':len(entries),
         'attachment_counts':counts,'attachments':entries,'issues':issues,
         'tolerances':{'distance_mm':epsilon,'triangle_area_mm2':area_epsilon,
             'near_contact_distance_mm':10*epsilon,'marginal_contact_fraction':.05},
-        'components':{'base_components':base_result.component_count,
+        'components':{'base_components':base_result.component_count if base_result else 0,
             'cell_components':len(pieces)*len(entries),
-            'prefusion_components':base_result.component_count+len(pieces)*len(entries),
+            'prefusion_components':(base_result.component_count if base_result else 0)+len(pieces)*len(entries),
             'attached_cell_components':component_attached,'unattached_cell_components':component_detached,
-            'expected_post_fusion_target':base_result.component_count+component_detached if not counts['INVALID'] else None,
+            'expected_post_fusion_target':base_result.component_count+component_detached if with_base and not counts['INVALID'] else None,
             'target_is_estimate':True,'cell_cell_contacts_analyzed':False},
         'vertex_count':len(mesh.vertices) if mesh is not None else None,
         'face_count':len(mesh.faces) if mesh is not None else None,
-        'memory_estimate_bytes':sum(m.vertices.nbytes+m.faces.nbytes for m in [base_result.mesh,*meshes] if m is not None)
+        'memory_estimate_bytes':sum(m.vertices.nbytes+m.faces.nbytes for m in operands if m is not None)
             +(mesh.vertices.nbytes+mesh.faces.nbytes if mesh is not None else 0),
         'timings_ms':{'base_build':(base_at-started)*1000,
             'prototype_preparation':(prototype_at-base_at)*1000,'transformed_mesh_generation':transform_ms,
             'attachment_preflight':contact_ms,'candidate_assembly':assembly_ms,'bounds':bounds_ms,
             'total':(perf_counter()-started)*1000}}
-    return FabricManufacturingCandidate(base_result.mesh,tuple(meshes),tuple(transforms),mesh,report)
+    return FabricManufacturingCandidate(base_result.mesh if base_result else None,tuple(meshes),tuple(transforms),mesh,report)

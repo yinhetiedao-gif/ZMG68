@@ -77,6 +77,7 @@ async function open(value = documentFixture()) {
   upload(value)
   const canvas = await screen.findByRole('img', { name: '最终二维几何，单位毫米' })
   await waitFor(() => expect(canvas.querySelectorAll('[data-element-id]')).toHaveLength(1))
+  fireEvent.click(screen.getByRole('button', { name: '参数场与效果' }))
   return canvas
 }
 
@@ -185,6 +186,7 @@ describe('WM6 Inspector and committed-document boundary', () => {
     fireEvent.click(screen.getByRole('button', { name: '放大' }))
     fireEvent.click(screen.getByRole('button', { name: '缩小' }))
     fireEvent.pointerDown(canvas.querySelector('[data-element-id]')!, { button: 0 })
+    fireEvent.click(screen.getByRole('button', { name: '参数场与效果' }))
     fireEvent.change(screen.getByRole('slider', { name: '波长滑杆' }), { target: { value: '75' } })
     expect(evaluations(mock)).toHaveLength(1)
     expect(screen.getByText('revision 0')).toBeInTheDocument()
@@ -207,7 +209,7 @@ describe('WM6 Inspector and committed-document boundary', () => {
     const mock = backend()
     render(<App />)
     await screen.findByText('Backend Online')
-    uploadFixture('../../work/foundation0/test_dot_grid/document.pattern.json')
+    uploadFixture('../../tests/fixtures/legacy-dot-grid-144.pattern.json')
     expect(await screen.findByRole('dialog', { name: '设置毫米映射' })).toBeInTheDocument()
     fireEvent.change(screen.getByLabelText('1 SVG 单位对应多少 mm'), { target: { value: '1' } })
     fireEvent.click(screen.getByRole('button', { name: '按此比例打开' }))
@@ -220,9 +222,10 @@ describe('WM6 Inspector and committed-document boundary', () => {
     const mock = backend()
     render(<App />)
     await screen.findByText('Backend Online')
-    uploadFixture('../../work/physical-validation-02/physical_validation_02_real_pattern.pattern.json')
+    uploadFixture('../../tests/fixtures/three-star-field.pattern.json')
     const canvas = await screen.findByRole('img', { name: '最终二维几何，单位毫米' })
     await waitFor(() => expect(canvas.querySelectorAll('[data-element-id]')).toHaveLength(3))
+    fireEvent.click(screen.getByRole('button', { name: '参数场与效果' }))
     expect(screen.getByRole('region', { name: '参数场' })).toBeInTheDocument()
     expect(screen.getByRole('region', { name: '效果堆栈' })).toBeInTheDocument()
     expect(evaluations(mock)).toHaveLength(1)

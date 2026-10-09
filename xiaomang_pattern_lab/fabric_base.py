@@ -55,6 +55,7 @@ class BaseDefinition:
 class FabricConfig:
     config_version: int
     base: BaseDefinition
+    output_mode: str = "cells_with_base"
 
     @classmethod
     def from_mapping(cls, raw: Mapping[str, Any]) -> "FabricConfig":
@@ -63,7 +64,10 @@ class FabricConfig:
         base = raw.get("base")
         if not isinstance(base, Mapping):
             raise ValueError("Fabric 配置缺少基底参数。")
-        return cls(1, BaseDefinition.from_mapping(base))
+        mode = raw.get("output_mode", "cells_with_base")
+        if mode not in ("cells_only", "cells_with_base"):
+            raise ValueError("不支持的 Fabric 输出方式。")
+        return cls(1, BaseDefinition.from_mapping(base), mode)
 
 
 def fabric_config_from_document(document) -> FabricConfig | None:

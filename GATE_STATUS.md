@@ -1,5 +1,93 @@
 # Gate 状态（2026-10-05）
 
+## 原生Web设计/制造工作流本地收口（2026-10-09）
+
+- 用户授权仅本地提交及稳定引用，不授权push/Render/线上配置/新功能/历史重写。实际分支`feature/pattern-library-reuse`，提交前HEAD `b5338a9af41d25ccd191d34366115578265920bb`；开始暂存区为空，未切换或操作其他worktree。
+- A类实现44文件，B类测试/最小fixture/验收记录43文件，完整87文件一次收口。范围：1A请求协调/真实错误、均匀/方向高度及共享引用隔离、完整方向配方v2、两种输出/实际大小、两步/旧preview兼容、中央3D/右侧参数、去推荐/手动布局、Foundation图形/参考底图、线性/径向及控制柄、保存/Undo/尺寸/输出回归。Python变化是此前已授权的无基底模式适配/默认尺寸，不改Field算法或Validator阈值。依赖/部署/.gitignore不变。
+- 本轮仅补测试可移植性：`tests/fixtures/legacy-dot-grid-144.pattern.json`保留144个原椭圆和单位边界，清空3个运行路径；`three-star-field.pattern.json`保留3星/Grid/Wave/Size/Transform。App.wm6/App.wm56读取tracked fixture，原断言不变，未纳入个人图片/STL。其余测试依赖`phase1aFixture.ts`/`linearSizeFixture.ts`或代码内小样；已有PNG/SVG/example fixture已跟踪。
+- 最后产品修改早于最新10-09自动/浏览器验收；本轮未改产品，构建仍为同一content-hashed `index-BTrJhvp3.js`/`index-egmLGp0_.css`。复用下方阶段记录，测试批次分别报告、不累加：原生工作区历史Web227/227及规范化后12/12；线性66/66及引用保护后19/19；最新梯度相关Web64/64，控件/草稿另15/15，Python20/20。本轮`cd web; npm.cmd test -- src/App.wm6.test.tsx src/App.wm56.test.tsx --maxWorkers=2` 15/15（2文件），`npm.cmd run build` PASS。日志`work/gradient-handles-20261009/consolidation-fixtures.log`/`consolidation-build.log`；未跑无关Python/Tk全量。
+- 本地视觉/功能：两步、手动Layout、图形/底图、固定/方向高度、配方/草稿/Undo及渐变有实际浏览器证据。方向/中心/半径拖动30次事件仅10–11次求值，最多1在途；拖动0commit、Apply1commit/Undo，非零原点/非1mm比例/Zoom/Pan通过。数值滑杆仍松手或确认预览。录屏缺ffmpeg，有真实交互记录，不称录屏PASS。
+- 实际下载读回：最新普通9组件约42.874×23.403×2mm、无基底Fabric9组件约42.874×23.403×5.822mm，水密/正体积/绕序一致/零退化；历史Solid/Grid带基底下载为1组件。无基底可多独立有效实体，相交沿既有并集处理；带基底仍接触/融合/单组件要求。不冒称独立单元已连接成面料，测试导出授权未扩大。
+- 恢复/限制：已应用文档和pending Layout按原IndexedDB机制恢复；未应用快捷尺寸表单刷新不恢复，UI已说明；旧Undo历史不保留。底图显示调整不进入制造几何/几何Undo。参数化/共享效果项目混合追加独立图形会安全拒绝；旧非中性隐式堆栈不自动迁移；旧五预设未全面迁移专用场归属。1000实例校准7.4/10.7秒历史慢项、5000退化、草稿beforeunload间歇风险、bundle/TestClient warning及Tk既有问题未关闭。
+- 公网/Render、切片和实物未完成本轮验收；不声明F5-C Software/Physical PASS，不创建Physical标签，不进入1B或其他逻辑。
+- C类13个本机手工验收/参考探查脚本保留未跟踪：依赖本机浏览器运行实例或work历史产物，不是生产/自动回归依赖，未纳入提交：
+  - `tools/gradient_handles_readback.py`
+  - `tools/gradient_handles_smoke.cjs`
+  - `tools/linear_size_readback.py`
+  - `tools/linear_size_smoke.cjs`
+  - `tools/phase1a_cells_only_readback.py`
+  - `tools/phase1a_cells_only_smoke.cjs`
+  - `tools/phase1a_live_manufacture_readback.py`
+  - `tools/phase1a_live_manufacture_smoke.cjs`
+  - `tools/phase1a_local_smoke.cjs`
+  - `tools/phase1a_readback.py`
+  - `tools/two_step_native_readback.py`
+  - `tools/two_step_native_smoke.cjs`
+  - `tools/two_step_reference_probe.cjs`
+- 忽略的work截图/日志/录屏/STL/快照、运行资产、.venv/node_modules/dist和其他worktree保留，但不被Git引用备份。未改.gitignore。稳定引用（提交后创建/核实）`backup/web-native-design-local-validated`指向完整收口提交；实际SHA以最终报告和`git rev-parse backup/web-native-design-local-validated`核对，不移动同名旧引用。安全取回只用新目录worktree，不覆盖当前目录。
+
+
+## 设计画布渐变控制柄（2026-10-09，本地未提交，等待用户确认）
+
+- 当前分支/HEAD：`feature/pattern-library-reuse` / `b5338a9af41d25ccd191d34366115578265920bb`；开始前90个已有修改逐文件保护于`work/gradient-handles-20261009/pre-change/`。暂存区空，无提交/推送/部署/其他逻辑；未修改Python生产算法或增加依赖，不是冻结或线上PASS。
+- 先完成径向前置：复用`SizeFieldModifier(radial)`的现有有序层，不使用Ring算法、不新建Field/PatternFamily。复用线性待应用控制器、Schema及候选Python求值，保存`web_radial_size_effect`层ID；保持Grid、原位置及已有Scalar尺寸层顺序。中心/半径UI为世界mm，存储转换一次至源单位；半径处/外部保持外围比例，可反向。非中性旧隐式堆栈或停用堆栈拒绝安全追加，需另批迁移，不擅自丢效果。
+- `Workspace2D`仅在编辑时显示方向轴/方向点或中心/真实圆形范围/半径点。`gradientControls.ts`只处理标记和指针，不计算场。标记不进文档、Bounds、实例或STL；线性轴明示仅方向，不冒充作用范围。复用screenToWorld（mm），隔离平移/选中；pointercancel恢复拖动前待应用值，切换/失去捕获/卸载结束交互。
+- App共用同一待应用配置，右栏输入提交后同步标记；画布拖动实时同步右栏，松手仍待应用。Apply一次正常commit/Undo，处理函数和按钮都阻止拖动中应用；正式文档变化时旧候选不可应用。背景平移不退出快捷编辑；非元素上下文不以旧元素表单覆盖候选图形。
+- `useDocumentPreview`保留一在途/一最新待处理、旧响应丢弃和最后有效画面，将无限推迟的debounce改为180ms有界等待；只有`/api/v1/evaluate`，不调用融合/校验/STL。数值滑杆仍松手/确认预览，不称逐帧实时。
+- 真实Edge隔离会话/生产build：`http://127.0.0.1:8792/`；60×40mm点阵，非零原点(10,20)mm，0.5mm/源单位。线性0/45/180°趋势及标记一致；径向正中心/偏心/反向正确，中心/半径拖动在Zoom/Pan下不移元素XY。每次30次pointermove，方向/中心/半径10–11个HTTP200求值，最多1在途，9–10份响应在松手前到达，几何实际连续变化；拖动0commit，线性/径向各Apply1commit，Undo/Redo、Cancel、Reset、刷新恢复PASS。证据`browser-evidence.json`、`interaction-summary.json`及`handles-browser.log`在该work目录。
+- 截图：`linear-axis-0.png`、`linear-axis-45.png`、`linear-axis-180.png`、`linear-drag.png`、`radial-handles.png`，以及径向3案例。真实录屏NOT TESTED：Playwright缺ffmpeg，未安装；用真实指针/参数/几何/请求记录交付，不用静态截图冒称实时。
+- 真实浏览器下载及严格STL读回：普通`radial-standard.stl`约42.873972×23.403418×2mm；仅单元Fabric`radial-fabric.stl`约42.873972×23.403418×5.822462mm。各9封闭正体积实体、绕序一致、底部Z=0、零退化面、现有Validator PASS，读回Bounds与权威几何/最终网格一致。Pattern Points继承尺寸一次并保留Fabric方向高度；辅助标记不进入实体。证据`standard-final.json`、`fabric-final.json`、`fabric-preview.json`、`stl-readback.json`。
+- 自动化：相关Web 16文件64/64（`web-final.log`），ParameterPanel/IndexedDB/草稿3文件15/15（`web-controls-draft.log`）；`python -m pytest tests/test_radial_size_shortcut.py tests/test_shared_modifiers.py tests/test_phase1a_dimensions.py tests/test_fabric_cells_only_1a.py -q` 20/20（`python-final.log`）；`npm run build` PASS（`build.log`）；`python -m tools.gradient_handles_readback` PASS（`stl-readback.log`）。没有运行无关Tk全量。
+- 初次验收脚本失败分别是异步读取上一候选、SVG指针亚像素精度、缩放后半径点在视口外、误把Undo/Redo后的单调revision当旧revision、测试请求遗漏schema_version；均定位后修正测试，不改几何或Validator。Python读回直接脚本方式缺模块路径，正确使用`-m tools.gradient_handles_readback`。现存bundle大小/Starlette弃用警告不在本轮处理；公网、切片/实物NOT TESTED。
+- 当前任务修改/新增：`web/src/App.tsx`、`geometry/Workspace2D.tsx`、`geometry/gradientControls.ts`及其测试、`document/linearSize.ts`（仅kind）、`document/radialSize.ts`及测试、`document/useLayoutPreview.ts`及测试、`styles.css`；`tests/test_radial_size_shortcut.py`、`tools/gradient_handles_smoke.cjs`、`tools/gradient_handles_readback.py`及本记录。其余1A/无基底/保存成果保留。已停止，不进入其他效果，未创建新稳定点。
+
+## 二维线性尺寸渐变快捷入口（2026-10-06，本地待确认）
+
+- 分支/HEAD仍`feature/pattern-library-reuse` / `b5338a9af41d25ccd191d34366115578265920bb`，原82个修改逐文件保护，暂存区空，无提交/推送/部署/1B/径向；未改Python生产代码或依赖。
+- ①设计快捷入口和Schema方向/比例/强度；独立Python候选预览保持正式文档/revision/Undo不变，Apply一次commit、一次Undo及正常保存。Cancel不覆盖新作品；Layout pending明确阻挡。抽取复用已有候选限频/旧响应保护和1A专用场引用扫描，未创建第二套引擎/所有权系统。
+- 原Grid/位置保持，用户场与共享引用保护，重复应用仅更新原Size；已应用刷新重开可编辑，未应用表单明确提示刷新/上下文切换丢弃，不假装已经保存。非零原点、0.5mm比例、非正方形实际样本通过。
+- 水平/反向/对角真实截图、混合基础几何、迟到响应/422注入/Reset/Undo/Redo/草稿/底图、Pattern Points单次比例继承与既有Fabric高度绑定通过；标准/Fabric真实下载读回各9组件，水密、正体积、零退化。仅原授权本地测试导出，非公网/切片/实物PASS。
+- 受影响Web66/66，最终高级重绑定保护后定向19/19，Python16 PASS+10子测试，build PASS；失败记录、文件/命令/截图/输出边界见`docs/LINEAR_SIZE_SHORTCUT_ACCEPTANCE.md`。成果未提交，等待用户确认后STOP。
+
+## 两步工作流 / 原生二维入口（2026-10-06，本地待用户确认）
+
+- 保留1A等54个既有修改，分支/HEAD仍`feature/pattern-library-reuse` / `b5338a9af41d25ccd191d34366115578265920bb`，暂存区空，无提交/推送/部署/1B。保护副本`work/two-step-native-design-20261006/pre-change/`。
+- 底部仅①/②，③旧链接及内部动作映射②；移除推荐UI和其自动分析请求，保留Python Analyzer与手动Grid/Radial/Curve/Free准备/应用。右侧按布局/元素/效果/底图上下文显示原Generic Renderer。
+- 追加Foundation已有Circle/Ellipse/Rect、标准DTO/Transform/一次Undo；参数化/共享效果作品不能安全追加时明确拒绝，不自动清除/烘焙。新原生DTO遗漏规范字段产生的真实409已定位补齐，仅修创建输入，不改制造安全检查。
+- PNG/JPG参考底图在既有SVG世界组下显示，支持可见/透明/锁定/位置/等比缩放/旋转；同IndexedDB草稿存Blob，不进入DTO、ImageField、元素数、制造Bounds/STL，不使已有结果过期。
+- 独立本地8792生产页：真实WebGL、基础图形/参考底图、旧链接/刷新、手动Grid未应用预览/Cancel/Apply、PNG/SVG、普通与两种Fabric下载PASS。四份STL读回：原生3组件、普通9组件、无基底9组件、带基底1组件，全部水密/正体积/零退化，未放宽校验。
+- Web227/227，最终规范字段后定向12/12，build PASS；Python12 PASS+2子测试，1A100实例真实交互/请求回归PASS。400/1000本轮未重测，公网/切片/实物NOT TESTED；原1000校准慢项未关闭。未修改Python生产代码/依赖/生产开关。
+- 参考站真实UI选项与底图已核验，算法/导出未完整验证，未复制源码。完整边界、文件表、命令、失败与截图/STL证据：`docs/TWO_STEP_NATIVE_DESIGN_ACCEPTANCE.md`。完成STOP。
+
+## Phase 1A — 右侧制造检查器与中央实时3D（2026-10-06，本地待确认）
+
+- 当前分支/HEAD仍为`feature/pattern-library-reuse` / `b5338a9af41d25ccd191d34366115578265920bb`；已有44文件修改已保护。保留1A及无基底/大小工作，暂存区空，无提交/推送/部署/1B。
+- 一份制造表单在右侧折叠检查器，独立滚动、底部固定操作，中央②/③共享持续renderer/相机；进入②自动轻量预览、计算时保留最后画面。
+- 主单元大小/均匀高度拖动临时TRS显示，松手一次commit/evaluate/preview，不运行final/STL；复杂参数松手自动更新、180ms合并latest-only，保留App任务排空/同步入口/pending/stale保护。没有改Python生产代码、依赖或生产配置。
+- 独立8792/Edge真实WebGL、录屏、100/400/1000请求记录、三种桌面视口通过；模式切换相机对照0.01%。1000松手权威校准实测7.4/10.7秒，明确慢，未宣称FPS/流畅度达标。
+- 实际下载并读回：cells-only100组件Z=0、Solid1组件、普通二维100组件；全部水密/正体积/零退化，预览与最终bounds/高度一致。Grid规则定向回归，本轮Grid浏览器下载NOT TESTED。
+- Web87/87（17文件），最终显示微调后12/12复测，build PASS；Python15 PASS及Grid/Solid4 PASS+2子测试，diff check PASS。未运行无关Tk全量或5000压力。
+- 修改文件、完整命令/失败记录、录屏/截图/实际STL证据及性能限制见`docs/PHASE1A_LIVE_MANUFACTURE_ACCEPTANCE.md`。公网/切片/实物NOT TESTED，等待用户确认后STOP。
+
+## Phase 1A 修正 — 无基底与默认尺寸（2026-10-06，本地待用户确认）
+
+- HEAD/分支仍为 `b5338a9af41d25ccd191d34366115578265920bb` / `feature/pattern-library-reuse`；原1A未提交改动已逐文件保护，暂存区为空，无提交/推送/部署/1B。
+- 新Fabric配置及方向配方v2默认仅图案单元；旧缺失mode的作品保留基底。无基底从生成阶段不调用BaseBuilder，Z=0，实体自身封闭底面保留；布局范围继续布点。
+- 模式区分组件/接触要求，未降低几何Validator；相交复用原manifold实体并集，无基底多组件不伪称单体融合，空/坏输入拒绝。STL仍用原Exporter与严格读回，指纹/旧结果保护覆盖模式和尺寸。
+- Schema新建宽深2→4mm、方向配方2.4→4.8mm；统一大小保持宽深比，不改点位/间距/高度，二维Scale与Fabric Scale各一次。旧保存值不静默迁移。
+- Web108/108（23文件），Python80 PASS+34子测试（3个5000不执行），build PASS。独立8792/Edge真实WebGL三图对比及五个下载/读回：无基底9/100组件、Solid/Grid基底1组件、普通二维100组件，全部封闭/正体积/零退化。
+- 已有请求协调、高度归属、配方/保存/Reset/Undo/刷新和尺寸回归通过；Bambu/切片/实物/公网NOT TESTED，待用户核看。现有bundle/TestClient warning及5000限制保留。
+- 文件/命令/失败记录/证据：`docs/PHASE1A_CELLS_ONLY_ACCEPTANCE.md`；前一条1A验收是旧v1配置历史，不代替本条修正。
+
+## Phase 1A — 本地实施与验收（2026-10-06，等待用户确认）
+
+- 分支 `feature/pattern-library-reuse`，基线/当前 Git HEAD `b5338a9af41d25ccd191d34366115578265920bb`；本轮改动未提交，未推送、未部署、未创建稳定引用，不进入 1B。
+- App 统一四个计算入口的同步 busy/处理入口保护；取消旧 UI 等待仍排空真实请求，不假定后端停止。平铺/嵌套/detail 错误解析保留真实 staging_busy；后端任务槽和全部几何校验不变。
+- 复用单元高度、Linear/Height、Generic Renderer、草稿/Undo；均匀模式不建场，方向模式只使用标记专用场，其他消费者引用时复制隔离。一套版本化方向渐变完整配方，保存失败不应用，Reset/Undo/Redo/刷新、pending Layout 保留通过。旧五套预设不全面迁移。
+- 受影响 Web 88/88 PASS，最终错误格式子集17/17 PASS；Python34 PASS+13子测试（3个5000用例不运行），尺寸/并发5 PASS（2个测试与前组重叠）；production build PASS。
+- 独立本地8791/Edge真实WebGL、默认及三变体截图、均匀/方向Fabric和普通二维实际下载/严格STL读回通过；Fabric1组件、标准二维100组件，零退化面。不冒充公网/切片/实物验收。
+- 完整修改理由、命令、失败记录、证据及未完成项：`docs/PHASE1A_LOCAL_ACCEPTANCE.md`。等待用户检查，不提交或扩展阶段。
+
 ## 小芒图案库复用接入（2026-10-05）
 
 - **PASS（本地 + 现有 Render Staging）**。工作分支 `feature/pattern-library-reuse`，基线与上一可回退提交

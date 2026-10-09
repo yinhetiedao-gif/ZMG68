@@ -115,7 +115,7 @@ describe('WM5.6 edit visibility and commit boundary', () => {
 
   it('retains all imported dot geometry after a failed edit and rolls back revision', async () => {
     const api = backend(true)
-    const raw = JSON.parse(readFileSync('../work/foundation0/test_dot_grid/document.pattern.json', 'utf8')) as Doc
+    const raw = JSON.parse(readFileSync('../tests/fixtures/legacy-dot-grid-144.pattern.json', 'utf8')) as Doc
     raw.canvas.mm_per_unit = 1
     const { canvas } = await opened(raw, api)
     const first = raw.elements[0]

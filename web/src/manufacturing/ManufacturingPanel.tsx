@@ -1,27 +1,41 @@
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import type { ManufacturingBuildResult } from '../api/manufacturing'
 import type { ManufacturingStatus } from './useManufacturing'
 import { StlExportButton } from './StlExportButton'
 import { ParameterPanel } from '../document/ParameterPanel'
-import { fabricBase, type FabricBaseType } from '../document/fabricBase'
+import { ParameterInteraction } from '../document/ParameterInteraction'
+import { fabricBase, fabricOutputMode, type FabricBaseType, type FabricOutputMode } from '../document/fabricBase'
 import { fabricUnitCell, fabricPlacement, type UnitCellType } from '../document/fabricCell'
-import { availableFabricFields, fabricFieldModifier, fabricModifierTypes, type FabricModifierType } from '../document/fabricModifiers'
+import { availableFabricFields, directionalHeightField, fabricFieldModifier, fabricModifierTypes, type FabricModifierType } from '../document/fabricModifiers'
 import { groupFor, type ParameterCatalog, type ParameterValue } from '../document/parameterSchema'
 import type { BoundsMM, PatternDocumentDTO } from '../model/types'
 import type { FabricDesignPreview } from '../api/fabricPreview'
 import { FabricPreflightPanel } from './FabricPreflightPanel'
 import { FabricFusionPanel } from './FabricFusionPanel'
-import { fabricPresets } from '../document/fabricPresets'
+import { fabricPresets, directionalFabricRecipe } from '../document/fabricPresets'
 import { fabricDesignWarnings, fabricPreviewSummary } from '../document/fabricDesignSummary'
 import { FABRIC_PREVIEW_NOTICE, fabricExportNotice } from './fabricCopy'
 import { formatMm } from '../model/formatMm'
 import { RealSizePanel } from './RealSizePanel'
+import { InspectorSection } from '../document/InspectorSection'
 
 interface Props {
+  actionHost?: HTMLElement | null
+  parametersDisabled?: boolean
+  onUnitCellDraft?: (key: string, value: ParameterValue | null) => void
+  canUseInputs?: () => boolean
   heightText: string
   onHeightChange: (value: string) => void
   validHeight: boolean
   canBuild: boolean
+  computeBusy?: boolean
+  isComputeBusy?: () => boolean
+  recipeSaving?: boolean
+  onHeightEffect?: (mode: 'uniform' | 'directional') => void
+  onDirectionalHeightParameter?: (key: string, value: ParameterValue) => void
+  heightSyncToken?: string
+  onHeightPending?: (id: string, pending: boolean) => void
   onBuild: () => void
   status: ManufacturingStatus
   result: ManufacturingBuildResult | null
@@ -37,6 +51,7 @@ interface Props {
   onConfirmRealSize?: (widthMm: number, heightMm: number) => void
   parameterCatalog: ParameterCatalog | null
   onFabricType: (type: FabricBaseType | 'none') => void
+  onOutputMode?: (mode: FabricOutputMode) => void
   onFabricParameter: (key: string, value: ParameterValue) => void
   onUnitCellType: (type: UnitCellType | 'none') => void
   onUnitCellParameter: (section: 'cell' | 'placement', key: string, value: ParameterValue) => void
@@ -61,6 +76,7 @@ const labels: Record<ManufacturingStatus, string> = {
 export function ManufacturingPanel(props: Props) {
   const { result, status } = props
   const base = fabricBase(props.document)
+  const outputMode = fabricOutputMode(props.document)
   const fabricGroup = base && groupFor(props.parameterCatalog, 'fabric_base', base.type)
   const cell = fabricUnitCell(props.document)
   const placement = fabricPlacement(props.document)
@@ -70,7 +86,11 @@ export function ManufacturingPanel(props: Props) {
   const summary = fabricPreviewSummary(props.document,
     props.fabricPreviewStatus === 'ready' ? props.fabricPreviewResult : null)
   const designWarnings = fabricDesignWarnings(props.document)
-  const [presetId, setPresetId] = useState(fabricPresets[0].id)
+  const [presetId, setPresetId] = useState<string>(directionalFabricRecipe.id)
+  const height = fabricFieldModifier(props.document, 'height')
+  const directionField = directionalHeightField(props.document)
+  const directional = height?.enabled && directionField?.id === height.field_id
+  const directionParameters = directionField?.parameters as Record<string, ParameterValue> | undefined
   const [elapsedSeconds, setElapsedSeconds] = useState(0)
   useEffect(() => {
     if (status !== 'building') return
@@ -89,30 +109,48 @@ export function ManufacturingPanel(props: Props) {
     ...(geometry?.issues ?? []).map((issue) => issue.message ?? issue.code ?? '二维几何问题'),
     ...(mesh?.issues ?? []).map((issue) => issue.message ?? issue.code ?? '网格问题'),
   ] : []
-  return <section className="manufacturing-panel" aria-label="制造检查">
+  const standardActions = <div className="manufacturing-output-actions">
+    <button type="button" className="ui-primary" onClick={props.onBuild}
+      disabled={!props.canBuild || props.computeBusy || status === 'building'}>检查并生成</button>
+    <StlExportButton result={result} status={status} projectName={props.projectName} isCurrentResult={props.isCurrentResult} />
+  </div>
+  return <ParameterInteraction.Provider value={{ syncToken: props.heightSyncToken ?? '', onPending: props.onHeightPending }}>
+    <section className="manufacturing-panel" aria-label="制造检查">
     <div className="manufacturing-heading"><span className="eyebrow">{base ? 'FABRIC DESIGN PREVIEW' : 'FINAL MANUFACTURING MESH'}</span><h1>{base ? 'Fabric 设计预览' : '制造检查'}</h1>
       <p>{base ? '快速查看基底与单元布点；此预览不是可打印制造模型。' : '从当前二维设计生成最终制造网格；此操作不会更改设计或撤销历史。'}</p>
       <button type="button" className="workflow-back" onClick={props.onBackDesign}>返回设计</button></div>
-    {props.document && <RealSizePanel document={props.document} bounds={props.designBounds ?? null}
-      disabled={!props.canEditSize} onConfirm={(width, height) => props.onConfirmRealSize?.(width, height)} />}
     <section className="manufacturing-settings" aria-label="Fabric Base">
-      {props.document && <section aria-label="Fabric Preset">
-        <h2>Fabric 预设</h2>
+      <fieldset disabled={props.recipeSaving || props.parametersDisabled} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
+      {props.document && <InspectorSection title="效果预设" label="Fabric Preset">
         <label htmlFor="fabric-preset">Fabric 预设</label>
         <select id="fabric-preset" value={presetId} onChange={(event) => setPresetId(event.target.value)}>
+          <option value={directionalFabricRecipe.id}>{directionalFabricRecipe.label} · 完整效果配方</option>
           {fabricPresets.map((preset) => <option key={preset.id} value={preset.id}>{preset.label}</option>)}
         </select>
-        <button type="button" className="ui-secondary" onClick={() => props.onFabricPreset(presetId)}>应用预设</button>
-      </section>}
+        <button type="button" className="ui-secondary" disabled={props.recipeSaving} onClick={() => props.onFabricPreset(presetId)}>
+          {props.recipeSaving ? '正在保护当前作品…' : '应用预设'}</button>
+        {(props.document.document.metadata.web_fabric_recipe as { id?: string } | undefined)?.id === directionalFabricRecipe.id &&
+          <button type="button" className="ui-secondary" disabled={props.recipeSaving}
+            onClick={() => props.onFabricPreset(directionalFabricRecipe.id)}>恢复方向渐变配方</button>}
+        {presetId === directionalFabricRecipe.id && <p>只修改 Fabric 效果：仅图案单元、按图案元素布点、跟随二维相对大小及方向高度；不替换原图或二维布局。</p>}
+      </InspectorSection>}
+      <InspectorSection title="输出方式" label="制造输出方式">
       <label htmlFor="fabric-base-type">Fabric Base 类型</label>
       <select id="fabric-base-type" value={base?.type ?? 'none'} onChange={(event) =>
         props.onFabricType(event.target.value as FabricBaseType | 'none')}>
         <option value="none">标准二维挤出</option><option value="solid">Solid Base</option><option value="grid">Grid Base</option>
       </select>
-      {base && <p>基底使用最终二维制造几何的外接矩形（mm）；Solid 会填满矩形，Grid 会生成贯通网孔，不沿原图轮廓或保留原图孔洞。</p>}
-      {base && fabricGroup && <ParameterPanel group={fabricGroup} values={{ ...base }}
-        onCommit={props.onFabricParameter} />}
+      {base && <><label htmlFor="fabric-output-mode">输出方式</label>
+        <select id="fabric-output-mode" value={outputMode} onChange={event => props.onOutputMode?.(event.target.value as FabricOutputMode)}>
+          <option value="cells_only">仅图案单元</option><option value="cells_with_base">单元＋基底</option>
+        </select>
+        <p>{outputMode === 'cells_only' ? '不生成实体基底；单元从 Z=0 开始，可包含多个独立封闭实体。布点仍使用设计范围。' : '基底使用最终二维外接范围；Solid 填满矩形，Grid 生成网孔。'}</p>
+        <details><summary>{outputMode === 'cells_only' ? '高级：布点范围边距与保留的基底配置' : '高级：基底参数'}</summary>
+          {fabricGroup && <ParameterPanel group={fabricGroup} values={{ ...base }} onCommit={props.onFabricParameter} />}
+        </details></>}
+      </InspectorSection>
       {base && <section aria-label="Fabric Unit Cell">
+        <InspectorSection title="单元类型、大小与高度" label="单元尺寸设置">
         <label htmlFor="fabric-cell-type">Unit Cell 类型</label>
         <select id="fabric-cell-type" value={cell?.type ?? 'none'} onChange={(event) =>
           props.onUnitCellType(event.target.value as UnitCellType | 'none')}>
@@ -120,11 +158,38 @@ export function ManufacturingPanel(props: Props) {
           <option value="cone">Cone 圆锥</option><option value="pyramid">Pyramid 方锥</option>
           <option value="double_tower">DoubleTower 双塔</option><option value="fin">Fin 鳍片</option>
         </select>
-        {cell && cellGroup && <><h2>UNIT CELL SIZE</h2><ParameterPanel group={cellGroup}
-          values={{ ...cell, size_mode: cell.size_mode ?? 'follow_pattern' }}
+        {cell && cellGroup && <><h2>单元大小与高度</h2><ParameterPanel
+          group={{ label: '单元尺寸', parameters: cellGroup.parameters.filter(p => p.id === 'width_mm' || p.id === 'height_mm').map(p =>
+            p.id === 'width_mm' ? { ...p, id: 'uniform_size_mm', label: '单元大小' } : { ...p, label: '单元高度' }) }}
+          values={{ uniform_size_mm: cell.width_mm, height_mm: cell.height_mm }}
+          onDraft={props.onUnitCellDraft}
           onCommit={(key, value) => props.onUnitCellParameter('cell', key, value)} />
+          <p>大小控件保持当前宽深比例，只改变单元，不改变点位与点距。</p>
+          <details><summary>高级：精确宽深与尺寸继承</summary><ParameterPanel group={cellGroup}
+          values={{ ...cell, size_mode: cell.size_mode ?? 'follow_pattern' }}
+          onCommit={(key, value) => props.onUnitCellParameter('cell', key, value)} /></details>
           <p>固定尺寸不继承二维大小；跟随图案按最终二维尺寸比例调整宽深。Fabric 比例场在两种模式下仍可叠加。</p>
         </>}
+        </InspectorSection>
+        {cell && props.onHeightEffect && <InspectorSection title="高度效果" label="直接高度控制">
+          <label htmlFor="fabric-height-effect">高度变化</label>
+          <select id="fabric-height-effect" value={!height?.enabled ? 'uniform' : directional ? 'directional' : 'advanced'}
+            onChange={event => props.onHeightEffect?.(event.target.value as 'uniform' | 'directional')}>
+            <option value="uniform">均匀高度</option><option value="directional">沿方向变化</option>
+            {height?.enabled && !directional && <option value="advanced" disabled>高级参数场绑定</option>}
+          </select>
+          {!height?.enabled && <p>使用上方单元高度，不需要创建参数场。</p>}
+          {directional && <>
+            {groupFor(props.parameterCatalog, 'field', 'linear') && <ParameterPanel
+              group={{ label: '方向', parameters: groupFor(props.parameterCatalog, 'field', 'linear')!.parameters.filter(p => p.id === 'angle') }}
+              values={{ angle: directionParameters?.angle ?? 0 }} onCommit={props.onDirectionalHeightParameter!} />}
+            {groupFor(props.parameterCatalog, 'fabric_modifier', 'height') && <ParameterPanel
+              group={groupFor(props.parameterCatalog, 'fabric_modifier', 'height')!} values={{ ...height }}
+              onCommit={props.onDirectionalHeightParameter!} />}
+          </>}
+          <p>基础尺寸不等于最终尺寸：跟随二维大小及已启用的 Fabric 比例仍会叠加；均匀高度不会关闭这些效果。</p>
+        </InspectorSection>}
+        <InspectorSection title="布点方式" label="单元布点设置">
         {cell && placement && <><label htmlFor="fabric-placement-mode">布点方式</label>
           <select id="fabric-placement-mode" value={placement.mode ?? 'area_fill'}
             onChange={(event) => props.onPlacementMode(event.target.value as 'area_fill' | 'pattern_points')}>
@@ -134,9 +199,9 @@ export function ManufacturingPanel(props: Props) {
           <ParameterPanel group={placementGroup} values={{ ...placement }}
             onCommit={(key, value) => props.onUnitCellParameter('placement', key, value)} />}
         {cell && (placement?.mode ?? 'area_fill') === 'pattern_points' && <p>图案元素：{props.fabricPreviewResult?.element_count ?? '待更新'} · 单元实例：{props.fabricPreviewResult?.total_count ?? '待更新'}</p>}
-        {cell && <section aria-label="Fabric Field Modifiers">
-          <h2>Fabric 参数场驱动</h2>
-          <p>使用当前设计的 Shared Field 控制单元实例；此设置只影响 3D 设计预览。</p>
+        </InspectorSection>
+        {cell && <InspectorSection title="高级参数场绑定" label="Fabric Field Modifiers" defaultExpanded={false}>
+          <p>高级绑定使用当前设计的 Shared Field 控制实例；预览与最终制造使用同一实例计划。</p>
           {!fabricFields.length && <p>请先在设计界面添加参数场。</p>}
           {fabricModifierTypes.map((type) => {
             const modifierFields = availableFabricFields(props.document, type)
@@ -161,22 +226,34 @@ export function ManufacturingPanel(props: Props) {
               </>}
             </section>
           })}
-        </section>}
+        </InspectorSection>}
         {cell && <p>{FABRIC_PREVIEW_NOTICE} {fabricExportNotice(props.fabricStlTestExportEnabled)}</p>}
       </section>}
+      </fieldset>
     </section>
+    {props.document && <InspectorSection title="高级：真实尺寸" label="制造真实尺寸">
+      <p>图案范围：{props.designBounds ? `${formatMm(props.designBounds.width)} × ${formatMm(props.designBounds.height)} mm` : '待求值'}</p>
+      <details><summary>查看或调整真实尺寸</summary><RealSizePanel document={props.document} bounds={props.designBounds ?? null}
+        disabled={!props.canEditSize} onConfirm={(width, height) => props.onConfirmRealSize?.(width, height)} /></details>
+    </InspectorSection>}
     <div className="manufacturing-settings">
       {!base && <><label htmlFor="manufacturing-height">厚度 <span>mm</span></label>
         <input id="manufacturing-height" type="number" min="0.01" step="0.1" value={props.heightText}
           onChange={(event) => props.onHeightChange(event.target.value)} /></>}
-      <button type="button" className="ui-primary" onClick={base ? props.onUpdateFabricPreview : props.onBuild}
-        disabled={!props.canBuild || (base ? props.fabricPreviewStatus === 'building' : status === 'building')}>
-        {base ? '更新3D预览' : '检查并生成'}</button>
+      {(base || !props.actionHost) && <button type="button" className="ui-primary" onClick={base ? props.onUpdateFabricPreview : props.onBuild}
+        disabled={!props.canBuild || props.computeBusy || (base ? props.fabricPreviewStatus === 'building' : status === 'building')}>
+        {base ? '更新3D预览' : '检查并生成'}</button>}
+      {base && <small>大小／均匀高度拖动即时显示；其余数值松手后自动更新。此按钮用于手动重试。</small>}
     </div>
+    {props.computeBusy && <p role="status">计算任务正在执行；请等待完成后再发起预览、预检或制造。</p>}
     {base && props.document && <FabricPreflightPanel document={props.document}
-      fetcher={props.candidateFetcher} disabled={!props.canBuild} />}
+      canUseInputs={props.canUseInputs}
+      fetcher={props.candidateFetcher} disabled={!props.canBuild} computeBusy={props.computeBusy} isComputeBusy={props.isComputeBusy} />}
     {base && props.document && <FabricFusionPanel document={props.document}
-      fetcher={props.candidateFetcher} disabled={!props.canBuild} testExportEnabled={props.fabricStlTestExportEnabled} />}
+      canUseInputs={props.canUseInputs}
+      fetcher={props.candidateFetcher} disabled={!props.canBuild} computeBusy={props.computeBusy} isComputeBusy={props.isComputeBusy}
+      actionHost={props.actionHost}
+      testExportEnabled={props.fabricStlTestExportEnabled} />}
     {!props.validHeight && <p className="manufacturing-error" role="alert">厚度必须大于 0 mm。</p>}
     <div className={`manufacturing-status ${base ? props.fabricPreviewStatus : status}`} role="status">
       {base ? ({ idle: '尚未更新设计预览', building: '正在更新3D预览…', ready: '设计预览已就绪',
@@ -234,8 +311,9 @@ export function ManufacturingPanel(props: Props) {
     </div>}
     <div className="manufacturing-output-actions">
       <button type="button" className="ui-secondary" onClick={props.onPreview} disabled={base ? !props.fabricPreviewResult : !result || !props.isCurrentResult(result.manufacturing_result_id)}>3D 预览</button>
-      {!base && <StlExportButton result={result} status={status} projectName={props.projectName}
+      {!base && !props.actionHost && <StlExportButton result={result} status={status} projectName={props.projectName}
           isCurrentResult={props.isCurrentResult} />}
     </div>
-  </section>
+    {!base && props.actionHost && createPortal(standardActions, props.actionHost)}
+  </section></ParameterInteraction.Provider>
 }

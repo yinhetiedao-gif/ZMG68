@@ -56,9 +56,11 @@ describe('F1 Web Fabric Base', () => {
         return Promise.resolve(reply({ schema_version: '1.0', kind: 'fabric_instance_preview',
           document_id: body.document.document_id, document_revision: body.document_revision,
           preview_id: `preview-${body.document_revision}`, placement_mode: 'area_fill', unit_size_mode: 'follow_pattern', element_count: 1,
+          output_mode: body.document.document.metadata.fabric_config.output_mode ?? 'cells_with_base',
           count: 1, active_count: 1, total_count: 1, skipped_count: 0, unmatched_reference_count: 0,
           preview_simplified: false,
-          prototype: null, instances: [{ id: 'preview-1', x_mm: 25, y_mm: 20, z_mm: .8,
+          prototype: null, instances: [{ id: 'preview-1', x_mm: 25, y_mm: 20,
+            z_mm: body.document.document.metadata.fabric_config.output_mode === 'cells_only' ? 0 : .8,
             rotation_deg: 0, scale: 1, scale_x: 1, scale_y: 1, enabled: true,
             cell_type: 'cone', base_width_mm: 2, base_depth_mm: 2, base_height_mm: 3, height_mm: 3,
             cell_width_mm: 2, cell_depth_mm: 2, cell_height_mm: 3,
@@ -82,7 +84,7 @@ describe('F1 Web Fabric Base', () => {
     expect(screen.getByLabelText('厚度 (mm)')).toBeInTheDocument()
     const thickness = screen.getByLabelText('厚度 (mm)')
     fireEvent.change(thickness, { target: { value: '0.8' } })
-    expect(screen.getByText(/待提交/)).toBeInTheDocument()
+    expect(screen.getByLabelText('编辑状态')).toHaveTextContent('待提交')
     fireEvent.blur(thickness)
     await screen.findByText('revision 2')
     fireEvent.click(screen.getByRole('button', { name: '更新3D预览' }))
@@ -113,7 +115,7 @@ describe('F1 Web Fabric Base', () => {
     const fabric = previews[1].document.document.metadata.fabric_config
     expect(fabric.unit_cell).toMatchObject({ type: 'cylinder', height_mm: 4 })
     expect(fabric.placement.spacing_x_mm).toBe(6)
-    fireEvent.click(screen.getByRole('button', { name: /3D Preview/ }))
+    fireEvent.click(screen.getByRole('button', { name: /制造 Manufacture/ }))
     expect(await screen.findByText('1 instances')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /制造 Manufacture/ }))
     fireEvent.change(screen.getByLabelText('Unit Cell 类型'), { target: { value: 'fin' } })
