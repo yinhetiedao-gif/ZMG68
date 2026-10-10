@@ -113,14 +113,17 @@ def build_fabric_candidate(plan: FabricInstancePlan | None, base: BaseDefinition
     top_material = [Polygon(triangle[:,:2]) for triangle in top]
     material_index = STRtree(top_material)
     base_at = perf_counter()
-    pieces = []
+    pieces_by_key = {}
     if plan is not None:
-        for component in _prototype_components(plan.prototype):
-            low = float(component.vertices[:,2].min())
-            bottom_faces = component.faces[np.all(
-                abs(component.vertices[component.faces,2]-low) <= epsilon, axis=1)]
-            polygons = [Polygon(component.vertices[face,:2]) for face in bottom_faces]
-            pieces.append((unary_union(polygons),component))
+        for key, prototype in (plan.contour_prototypes or {'shared': plan.prototype}).items():
+            pieces = []
+            for component in _prototype_components(prototype):
+                low = float(component.vertices[:,2].min())
+                bottom_faces = component.faces[np.all(
+                    abs(component.vertices[component.faces,2]-low) <= epsilon, axis=1)]
+                polygons = [Polygon(component.vertices[face,:2]) for face in bottom_faces]
+                pieces.append((unary_union(polygons),component))
+            pieces_by_key[key] = pieces
     prototype_at = perf_counter()
     entries, meshes, transforms = [], [], []
     issues = [_message('INFO','unfused_candidate',
@@ -128,10 +131,14 @@ def build_fabric_candidate(plan: FabricInstancePlan | None, base: BaseDefinition
     transform_ms = contact_ms = bounds_ms = 0.
     all_finite = True
     component_attached = component_detached = 0
-    prototype_faces = plan.prototype.faces if plan else np.empty((0,3),dtype=int)
+    cell_component_count = 0
     for instance in plan.instances if plan else ():
         if not instance.enabled:
             continue
+        prototype = plan.contour_prototypes[instance.id] if plan.contour_prototypes else plan.prototype
+        prototype_faces = prototype.faces
+        pieces = pieces_by_key[instance.id if plan.contour_prototypes else 'shared']
+        cell_component_count += len(pieces)
         sample_started = perf_counter()
         raw = asdict(instance)
         # JSON diagnostics explicitly represent invalid values, not NaN JSON.
@@ -155,7 +162,7 @@ def build_fabric_candidate(plan: FabricInstancePlan | None, base: BaseDefinition
         lower = upper = None
         if finite:
             matrix = instance_matrix(instance,plan.cell)
-            vertices = plan.prototype.vertices @ matrix[:3,:3].T + matrix[:3,3]
+            vertices = prototype.vertices @ matrix[:3,:3].T + matrix[:3,3]
             if np.isfinite(vertices).all():
                 mesh = trimesh.Trimesh(vertices=vertices,faces=prototype_faces.copy(),process=False)
                 triangles = vertices[prototype_faces]
@@ -259,8 +266,8 @@ def build_fabric_candidate(plan: FabricInstancePlan | None, base: BaseDefinition
         'tolerances':{'distance_mm':epsilon,'triangle_area_mm2':area_epsilon,
             'near_contact_distance_mm':10*epsilon,'marginal_contact_fraction':.05},
         'components':{'base_components':base_result.component_count if base_result else 0,
-            'cell_components':len(pieces)*len(entries),
-            'prefusion_components':(base_result.component_count if base_result else 0)+len(pieces)*len(entries),
+            'cell_components':cell_component_count,
+            'prefusion_components':(base_result.component_count if base_result else 0)+cell_component_count,
             'attached_cell_components':component_attached,'unattached_cell_components':component_detached,
             'expected_post_fusion_target':base_result.component_count+component_detached if with_base and not counts['INVALID'] else None,
             'target_is_estimate':True,'cell_cell_contacts_analyzed':False},

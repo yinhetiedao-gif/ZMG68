@@ -113,8 +113,9 @@ export function Workspace2D({
   const changeGradient = (active: Extract<Interaction, { kind: 'gradient' }>, event: { clientX: number; clientY: number }) => {
     const world = screenToWorld(screenPoint(event), view)
     // Keep the grab offset when dragging the center, avoiding a pointerdown jump.
-    const position = active.handle === 'center' && active.control.kind === 'radial'
-      ? { x: active.control.values.center_x + world.x - active.start.x, y: active.control.values.center_y + world.y - active.start.y } : world
+    const center = gradientMarkers(active.control).center
+    const position = active.handle === 'center'
+      ? { x: center.x + world.x - active.start.x, y: center.y + world.y - active.start.y } : world
     onGradientChange?.(gradientHandleChange(active.control, active.handle, position))
   }
   const onElementDown = (event: PointerEvent<SVGGElement>, item: FinalGeometry) => {
@@ -200,7 +201,7 @@ export function Workspace2D({
     const active = interaction.current
     interaction.current = null
     onEditingChange?.(false)
-    if (active?.kind === 'gradient') onGradientChange?.({ ...active.control.values })
+    if (active?.kind === 'gradient') onGradientChange?.(Object.fromEntries(Object.entries(active.control.values).filter(([, value]) => typeof value === 'number')) as Record<string, number>)
     if (active?.kind === 'drag') {
       active.node.removeAttribute('transform')
       lastDragNode.current = null
@@ -249,15 +250,27 @@ export function Workspace2D({
                 x2={markers.point.x} y2={markers.point.y} vectorEffect="non-scaling-stroke" pointerEvents="none" />
               : <circle data-gradient-range="true" cx={markers.center.x} cy={markers.center.y} r={gradientControl.values.radius}
                 fill="none" vectorEffect="non-scaling-stroke" pointerEvents="none" />}
-            <circle data-gradient-handle={gradientControl.kind === 'linear' ? 'direction' : 'radius'}
-              aria-label={gradientControl.kind === 'linear' ? '拖动渐变方向' : '拖动影响半径'}
+            {gradientControl.kind === 'linear' && gradientControl.values.scope_mode === 'local' && <>
+              <rect data-gradient-range="true" x={markers.center.x-gradientControl.values.length!/2}
+                y={markers.center.y-gradientControl.values.width!/2} width={gradientControl.values.length} height={gradientControl.values.width}
+                transform={`rotate(${gradientControl.values.angle} ${markers.center.x} ${markers.center.y})`} fill="#00a2b510"
+                vectorEffect="non-scaling-stroke" pointerEvents="none" />
+              <circle data-gradient-handle="start" aria-label="拖动范围起点" cx={2*markers.center.x-markers.point.x} cy={2*markers.center.y-markers.point.y}
+                r={handleRadius} vectorEffect="non-scaling-stroke" onPointerDown={event => onGradientDown(event, 'start')} />
+              <circle data-gradient-handle="width" aria-label="拖动影响宽度"
+                cx={markers.center.x-Math.sin(gradientControl.values.angle*Math.PI/180)*gradientControl.values.width!/2}
+                cy={markers.center.y+Math.cos(gradientControl.values.angle*Math.PI/180)*gradientControl.values.width!/2}
+                r={handleRadius} vectorEffect="non-scaling-stroke" onPointerDown={event => onGradientDown(event, 'width')} />
+            </>}
+            <circle data-gradient-handle={gradientControl.kind === 'linear' ? gradientControl.values.scope_mode === 'local' ? 'end' : 'direction' : 'radius'}
+              aria-label={gradientControl.kind === 'linear' ? gradientControl.values.scope_mode === 'local' ? '拖动范围终点' : '拖动渐变方向' : '拖动影响半径'}
               cx={markers.point.x} cy={markers.point.y} r={handleRadius} vectorEffect="non-scaling-stroke"
-              onPointerDown={event => onGradientDown(event, gradientControl.kind === 'linear' ? 'direction' : 'radius')} />
-            {gradientControl.kind === 'radial' && <circle data-gradient-handle="center" aria-label="拖动渐变中心"
+              onPointerDown={event => onGradientDown(event, gradientControl.kind === 'linear' ? gradientControl.values.scope_mode === 'local' ? 'end' : 'direction' : 'radius')} />
+            {(gradientControl.kind === 'radial' || gradientControl.values.scope_mode === 'local') && <circle data-gradient-handle="center" aria-label="拖动渐变中心"
               cx={markers.center.x} cy={markers.center.y} r={handleRadius} vectorEffect="non-scaling-stroke"
               onPointerDown={event => onGradientDown(event, 'center')} />}
             <text x={markers.center.x} y={markers.center.y - 14 / view.zoom} fontSize={12 / view.zoom} pointerEvents="none">
-              {gradientControl.kind === 'linear' ? `${gradientControl.values.angle.toFixed(1)}° · 仅方向，不代表作用范围`
+              {gradientControl.kind === 'linear' ? `${gradientControl.values.angle.toFixed(1)}° · ${gradientControl.values.scope_mode === 'local' ? '矩形内有效，外部保持原状态' : '全图方向'}`
                 : `影响半径 ${gradientControl.values.radius.toFixed(2)} mm`}
             </text>
           </g>}

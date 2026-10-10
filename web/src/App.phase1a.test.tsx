@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { App } from './App'
 import { phase1aBounds, phase1aCatalog, phase1aDocument } from './test/phase1aFixture'
+import { linearCatalog } from './test/linearSizeFixture'
 import { createExampleDocument } from './examples/catalog'
 import type { PatternDocumentDTO } from './model/types'
 
@@ -19,6 +20,7 @@ function startBackend() {
   const evaluated: PatternDocumentDTO[] = []
   let finish!: (response: Response) => void
   const catalog = structuredClone(phase1aCatalog)
+  catalog.definitions.modifier = structuredClone(linearCatalog.definitions.modifier)
   catalog.definitions.layout.grid = { label: 'Grid', parameters: [{ id: 'rows', label: '行数', type: 'integer',
     default: 3, value: 3, min: 1, max: 100, step: 1, unit: '', options: [] }] }
   const fetcher = vi.fn<typeof fetch>(async (url, init) => {
@@ -35,15 +37,20 @@ function startBackend() {
       recommended_family: null, confidence: 0, analysis_status: 'no_match' })
     if (String(url).endsWith('/fusion')) return new Promise<Response>(resolve => { finish = resolve })
     if (String(url).endsWith('/fabric/preview')) {
-      const dto = body.document, cell = dto.document.metadata.fabric_config.unit_cell
+      const dto = body.document, config = dto.document.metadata.fabric_config, original = config.shape_source === 'original'
+      const cell = original ? { type: 'original_contour', size_mode: 'follow_pattern', width_mm: 60 * config.original_shape.size_scale,
+        depth_mm: 60 * config.original_shape.size_scale, height_mm: config.original_shape.height_mm } : config.unit_cell
       return reply({ schema_version: '1.0', kind: 'fabric_instance_preview', document_id: dto.document_id,
         document_revision: dto.document_revision, preview_id: `p-${dto.document_revision}`,
-        placement_mode: 'pattern_points', unit_size_mode: cell.size_mode, element_count: 1,
+        placement_mode: 'pattern_points', unit_size_mode: cell.size_mode, element_count: 1, output_mode: config.output_mode ?? 'cells_with_base',
         count: 1, active_count: 1, total_count: 1, skipped_count: 0, unmatched_reference_count: 0,
         preview_simplified: false, prototype: null, cache_hit: false,
+        ...(original ? { shape_source: 'original', contour_prototypes: { cell: {
+          vertices: [[0,0,0],[1,0,0],[0,1,0],[0,0,1]], faces: [[0,2,1],[0,1,3],[0,3,2],[1,2,3]],
+        } } } : {}),
         base_preview: { type: 'solid', bounds_mm: [10, 20, 70, 80], thickness_mm: .6 },
         timings_ms: { evaluate: 1, plan_and_prototype: 1, serialization: 1 }, instances: [{
-          id: 'cell', source_id: 'square', final_geometry_id: 'square', x_mm: 40, y_mm: 50, z_mm: .6,
+          id: 'cell', source_id: 'square', final_geometry_id: 'square', x_mm: 40, y_mm: 50, z_mm: config.output_mode === 'cells_only' ? 0 : .6,
           rotation_deg: 0, scale: 1, scale_x: 1, scale_y: 1, enabled: true, cell_type: cell.type,
           base_width_mm: cell.width_mm, base_depth_mm: cell.depth_mm, base_height_mm: cell.height_mm,
           cell_width_mm: cell.width_mm, cell_depth_mm: cell.depth_mm, cell_height_mm: cell.height_mm, height_mm: cell.height_mm,
@@ -67,6 +74,148 @@ async function open(dto = phase1aDocument()) {
 const manufacture = () => fireEvent.click(screen.getByRole('button', { name: /制造 Manufacture/ }))
 
 describe('Phase 1A real editor connections', () => {
+  it('center recipe protects a failed save, commits once, and Reset/Undo preserve the original shape', async () => {
+    const backend = startBackend(), dto = phase1aDocument()
+    delete dto.document.metadata.fabric_config
+    await open(dto); manufacture(); await screen.findByLabelText('测试共享 Fabric 画面')
+    const before = backend.evaluated.at(-1)!
+    fireEvent.change(screen.getByLabelText('Fabric 预设'), { target: { value: 'center-height' } })
+    drafts.save.mockRejectedValueOnce(new Error('disk unavailable'))
+    fireEvent.click(screen.getByRole('button', { name: '应用预设' }))
+    await screen.findByText(/当前作品保存失败，已取消切换/)
+    expect(backend.evaluated.at(-1)).toBe(before)
+    fireEvent.click(screen.getByRole('button', { name: '应用预设' }))
+    await screen.findByRole('button', { name: '恢复中心隆起配方' })
+    const first = backend.evaluated.at(-1)!
+    expect(first.document_revision).toBe(before.document_revision + 1)
+    expect(first.document.fields).toHaveLength(1)
+    expect(screen.getByLabelText('高度变化')).toHaveValue('center')
+    expect(screen.getByLabelText('Unit Cell 类型')).toHaveValue('original')
+    const controls = within(screen.getByRole('region', { name: '直接高度控制' }))
+    const slider = controls.getByRole('slider', { name: '影响范围滑杆' }), requests = backend.evaluated.length
+    fireEvent.change(slider, { target: { value: '20' } })
+    expect(backend.evaluated).toHaveLength(requests)
+    expect(screen.getByRole('button', { name: '生成最终模型' })).toBeDisabled()
+    fireEvent.pointerUp(slider)
+    await waitFor(() => expect(backend.evaluated).toHaveLength(requests + 1))
+    const edited = backend.evaluated.at(-1)!
+    expect((edited.document.fields[0].parameters as any).ring_width).toBe(40)
+    fireEvent.click(screen.getByRole('button', { name: '恢复中心隆起配方' }))
+    await waitFor(() => expect(backend.evaluated.at(-1)!.document).toEqual(first.document))
+    fireEvent.click(screen.getByRole('button', { name: '撤销' }))
+    await waitFor(() => expect(backend.evaluated.at(-1)!.document).toEqual(edited.document))
+    fireEvent.click(screen.getByRole('button', { name: '重做' }))
+    await waitFor(() => expect(backend.evaluated.at(-1)!.document).toEqual(first.document))
+    expect(backend.fetcher.mock.calls.some(([url]) => String(url).endsWith('/fusion'))).toBe(false)
+  })
+  it('default original source can explicitly bind an existing advanced height field without choosing a unit or creating a field', async () => {
+    const backend=startBackend(),dto=phase1aDocument();delete dto.document.metadata.fabric_config
+    dto.document.fields=[{id:'existing-user-field',type:'linear',parameters:{angle:0,start:10,end:70}}]
+    await open(dto);manufacture();await screen.findByLabelText('测试共享 Fabric 画面')
+    const before=backend.evaluated.at(-1)!
+    fireEvent.click(screen.getByText('高级参数场绑定',{exact:true}))
+    fireEvent.click(within(screen.getByRole('region',{name:'Fabric 测试'})).getByRole('checkbox'))
+    await waitFor(()=>expect(backend.evaluated.at(-1)!.document_revision).toBe(before.document_revision+1))
+    expect(backend.evaluated.at(-1)!.document.fields).toEqual(before.document.fields)
+    expect(backend.evaluated.at(-1)!.document.metadata.fabric_config).toMatchObject({shape_source:'original',
+      field_modifiers:{height:{enabled:true,field_id:'existing-user-field'}}})
+    expect((backend.evaluated.at(-1)!.document.metadata.fabric_config as any).unit_cell).toBeUndefined()
+  })
+  it('empty original source gives an import/add guide and never requests a fake preview', async () => {
+    const backend=startBackend(),dto=phase1aDocument();delete dto.document.metadata.fabric_config;dto.document.elements=[];dto.document.transforms={}
+    render(<App/>);await screen.findByText('Backend Online')
+    const raw=JSON.stringify(dto.document),file=new File([raw],'empty.pattern.json',{type:'application/json'})
+    Object.defineProperty(file,'text',{value:async()=>raw})
+    fireEvent.change(screen.getByLabelText('选择 PatternDocument 项目文件'),{target:{files:[file]}})
+    await waitFor(()=>expect(backend.evaluated).toHaveLength(1));manufacture()
+    await screen.findByText('当前没有可挤出的原图。请导入图案或在设计中添加图形。')
+    expect(backend.fetcher.mock.calls.some(([url])=>String(url).endsWith('/fabric/preview'))).toBe(false)
+    expect(screen.queryByLabelText('测试共享 Fabric 画面')).toBeNull()
+  })
+  it('absent Fabric config displays a default original candidate without a commit, and a height effect commits once without choosing a cell', async () => {
+    const backend=startBackend(),dto=phase1aDocument();delete dto.document.metadata.fabric_config
+    await open(dto);manufacture();await screen.findByLabelText('测试共享 Fabric 画面')
+    expect(backend.evaluated.at(-1)!.document.metadata.fabric_config).toBeUndefined()
+    expect(screen.getByRole('button',{name:'撤销'})).toBeDisabled()
+    expect(screen.getByLabelText('Unit Cell 类型')).toHaveValue('original')
+    const before=backend.evaluated.at(-1)!
+    fireEvent.change(screen.getByLabelText('高度变化'),{target:{value:'wave'}})
+    await waitFor(()=>expect(backend.evaluated.at(-1)!.document_revision).toBe(before.document_revision+1))
+    expect(backend.evaluated.at(-1)!.document.metadata.fabric_config).toMatchObject({shape_source:'original',original_shape:{height_mm:2}})
+    expect((backend.evaluated.at(-1)!.document.metadata.fabric_config as any).unit_cell).toBeUndefined()
+    expect(backend.evaluated.at(-1)!.document.fields).toHaveLength(1)
+    fireEvent.click(screen.getByRole('button',{name:'撤销'}))
+    await waitFor(()=>expect(backend.evaluated.at(-1)!.document.metadata.fabric_config).toBeUndefined())
+    expect(backend.fetcher.mock.calls.some(([url])=>String(url).endsWith('/fusion'))).toBe(false)
+  })
+  it('does not discard or apply an unapplied 2D shortcut when switching to wave recipes', async () => {
+    const backend = startBackend(); await open()
+    fireEvent.click(screen.getByRole('button', { name: '线性尺寸渐变' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: '应用效果' })).toBeEnabled())
+    const minimum = screen.getByLabelText('最小尺寸比例')
+    fireEvent.change(minimum, { target: { value: '.8' } }); fireEvent.blur(minimum)
+    await waitFor(() => expect(screen.getByRole('button', { name: '应用效果' })).toBeEnabled())
+    manufacture()
+    fireEvent.change(screen.getByLabelText('Fabric 预设'), { target: { value: 'wave-height' } })
+    const count = backend.evaluated.length
+    fireEvent.click(screen.getByRole('button', { name: '应用预设' }))
+    await screen.findByText('二维尺寸效果尚未应用，请返回设计先应用或取消，再应用 Fabric 配方。')
+    expect(backend.evaluated).toHaveLength(count)
+    expect(screen.getByRole('button', { name: '撤销' })).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: /设计 Design/ }))
+    expect(screen.getByLabelText('最小尺寸比例')).toHaveValue(.8)
+    fireEvent.click(screen.getByRole('button', { name: '取消效果' }))
+    expect(screen.getByRole('button', { name: '撤销' })).toBeDisabled()
+  })
+  it('wave recipe protects draft, commits once, waits for slider release and resets with Undo/Redo', async () => {
+    const backend = startBackend(); await open(); manufacture()
+    expect(backend.evaluated.at(-1)!.document.fields).toHaveLength(0)
+    fireEvent.change(screen.getByLabelText('Fabric 预设'), { target: { value: 'wave-height' } })
+    expect(backend.evaluated.at(-1)!.document.fields).toHaveLength(0)
+    drafts.save.mockRejectedValueOnce(new Error('disk unavailable'))
+    fireEvent.click(screen.getByRole('button', { name: '应用预设' }))
+    await screen.findByText(/当前作品保存失败，已取消切换/)
+    const before = backend.evaluated.at(-1)!
+    fireEvent.click(screen.getByRole('button', { name: '应用预设' }))
+    await screen.findByRole('button', { name: '恢复波浪起伏配方' })
+    const first = backend.evaluated.at(-1)!
+    expect(first.document_revision).toBe(before.document_revision + 1)
+    expect(first.document.fields).toHaveLength(1)
+    expect(screen.getByLabelText('高度变化')).toHaveValue('wave')
+    expect(screen.getByLabelText('Fabric 预设')).toHaveValue('wave-height')
+    const controls = within(screen.getByRole('region', { name: '直接高度控制' }))
+    const slider = controls.getByRole('slider', { name: 'wavelength滑杆' }), requests = backend.evaluated.length
+    fireEvent.change(slider, { target: { value: '90' } })
+    expect(backend.evaluated).toHaveLength(requests)
+    expect(screen.getByRole('button', { name: '生成最终模型' })).toBeDisabled()
+    fireEvent.pointerUp(slider)
+    await waitFor(() => expect(backend.evaluated).toHaveLength(requests + 1))
+    const edited = backend.evaluated.at(-1)!
+    expect((edited.document.fields[0].parameters as any).wavelength).toBe(90)
+    fireEvent.click(screen.getByRole('button', { name: '恢复波浪起伏配方' }))
+    await waitFor(() => expect((backend.evaluated.at(-1)!.document.fields[0].parameters as any).wavelength).toBe(36))
+    const reset = backend.evaluated.at(-1)!
+    expect(reset.document).toEqual(first.document)
+    fireEvent.click(screen.getByRole('button', { name: '撤销' }))
+    await waitFor(() => expect(backend.evaluated.at(-1)!.document).toEqual(edited.document))
+    fireEvent.click(screen.getByRole('button', { name: '重做' }))
+    await waitFor(() => expect(backend.evaluated.at(-1)!.document).toEqual(reset.document))
+    expect(backend.fetcher.mock.calls.some(([url]) => String(url).endsWith('/fusion'))).toBe(false)
+  })
+  it('explicit original shape replaces the source, keeps a preview and restores the cell through Undo without manufacturing', async () => {
+    const backend = startBackend(); await open(); manufacture()
+    await screen.findByLabelText('测试共享 Fabric 画面')
+    const before = backend.evaluated.at(-1)!
+    fireEvent.change(screen.getByLabelText('Unit Cell 类型'), { target: { value: 'original' } })
+    await waitFor(() => expect(backend.evaluated.at(-1)!.document_revision).toBe(before.document_revision + 1))
+    await waitFor(() => expect(screen.getByLabelText('测试共享 Fabric 画面')).toHaveTextContent('60 / 2'))
+    expect(screen.getByLabelText('Unit Cell 类型')).toHaveValue('original')
+    expect(backend.evaluated.at(-1)!.document.metadata.fabric_config).toMatchObject({shape_source:'original',unit_cell:{type:'pyramid'}})
+    fireEvent.click(screen.getByRole('button', {name: '撤销'}))
+    await screen.findByLabelText('测试共享 Fabric 画面')
+    expect(screen.getByLabelText('Unit Cell 类型')).toHaveValue('pyramid')
+    expect(backend.fetcher.mock.calls.some(([url]) => String(url).endsWith('/fusion'))).toBe(false)
+  })
   it('moves one form to the inspector, displays drag drafts without requests and commits once on release', async () => {
     const backend = startBackend(); await open(); manufacture()
     const picture = await screen.findByLabelText('测试共享 Fabric 画面')
@@ -149,7 +298,7 @@ describe('Phase 1A real editor connections', () => {
     expect(screen.getByRole('button', { name: '生成最终模型' })).toBeEnabled()
     expect(screen.queryByText(/another user/)).toBeNull() // discarded old document response
   })
-  it('preserves pending Layout across a recipe and later Apply does not erase the recipe', async () => {
+  it.each(['direction-gradient', 'wave-height', 'center-height'])('preserves pending Layout across %s and later Apply does not erase the recipe', async preset => {
     const backend = startBackend()
     const dto = createExampleDocument('basic-grid', 'test')
     dto.document.metadata.fabric_config = phase1aDocument().document.metadata.fabric_config
@@ -157,9 +306,9 @@ describe('Phase 1A real editor connections', () => {
     const rows = screen.getByLabelText('行数')
     fireEvent.change(rows, { target: { value: '5' } }); fireEvent.blur(rows)
     manufacture()
-    fireEvent.change(screen.getByLabelText('Fabric 预设'), { target: { value: 'direction-gradient' } })
+    fireEvent.change(screen.getByLabelText('Fabric 预设'), { target: { value: preset } })
     fireEvent.click(screen.getByRole('button', { name: '应用预设' }))
-    await screen.findByRole('button', { name: '恢复方向渐变配方' })
+    await screen.findByRole('button', { name: preset === 'wave-height' ? '恢复波浪起伏配方' : preset === 'center-height' ? '恢复中心隆起配方' : '恢复方向渐变配方' })
     const applied = backend.evaluated.at(-1)!
     expect((applied.document.metadata['xiaomang_pattern_lab.parametric'] as any).grid.rows).toBe(3)
     expect(screen.getByLabelText('行数')).toHaveValue(5)

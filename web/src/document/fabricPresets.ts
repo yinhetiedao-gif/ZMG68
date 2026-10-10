@@ -4,8 +4,9 @@ import { groupFor, validateParameter, type ParameterCatalog } from './parameterS
 import type { FabricBaseConfig } from './fabricBase'
 import type { FabricPlacement, FabricUnitCell } from './fabricCell'
 import type { FabricModifierType } from './fabricModifiers'
-import { setDirectionalFabricHeight } from './fabricModifiers'
+import { setDirectionalFabricHeight, setWaveFabricHeight, waveHeightField, setCenterFabricHeight, centerHeightDefaults } from './fabricModifiers'
 import type { BoundsMM } from '../model/types'
+import { setOriginalShape, isOriginalShape } from './fabricOriginal'
 
 type Binding = { field: 'wave' | 'linear' | 'noise'; values: Record<string, number> }
 export interface FabricPreset {
@@ -55,6 +56,76 @@ export const directionalFabricRecipe = {
   other_effects_enabled: false, random_seed: null,
 } as const
 
+export const waveFabricRecipe = {
+  id: 'wave-height', version: 1, label: '波浪起伏', units: 'mm',
+  scope: ['unit_cell', 'placement', 'height', 'owned_wave_field'],
+  preserve: ['output_mode', 'base', 'scale', 'density', 'orientation', 'source', 'layout', '2d_modifiers'],
+  placement: { mode: 'pattern_points', spacing_x_mm: 5, spacing_y_mm: 5 },
+  cell: { type: 'pyramid', width_mm: 4.8, depth_mm: 4.8, height_mm: 3, size_mode: 'follow_pattern' },
+  field: { type: 'wave', parameters: { wavelength: 36, angle: 0, phase: 0, amplitude: 1, offset: 0, invert: false } },
+  height: { min_height_mm: 2, max_height_mm: 6 }, random_seed: null,
+} as const
+
+export const centerFabricRecipe = {
+  id: 'center-height', version: 1, label: '中心隆起', units: 'mm',
+  scope: ['height', 'owned_height_field'],
+  field: { type: 'ring', radius: 0, falloff: 1, invert: false, range: 'half_final_geometry_diagonal_mm' },
+  height: { min_height_mm: 2, max_height_mm: 6 }, random_seed: null,
+} as const
+
+/** The three height recipes preserve the selected shape, placement and output.
+ * Explicit shape-replacement presets remain separate. */
+export function applyFabricHeightRecipe(dto: PatternDocumentDTO, catalog: ParameterCatalog | null,
+  bounds: BoundsMM | null, kind: 'wave' | 'directional' | 'center', uniformHeight: number): PatternDocumentDTO {
+  const configured = isOriginalShape(dto) ? setOriginalShape(dto, catalog,
+    (dto.document.metadata.fabric_config as any)?.original_shape ? {} : { height_mm: uniformHeight }) : dto
+  const defaults = kind === 'center' ? centerHeightDefaults(configured, bounds) : null
+  const next = kind === 'wave'
+    ? setWaveFabricHeight(configured, catalog, { ...waveFabricRecipe.field.parameters, ...waveFabricRecipe.height })
+    : kind === 'center' ? setCenterFabricHeight(configured, catalog, bounds, {
+      center_x: Number(defaults!.center_x), center_y: Number(defaults!.center_y),
+      range_mm: Number(defaults!.ring_width) / 2, ...centerFabricRecipe.height })
+    : setDirectionalFabricHeight(configured, catalog, bounds, { angle: 0, ...directionalFabricRecipe.height })
+  const id = (next.document.metadata.web_fabric_height_effect as any).field_id
+  const field = next.document.fields.find(f => f.id === id)!
+  return { ...next, document_revision: dto.document_revision + 1, document: { ...next.document,
+    metadata: { ...next.document.metadata, web_fabric_recipe: {
+      id: kind === 'wave' ? waveFabricRecipe.id : kind === 'center' ? centerFabricRecipe.id : directionalFabricRecipe.id,
+      version: 1, units: 'mm', scope: ['height', 'owned_height_field'],
+      shape_source: isOriginalShape(next) ? 'original' : 'unit_cell', field_id: id, field_type: field.type,
+      field_parameters: { ...(field.parameters as object) },
+      height: { ...((next.document.metadata.fabric_config as any).field_modifiers.height) }, random_seed: null,
+    } } } }
+}
+
+export const applyOriginalHeightRecipe = applyFabricHeightRecipe
+
+export function applyWaveFabricRecipe(dto: PatternDocumentDTO, catalog: ParameterCatalog | null): PatternDocumentDTO {
+  const recipe = waveFabricRecipe
+  checkValues(catalog, 'fabric_cell', recipe.cell.type, recipe.cell)
+  checkValues(catalog, 'fabric_placement', 'regular', recipe.placement)
+  const original = dto.document.metadata.fabric_config as Record<string, any> | undefined
+  const configured = { ...dto, document: { ...dto.document, metadata: { ...dto.document.metadata,
+    fabric_config: { ...original, config_version: 1, shape_source: 'unit_cell',
+      // Retain legacy effective output semantics as well as an explicit choice.
+      output_mode: original?.output_mode ?? (original ? 'cells_with_base' : 'cells_only'),
+      base: original?.base ?? { type: 'solid', thickness_mm: .6, margin_mm: 1 },
+      unit_cell: { ...original?.unit_cell, ...recipe.cell },
+      placement: { ...original?.placement, ...recipe.placement },
+    },
+  } } }
+  const next = setWaveFabricHeight(configured, catalog, { ...recipe.field.parameters, ...recipe.height })
+  const field = waveHeightField(next)!
+  const config = next.document.metadata.fabric_config as Record<string, any>
+  return { ...next, document_revision: dto.document_revision + 1,
+    document: { ...next.document, metadata: { ...next.document.metadata, web_fabric_recipe: {
+      id: recipe.id, version: recipe.version, units: recipe.units, scope: [...recipe.scope], preserve: [...recipe.preserve],
+      field_id: field.id, field_type: 'wave', field_parameters: { ...(field.parameters as object) },
+      height: { ...config.field_modifiers.height }, unit_cell: { ...config.unit_cell }, placement: { ...config.placement },
+      output_mode: config.output_mode, base: { ...config.base }, random_seed: recipe.random_seed,
+    } } } }
+}
+
 export function applyDirectionalFabricRecipe(dto: PatternDocumentDTO, catalog: ParameterCatalog | null,
   bounds: BoundsMM | null): PatternDocumentDTO {
   const recipe = directionalFabricRecipe
@@ -67,7 +138,7 @@ export function applyDirectionalFabricRecipe(dto: PatternDocumentDTO, catalog: P
     if (modifiers[kind]) modifiers[kind] = { ...modifiers[kind], enabled: false }
   }
   const configured = { ...dto, document: { ...dto.document, metadata: { ...dto.document.metadata,
-    fabric_config: { ...original, config_version: 1, output_mode: recipe.output_mode,
+    fabric_config: { ...original, config_version: 1, shape_source: 'unit_cell', output_mode: recipe.output_mode,
       base: { ...original?.base, ...recipe.base }, placement: { ...original?.placement, ...recipe.placement },
       unit_cell: { ...original?.unit_cell, ...recipe.cell }, field_modifiers: modifiers },
   } } }
@@ -117,6 +188,6 @@ export function applyFabricPreset(dto: PatternDocumentDTO, presetId: string,
     ? previous as Record<string, unknown> : {}
   return { ...working, document_revision: dto.document_revision + 1,
     document: { ...working.document, metadata: { ...working.document.metadata,
-      fabric_config: { ...config, ...(!previous ? { output_mode: 'cells_only' } : {}), config_version: 1, base: { ...preset.base },
+      fabric_config: { ...config, ...(!previous ? { output_mode: 'cells_only' } : {}), config_version: 1, shape_source: 'unit_cell', base: { ...preset.base },
         placement: { ...preset.placement }, unit_cell: { ...preset.cell }, field_modifiers: modifiers } } } }
 }

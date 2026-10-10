@@ -29,7 +29,7 @@ export function setFabricInstanceTransform(dummy: Object3D, instance: FabricPrev
   dummy.updateMatrix()
 }
 
-export function FabricThreePreview({ plan }: { plan: FabricDesignPreview }) {
+export function FabricThreePreview({ plan, stale = false }: { plan: FabricDesignPreview; stale?: boolean }) {
   const hostRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const fitRef = useRef<(() => void) | null>(null)
@@ -69,7 +69,7 @@ export function FabricThreePreview({ plan }: { plan: FabricDesignPreview }) {
       canvas.dataset.rendererInitializations = String(Number(canvas.dataset.rendererInitializations ?? 0) + 1)
       let initialized = false
       let geometryKey = ''
-      let cells: InstancedMesh | null = null
+      let cells: { mesh: InstancedMesh; key: string }[] = []
       const update = () => {
         const started = performance.now()
         const { plan, style } = latest.current
@@ -77,13 +77,22 @@ export function FabricThreePreview({ plan }: { plan: FabricDesignPreview }) {
         scene.background = new Color(palette.background)
         material.color.setHex(palette.cell); baseMaterial.color.setHex(palette.base)
         const active = plan.instances.filter(instance => instance.enabled)
-        const nextGeometryKey = JSON.stringify([plan.output_mode, plan.base_preview, plan.prototype, active.length])
+        const meshGroups = new Map<string, { prototype: NonNullable<FabricDesignPreview['prototype']>; instances: FabricPreviewInstance[] }>()
+        for (const instance of active) {
+          const prototype = plan.contour_prototypes ? plan.contour_prototypes[instance.id] : plan.prototype
+          if (!prototype) continue
+          const key = plan.contour_prototypes ? JSON.stringify(prototype) : 'shared'
+          const group = meshGroups.get(key) ?? { prototype, instances: [] }
+          group.instances.push(instance); meshGroups.set(key, group)
+        }
+        const nextGeometryKey = JSON.stringify([plan.output_mode, plan.base_preview, plan.prototype,
+          [...meshGroups].map(([key, value]) => [key, value.instances.length])])
         if (nextGeometryKey !== geometryKey) {
           for (const node of [...group.children]) {
             if (node instanceof InstancedMesh) { node.geometry.dispose(); node.dispose() }
             group.remove(node)
           }
-          cells = null
+          cells = []
           geometryKey = nextGeometryKey
           const [left, bottom, right, top] = plan.base_preview.bounds_mm
           const thickness = plan.base_preview.thickness_mm
@@ -126,24 +135,25 @@ export function FabricThreePreview({ plan }: { plan: FabricDesignPreview }) {
           baseMesh.instanceMatrix.needsUpdate = true
           if (boxes.length) { baseMesh.computeBoundingSphere(); group.add(baseMesh) }
           else baseMesh.geometry.dispose()
-          if (plan.prototype && active.length) {
+          for (const [key, bundle] of meshGroups) {
             const geometry = new BufferGeometry()
-            geometry.setAttribute('position', new Float32BufferAttribute(plan.prototype.vertices.flat(), 3))
-            geometry.setIndex(plan.prototype.faces.flat())
+            geometry.setAttribute('position', new Float32BufferAttribute(bundle.prototype.vertices.flat(), 3))
+            geometry.setIndex(bundle.prototype.faces.flat())
             geometry.computeVertexNormals()
-            const instances = new InstancedMesh(geometry, material, active.length)
-            cells = instances
+            const instances = new InstancedMesh(geometry, material, bundle.instances.length)
+            cells.push({ mesh: instances, key })
             group.add(instances)
           }
         }
-        if (cells) {
-          const instances = cells
+        const heights = active.map((instance) => instance.height_mm)
+        const minHeight = Math.min(...heights)
+        const maxHeight = Math.max(...heights)
+        for (const bundle of cells) {
+          const instances = bundle.mesh
+          const selected = meshGroups.get(bundle.key)!.instances
           const dummy = new Object3D()
-          const heights = active.map((instance) => instance.height_mm)
-          const minHeight = Math.min(...heights)
-          const maxHeight = Math.max(...heights)
           if (style !== 'height_map') instances.instanceColor = null
-          active.forEach((instance, index) => {
+          selected.forEach((instance, index) => {
             setFabricInstanceTransform(dummy, instance)
             instances.setMatrixAt(index, dummy.matrix)
             if (style === 'height_map') instances.setColorAt(index,
@@ -175,7 +185,7 @@ export function FabricThreePreview({ plan }: { plan: FabricDesignPreview }) {
         fitRef.current = () => fit(false)
         resetRef.current = () => fit(true)
         if (!initialized && active.length) { fit(true); initialized = true }
-        setStatus(`Fabric 设计预览已就绪 · ${plan.active_count} 个可见共享原型实例 · 浏览器实例更新 ${(performance.now() - started).toFixed(1)} ms`)
+        setStatus(`Fabric 设计预览已就绪 · ${plan.active_count} 个${plan.shape_source === 'original' ? '原图元素' : '可见共享原型实例'} · 浏览器实例更新 ${(performance.now() - started).toFixed(1)} ms`)
       }
       updateRef.current = update
       scene.add(group)
@@ -225,7 +235,7 @@ export function FabricThreePreview({ plan }: { plan: FabricDesignPreview }) {
     <div className="three-preview-toolbar"><button type="button" onClick={() => fitRef.current?.()} disabled={!bounds}>适合窗口</button>
       <button type="button" onClick={() => resetRef.current?.()} disabled={!bounds}>重置视角</button></div>
     <div className="three-preview-viewport" ref={hostRef}><canvas ref={canvasRef} aria-label="Fabric 设计三维画布" /></div>
-    <div className="three-preview-status" role="status">{status}</div>
+    <div className="three-preview-status" role="status">{stale ? `上次预览，已失效 · ${plan.active_count} 个可见实例` : status}</div>
     {bounds && <small className="three-preview-bounds">预览 XYZ：{bounds}</small>}
     {plan.preview_simplified && <p role="note">预览已简化：显示 {plan.count} / {plan.total_count} 个实例，最终设计参数未改变。</p>}
     {plan.skipped_count > 0 && <p role="note">跳过 {plan.skipped_count} 个没有可靠布点坐标的元素。</p>}

@@ -25,7 +25,7 @@ import { appendPrimitive, createBlankDesign, type PrimitiveType } from './docume
 import { readReferenceLayer, updateReferenceLayer, type ReferenceLayer } from './document/referenceLayer'
 import { ReferenceLayerPanel } from './document/ReferenceLayerPanel'
 import { useLayoutPreview, useDocumentPreview } from './document/useLayoutPreview'
-import { openLinearSize, linearSizeCandidate, linearSizeGroup, linearSizeDefaults, linearSizeOwner, type LinearSizeDraft } from './document/linearSize'
+import { openLinearSize, linearSizeCandidate, linearSizeGroup, linearSizeDefaults, linearRegionDefaults, linearSizeOwner, type LinearSizeDraft } from './document/linearSize'
 import { openRadialSize, radialSizeCandidate, radialSizeGroup, radialSizeDefaults, type RadialSizeDraft } from './document/radialSize'
 import { ParameterPanel } from './document/ParameterPanel'
 import { ParameterInteraction } from './document/ParameterInteraction'
@@ -39,9 +39,10 @@ import { FabricThreePreview } from './manufacturing/FabricThreePreview'
 import { temporaryFabricDimensions } from './manufacturing/fabricTemporaryDimensions'
 import { fabricBase, setFabricBaseType, updateFabricBase } from './document/fabricBase'
 import { fabricUnitCell, setFabricUnitCellType, updateFabricUnitCell, setFabricPlacementMode } from './document/fabricCell'
+import { isOriginalShape, originalPreviewDocument, setOriginalShape } from './document/fabricOriginal'
 import { setFabricOutputMode } from './document/fabricBase'
-import { setFabricModifierEnabled, setFabricModifierField, updateFabricModifier, setUniformFabricHeight, setDirectionalFabricHeight } from './document/fabricModifiers'
-import { applyFabricPreset, applyDirectionalFabricRecipe, directionalFabricRecipe } from './document/fabricPresets'
+import { setFabricModifierEnabled, setFabricModifierField, updateFabricModifier, setUniformFabricHeight, setDirectionalFabricHeight, setWaveFabricHeight, setCenterFabricHeight } from './document/fabricModifiers'
+import { applyFabricPreset, directionalFabricRecipe, waveFabricRecipe, centerFabricRecipe, applyFabricHeightRecipe } from './document/fabricPresets'
 import { clearDraft, loadBeforeExampleDraft, loadDraft, saveBeforeExampleDraft, saveDraft,
   type DraftUiState, type LocalDraft, type SourceAssetDraft } from './draft/localDraft'
 import { createExampleDocument, exampleIdFromDocument, examples, type BuiltInExample, type ExampleId } from './examples/catalog'
@@ -100,6 +101,7 @@ function ExampleCard({ example, onOpen, disabled }: { example: BuiltInExample; o
 export function App() {
   const [connection, setConnection] = useState<ConnectionState>({ kind: 'checking', message: '正在连接后端…' })
   const [parameterCatalog, setParameterCatalog] = useState<ParameterCatalog | null>(null)
+  const [parameterLoad, setParameterLoad] = useState<{ status: 'loading' | 'ready' | 'error'; error?: string }>({ status: 'loading' })
   const [fabricStlTestExportEnabled, setFabricStlTestExportEnabled] = useState<boolean | undefined>()
   const [releaseHealth, setReleaseHealth] = useState<import('./api/client').HealthResponse | null>(null)
   const [retry, setRetry] = useState(0)
@@ -187,16 +189,20 @@ export function App() {
     })
   }, [])
   useEffect(() => setCellDraft({}), [project.currentDocument?.document_id])
-  const fabricPreview = useFabricPreview(project.currentDocument, assetFetch, computeRequests.isBusy, {
-    automatic: browser.activeMode !== 'design' && connection.kind === 'online' && Boolean(fabricUnitCell(project.currentDocument)),
+  const fabricPreviewInput = useMemo(() => originalPreviewDocument(project.currentDocument, parameterCatalog, Number(manufacturing.heightText)),
+    [project.currentDocument, parameterCatalog, manufacturing.heightText])
+  const noOriginalGeometry = isOriginalShape(project.currentDocument) && !project.finalGeometry.length
+  const hasPreviewShape = isOriginalShape(project.currentDocument) && !noOriginalGeometry || Boolean(fabricUnitCell(project.currentDocument))
+  const fabricPreview = useFabricPreview(fabricPreviewInput, assetFetch, computeRequests.isBusy, {
+    automatic: browser.activeMode !== 'design' && connection.kind === 'online' && hasPreviewShape,
     blocked: parameterPending || recipeSaving || project.evaluateStatus !== 'ready', computeBusy,
   })
-  const fabricDisplayPlan = useMemo(() => temporaryFabricDimensions(fabricPreview.displayResult,
-    fabricPreview.displayDocument, project.currentDocument, cellDraft),
-    [fabricPreview.displayResult, fabricPreview.displayDocument, project.currentDocument, cellDraft])
+  const fabricDisplayPlan = useMemo(() => hasPreviewShape ? temporaryFabricDimensions(fabricPreview.displayResult,
+    fabricPreview.displayDocument, project.currentDocument, cellDraft) : null,
+    [fabricPreview.displayResult, fabricPreview.displayDocument, project.currentDocument, cellDraft, hasPreviewShape])
   const linearActive = designContext === 'linear' && browser.activeMode === 'design' && Boolean(linearDraft)
   const linearCurrent = Boolean(linearDraft && linearDraft.sourceKey === JSON.stringify(project.currentDocument))
-  const sizeGroup = linearDraft?.kind === 'radial' ? radialSizeGroup(parameterCatalog, linearDraft.source, linearDraft.bounds) : linearSizeGroup(parameterCatalog)
+  const sizeGroup = linearDraft?.kind === 'radial' ? radialSizeGroup(parameterCatalog, linearDraft.source, linearDraft.bounds) : linearSizeGroup(parameterCatalog, linearDraft ?? undefined)
   const linearProposal = useMemo(() => {
     if (!linearActive || !linearCurrent || !linearDraft) return { dto: null, error: null }
     try { return { dto: linearDraft.kind === 'radial' ? radialSizeCandidate(linearDraft, parameterCatalog) : linearSizeCandidate(linearDraft, parameterCatalog), error: null } }
@@ -205,8 +211,9 @@ export function App() {
   const stagedLinear = useDocumentPreview(linearProposal.dto, assetFetch, null,
     linearActive && linearCurrent ? linearDraft!.sourceKey : '')
   useEffect(() => {
-    if (designContext !== 'linear' || browser.activeMode !== 'design') setLinearDraft(null)
-  }, [designContext, browser.activeMode])
+    // A workspace switch is not an explicit cancellation of a size-effect draft.
+    if (designContext !== 'linear') setLinearDraft(null)
+  }, [designContext])
   const geometryInputsPending = linearActive || parameterPending || canvasEditing || Boolean(project.currentDocument && pendingLayoutFor(project.currentDocument, layoutDraft))
   const inputsReady = useRef(false)
   const inputSnapshot = useRef(project.currentDocument); inputSnapshot.current = project.currentDocument
@@ -226,6 +233,8 @@ export function App() {
     const controller = new AbortController()
     let current = true
     setConnection({ kind: 'checking', message: '正在连接后端…' })
+    setParameterCatalog(null)
+    setParameterLoad({ status: 'loading' })
     setFabricStlTestExportEnabled(undefined)
     setReleaseHealth(null)
     checkBackend(fetch, controller.signal).then(({ health, contract }) => {
@@ -234,10 +243,14 @@ export function App() {
         setFabricStlTestExportEnabled(contract.fabric_stl_test_export_enabled)
         setParameterCatalog(contract.parameter_definitions?.schema_version === '1.0' &&
           contract.parameter_definitions.units === 'mm' ? contract.parameter_definitions : null)
+        setParameterLoad(contract.parameter_definitions?.schema_version === '1.0' && contract.parameter_definitions.units === 'mm'
+          && contract.parameter_definitions.definitions
+          ? { status: 'ready' } : { status: 'error', error: '参数定义响应缺失或版本／单位不匹配，请重试加载参数。' })
         setConnection({ kind: 'online', message: 'Backend Online' })
       }
     }).catch((error: unknown) => {
       if (!current) return
+      setParameterLoad({ status: 'error', error: error instanceof Error ? error.message : '参数定义请求失败。' })
       if (error instanceof ContractMismatchError) setConnection({ kind: 'incompatible', message: error.message })
       else if (error instanceof BackendOfflineError) setConnection({ kind: 'offline', message: error.message })
       else setConnection({ kind: 'offline', message: '后端连接失败。' })
@@ -510,13 +523,18 @@ export function App() {
   const applyFabricRecipe = async (presetId: string) => {
     const dto = project.currentDocument
     if (!dto || !canEditDocument || recipeSavingRef.current) return
+    if (linearDraft) {
+      setProjectError('二维尺寸效果尚未应用，请返回设计先应用或取消，再应用 Fabric 配方。')
+      return
+    }
     recipeSavingRef.current = true; setRecipeSaving(true)
     try {
       await saveBeforeReplacement()
       if (activeDocumentRef.current !== dto) throw new Error('保护作品期间设计已变化，请重新应用配方。')
       const pending = pendingLayoutFor(dto, layoutDraft)
-      const next = presetId === directionalFabricRecipe.id
-        ? applyDirectionalFabricRecipe(dto, parameterCatalog, project.bounds)
+      const next = [directionalFabricRecipe.id, waveFabricRecipe.id, centerFabricRecipe.id].some(id => id === presetId)
+        ? applyFabricHeightRecipe(dto, parameterCatalog, project.bounds,
+          presetId === waveFabricRecipe.id ? 'wave' : presetId === centerFabricRecipe.id ? 'center' : 'directional', Number(manufacturing.heightText))
         : applyFabricPreset(dto, presetId, parameterCatalog)
       commitDocument(next, dto)
       // A Fabric edit must not Apply or lose a separate unconfirmed Layout form.
@@ -524,14 +542,19 @@ export function App() {
     } catch (error) { setProjectError(error instanceof Error ? error.message : 'Fabric 配方应用失败。') }
     finally { recipeSavingRef.current = false; setRecipeSaving(false) }
   }
-  const editFabricHeight = (mode: 'uniform' | 'directional', key?: string, value?: import('./document/parameterSchema').ParameterValue) => {
+  const editFabricHeight = (mode: 'uniform' | 'directional' | 'wave' | 'center', key?: string, value?: import('./document/parameterSchema').ParameterValue) => {
     const dto = project.currentDocument
     if (!dto || !canEditDocument) return
     try {
       const pending = pendingLayoutFor(dto, layoutDraft)
-      const next = mode === 'uniform' ? setUniformFabricHeight(dto, parameterCatalog)
-        : setDirectionalFabricHeight(dto, parameterCatalog, project.bounds,
+      const working = isOriginalShape(dto) && !fabricBase(dto) ? setOriginalShape(dto, parameterCatalog, { height_mm: Number(manufacturing.heightText) }) : dto
+      const updated = mode === 'uniform' ? setUniformFabricHeight(working, parameterCatalog)
+        : mode === 'wave' ? setWaveFabricHeight(working, parameterCatalog, key && value !== undefined ? { [key]: value } : {})
+        : mode === 'center' ? setCenterFabricHeight(working, parameterCatalog, project.bounds,
           key && typeof value === 'number' ? { [key]: value } : {})
+        : setDirectionalFabricHeight(working, parameterCatalog, project.bounds,
+          key && typeof value === 'number' ? { [key]: value } : {})
+      const next = updated === dto ? dto : { ...updated, document_revision: dto.document_revision + 1 }
       commitDocument(next, dto)
       if (pending) setLayoutDraft(retainPendingFabricLayout(pending, next))
     } catch (error) {
@@ -976,18 +999,19 @@ export function App() {
               <div className="empty-examples">{examples.map((example) => <ExampleCard
                 key={example.id} example={example} onOpen={(id) => void openExample(id)} disabled={!connected || importing} />)}</div>
             </section>
-          ) : fabricBase(project.currentDocument) ? null : <PreviewPanel hideExport result={manufacturing.result} status={manufacturing.status}
+          ) : fabricBase(project.currentDocument) || isOriginalShape(project.currentDocument) ? null : <PreviewPanel hideExport result={manufacturing.result} status={manufacturing.status}
             projectName={project.fileName} isCurrentResult={safeCurrentResult}
             document={project.currentDocument} fabricPreview={fabricPreview.result}
             fabricStlTestExportEnabled={fabricStlTestExportEnabled}
             onGoManufacture={() => setBrowser((current) => ({ ...current, activeMode: 'manufacture' }))} />}
-          {fabricBase(project.currentDocument) && <section className="fabric-live-stage" hidden={browser.activeMode === 'design'} aria-label="中央 Fabric 设计预览">
+          {(fabricBase(project.currentDocument) || isOriginalShape(project.currentDocument)) && <section className="fabric-live-stage" hidden={browser.activeMode === 'design'} aria-label="中央 Fabric 设计预览">
             <header className="fabric-live-heading"><strong>3D 设计预览</strong><small>设计预览不代表最终制造已通过</small>
-              <span role="status">{parameterPending ? Object.keys(cellDraft).length && fabricDisplayPlan !== fabricPreview.displayResult
+              <span role="status">{noOriginalGeometry ? '请先导入图案或在设计中添加图形' : !hasPreviewShape ? '旧作品未选择形状，请在右侧启用保留原图或选择造型' : parameterPending ? Object.keys(cellDraft).length && fabricDisplayPlan !== fabricPreview.displayResult
                 ? '临时显示 · 松手提交后校准' : '有未提交参数 · 松手后自动更新'
                 : fabricPreview.status === 'building' ? '正在更新 · 保留上次有效画面' : fabricPreview.status === 'stale' ? '设计已变化 · 等待更新' : fabricPreview.error ?? ''}</span></header>
-            {fabricDisplayPlan ? <FabricThreePreview key={project.currentDocument?.document_id} plan={fabricDisplayPlan} />
-              : <div className="preview-empty"><p>{!fabricUnitCell(project.currentDocument) ? '在右侧选择单元类型，即可查看设计预览。' : fabricPreview.error ?? '正在准备设计预览，请稍候。'}</p></div>}
+            {fabricDisplayPlan ? <FabricThreePreview key={project.currentDocument?.document_id} plan={fabricDisplayPlan}
+              stale={fabricPreview.status !== 'ready'} />
+              : <div className="preview-empty"><p>{noOriginalGeometry ? '当前没有可挤出的原图。请导入图案或在设计中添加图形。' : !hasPreviewShape ? '在右侧选择单元类型，即可查看设计预览。' : fabricPreview.error ?? '正在准备原图或单元设计预览，请稍候。'}</p></div>}
           </section>}
           {project.evaluateStatus === 'loading' && <div className="viewer-notice" role="status">Python 正在计算最终二维几何…</div>}
           {linearActive && <div className="viewer-notice" role="status">未应用的尺寸渐变预览 · {!linearCurrent ? '正式设计已变化，请重新打开效果' :
@@ -1033,6 +1057,7 @@ export function App() {
         <div className="inspector-content">
         {!project.currentDocument && <div className="inspector-empty"><span className="inspect-glyph" aria-hidden="true">⌗</span><strong>未选择对象</strong><p>No selection</p><small>点击元素可查看其世界毫米信息。</small></div>}
         {project.currentDocument && <div style={{ display: browser.activeMode === 'design' ? undefined : 'none' }}><InspectorControls key={project.currentDocument.document_id}
+          selectionCount={browser.selectedElementIds.length}
           context={designContext === 'reference' || designContext === 'linear' || !designContext ? 'none' : designContext}
           onElementDraft={(key, value) => setElementDraft(current => {
             const next = { ...current }; if (typeof value === 'number') next[key] = value; else delete next[key]; return next
@@ -1060,8 +1085,14 @@ export function App() {
             <p className="layout-pending" role="status">有未应用修改</p>
             <p className="inspector-readonly">{linearDraft.kind === 'radial'
               ? '作用于全部有效图案元素，保留原中心与布局。按到中心的直线距离变化；半径处及范围外保持外围比例。线性及其他尺寸效果仍按原顺序叠加。'
+              : linearDraft.values.scope_mode === 'local' ? '只按进入本效果时的元素中心判断矩形范围；区域外完整保留之前效果。过渡只混合本层尺寸变化，不切割轮廓，不移动中心。'
               : '作用于全部有效图案元素，保留原中心与布局。方向起点为最小比例，终点为最大比例；范围外保持端点值。'}</p>
-            <p className="inspector-readonly">范围：X {linearDraft.bounds.min_x.toFixed(2)}–{linearDraft.bounds.max_x.toFixed(2)} mm，Y {linearDraft.bounds.min_y.toFixed(2)}–{linearDraft.bounds.max_y.toFixed(2)} mm。</p>
+            {linearDraft.kind === 'linear' && <div className="field-picker"><label htmlFor="linear-scope-mode">作用范围</label><select id="linear-scope-mode" value={linearDraft.values.scope_mode ?? 'global'}
+              disabled={!linearCurrent || !canEditDocument} onChange={event => {
+                const mode = event.target.value as 'global' | 'local'
+                setLinearDraft(current => current?.kind === 'linear' ? { ...current, values: { ...linearRegionDefaults(current.bounds), ...current.values, scope_mode: mode } } : current)
+              }}><option value="global">全图</option><option value="local">局部区域</option></select></div>}
+            <p className="inspector-readonly">图案参考范围：X {linearDraft.bounds.min_x.toFixed(2)}–{linearDraft.bounds.max_x.toFixed(2)} mm，Y {linearDraft.bounds.min_y.toFixed(2)}–{linearDraft.bounds.max_y.toFixed(2)} mm。{linearDraft.kind === 'linear' && linearDraft.values.scope_mode === 'local' ? '局部区域由下方中心、方向、长度和宽度独立确定。' : ''}</p>
             {project.currentDocument.document.modifiers.some(item => item.type === 'size' && item.enabled !== false && item.id !== linearSizeOwner(project.currentDocument!)?.modifier.id) &&
               <p className="inspector-readonly">其他尺寸效果仍按现有顺序叠加；本效果不会关闭它们。</p>}
             <ParameterInteraction.Provider value={{ syncToken: String(linearSync), onPending: onParameterPending }}>
@@ -1075,7 +1106,7 @@ export function App() {
             <p className="inspector-readonly">画布控制点拖动中限频自动预览；数值控件松手或确认后自动预览。控制点松手仍未应用，点击应用才提交。未应用输入不会保存；刷新或切换上下文将丢弃它们。</p>
             <div className="layout-inspector-actions">
               <button type="button" onClick={() => { setLinearDraft(current => current ? current.kind === 'radial'
-                ? { ...current, values: radialSizeDefaults(current.bounds) } : { ...current, values: { ...linearSizeDefaults } } : null); setLinearSync(value => value + 1) }}>恢复默认</button>
+                ? { ...current, values: radialSizeDefaults(current.bounds) } : { ...current, values: { ...linearSizeDefaults, ...linearRegionDefaults(current.bounds), scope_mode: current.values.scope_mode ?? 'global' } } : null); setLinearSync(value => value + 1) }}>恢复默认</button>
               <button type="button" onClick={() => { setLinearDraft(null); setDesignContext('effects') }}>取消效果</button>
               <button type="button" className="ui-primary" disabled={!canEditDocument || !linearCurrent || canvasEditing || parameterPending || !stagedLinear.result || !linearProposal.dto}
                 onClick={applyLinearSize}>应用效果</button>
@@ -1094,6 +1125,7 @@ export function App() {
             <ManufacturingPanel heightText={manufacturing.heightText} onHeightChange={manufacturing.setHeightText}
               projectWarnings={project.warnings}
               document={project.currentDocument} designBounds={project.bounds} parameterCatalog={parameterCatalog}
+              parameterLoad={parameterLoad} onRetryParameters={reconnect}
               actionHost={manufacturingActionHost} parametersDisabled={!canEditDocument} onUnitCellDraft={onUnitCellDraft} canUseInputs={canUseInputs}
               canEditSize={canEditDocument && project.evaluateStatus === 'ready'}
               onConfirmRealSize={(width, height) => {
@@ -1121,14 +1153,38 @@ export function App() {
               onOutputMode={(mode) => {
                 const dto = project.currentDocument
                 if (!dto || !canEditDocument) return
-                try { commitDocument(setFabricOutputMode(dto, mode), dto) }
+                try { const working = !fabricBase(dto) && isOriginalShape(dto) ? setOriginalShape(dto, parameterCatalog, { height_mm: Number(manufacturing.heightText) }) : dto
+                  commitDocument({ ...setFabricOutputMode(working, mode), document_revision: dto.document_revision + 1 }, dto) }
                 catch (error) { setProjectError(error instanceof Error ? error.message : '输出方式无效。') }
               }}
               onUnitCellType={(type) => {
                 const dto = project.currentDocument
                 if (!dto || !canEditDocument) return
-                try { commitDocument(setFabricUnitCellType(dto, type, parameterCatalog), dto) }
-                catch (error) { setProjectError(error instanceof Error ? error.message : 'Unit Cell 配置无效。') }
+                if (type !== 'none' && parameterLoad.status !== 'ready') {
+                  setProjectError(parameterLoad.status === 'loading' ? '正在加载单元参数，请稍候。' : parameterLoad.error ?? '单元参数加载失败，请重试。')
+                  return
+                }
+                try {
+                  if (type === 'original') commitDocument(setOriginalShape(dto, parameterCatalog,
+                    dto.document.metadata.fabric_config ? {} : { height_mm: Number(manufacturing.heightText) }), dto)
+                  else {
+                    const working = fabricBase(dto) ? dto : setOriginalShape(dto, parameterCatalog, { height_mm: Number(manufacturing.heightText) })
+                    commitDocument({ ...setFabricUnitCellType(working, type, parameterCatalog), document_revision: dto.document_revision + 1 }, dto)
+                  }
+                }
+                catch (error) { setProjectError(`切换 ${type} 失败：${error instanceof Error ? error.message : 'Unit Cell 配置无效。'} 当前仍为 ${fabricUnitCell(dto)?.type ?? '无单元'}。`) }
+              }}
+              onOriginalShapeParameter={(key, value) => {
+                const dto = project.currentDocument
+                if (!dto || !canEditDocument) return
+                try { const pending = pendingLayoutFor(dto, layoutDraft)
+                  const next = setOriginalShape(dto, parameterCatalog, {
+                    ...((dto.document.metadata.fabric_config as any)?.original_shape ? {} : { height_mm: Number(manufacturing.heightText) }),
+                    [key]: value,
+                  })
+                  commitDocument(next, dto)
+                  if (pending) setLayoutDraft(retainPendingFabricLayout(pending, next))
+                } catch (error) { setProjectError(error instanceof Error ? error.message : '原图参数无效。'); setParameterSyncVersion(v => v + 1) }
               }}
               onUnitCellParameter={(section, key, value) => {
                 const dto = project.currentDocument
@@ -1145,7 +1201,12 @@ export function App() {
               onFabricModifierEnabled={(type, enabled) => {
                 const dto = project.currentDocument
                 if (!dto || !canEditDocument) return
-                try { commitDocument(setFabricModifierEnabled(dto, type, enabled, parameterCatalog), dto) }
+                try {
+                  const working = isOriginalShape(dto) && !fabricBase(dto)
+                    ? setOriginalShape(dto, parameterCatalog, { height_mm: Number(manufacturing.heightText) }) : dto
+                  const next = setFabricModifierEnabled(working, type, enabled, parameterCatalog)
+                  commitDocument(next === dto ? dto : { ...next, document_revision: dto.document_revision + 1 }, dto)
+                }
                 catch (error) { setProjectError(error instanceof Error ? error.message : 'Fabric Modifier 配置无效。') }
               }}
               onFabricModifierField={(type, fieldId) => {
@@ -1163,6 +1224,8 @@ export function App() {
               onFabricPreset={presetId => void applyFabricRecipe(presetId)} recipeSaving={recipeSaving}
               onHeightEffect={mode => editFabricHeight(mode)}
               onDirectionalHeightParameter={(key, value) => editFabricHeight('directional', key, value)}
+              onWaveHeightParameter={(key, value) => editFabricHeight('wave', key, value)}
+              onCenterHeightParameter={(key, value) => editFabricHeight('center', key, value)}
               heightSyncToken={`${project.documentRevision}:${project.evaluateStatus}:${parameterSyncVersion}`}
               onHeightPending={onParameterPending}
               computeBusy={computeBusy} isComputeBusy={computeRequests.isBusy}

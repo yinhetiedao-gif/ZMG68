@@ -60,9 +60,10 @@ const positionParameterKeys: Record<string, string[]> = {
 export function InspectorControls({ dto, selected, onEdit, disabled, parameterCatalog = null,
   layoutSelection = null, layoutDraft = null, layoutBusy = false, onLayoutDraftEdit,
   onApplyLayout, onCancelLayout, layoutActionsDisabled = false, gradientExample = false,
-  selectedFieldId = '', onSelectField, syncToken = '', onPending, imageSourceNames = {}, context = 'all', onElementDraft }: {
+  selectedFieldId = '', onSelectField, syncToken = '', onPending, imageSourceNames = {}, context = 'all', onElementDraft, selectionCount = selected ? 1 : 0 }: {
   dto: PatternDocumentDTO
   selected: FinalGeometry | null
+  selectionCount?: number
   onEdit: (action: EditAction) => void
   disabled: boolean
   parameterCatalog?: ParameterCatalog | null
@@ -273,7 +274,7 @@ export function InspectorControls({ dto, selected, onEdit, disabled, parameterCa
         </div>}
     </InspectorSection>
     <InspectorSection label="元素变换" title="元素" activeKey={selected?.id} hidden={context !== 'all' && context !== 'element'}>
-      {selected ? <>
+      {selectionCount > 1 ? <p className="inspector-readonly">已选择 {selectionCount} 个元素。当前不支持批量直接变换，请选择单个元素编辑。</p> : selected ? <>
         <div className="inspector-selection">
           <strong>已选元素</strong>
           <dl><dt>类型</dt><dd>{selected.type}</dd>

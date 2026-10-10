@@ -1,7 +1,7 @@
 """F2 regular placement and immutable derived instance plan."""
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import lru_cache
 import math
 from typing import Any, Mapping
@@ -99,6 +99,9 @@ class FabricInstancePlan:
     skipped_count: int = 0
     # Full placement centers, never narrowed by display-only sampling.
     field_bounds_mm: tuple[float,float,float,float] | None = None
+    # Optional final-contour meshes, keyed by instance ID. No document geometry
+    # or fixed-unit factory is replaced; existing single prototypes are unchanged.
+    contour_prototypes: dict[str, Any] = field(default_factory=dict)
 
     @property
     def count(self) -> int:
@@ -114,6 +117,9 @@ class FabricInstancePlan:
                 "bounds_mm": self.bounds_mm,
                 "prototype": {"vertices": self.prototype.vertices.tolist(),
                               "faces": self.prototype.faces.tolist()},
+                **({'shape_source': 'original', 'contour_prototypes': {
+                    key: {'vertices': mesh.vertices.tolist(), 'faces': mesh.faces.tolist()}
+                    for key, mesh in self.contour_prototypes.items()}} if self.contour_prototypes else {}),
                 "instances": [{"id": item.id, "x_mm": item.x_mm, "y_mm": item.y_mm,
                                "z_mm": item.z_mm, "rotation_deg": item.rotation_deg,
                                "scale": item.scale, "scale_x": item.scale_x,

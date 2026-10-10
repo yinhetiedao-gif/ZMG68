@@ -406,3 +406,19 @@ button.ui-danger:hover:not(:disabled) { background: #fff1ef; }
 .gradient-controls [data-gradient-handle] { fill: #fff; cursor: grab; touch-action: none; }
 .gradient-controls [data-gradient-handle]:active { cursor: grabbing; fill: #bcf5ef; }
 .gradient-controls text { stroke: none; fill: #006c79; paint-order: stroke; }
+
+/* Readable inspector controls without changing the workspace or hit geometry. */
+.inspector .parameter-heading, .inspector .parameter-control > label,
+.inspector .parameter-toggle, .inspector .field-picker, .inspector .shape-replacement > label,
+.inspector .inspector-selection, .inspector .inspector-readonly { font-size: 14px; }
+.inspector .parameter-inputs input[type=number] { font-size: 14px; min-height: 38px; width: 112px; min-width: 96px; }
+.inspector .parameter-control select, .inspector .shape-replacement select, .inspector .field-picker select { font-size: 14px; min-height: 38px; }
+.inspector .parameter-reset { font-size: 13px; min-height: 36px; }
+.inspector .inspector-section h3, .inspector .inspector-selection > strong { font-size: 14px; }
+.inspector .parameter-inputs { flex-wrap: wrap; }
+.inspector .parameter-inputs input[type=range] { min-width: 56px; }
+.unit-cell-choices { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin: 10px 0; }
+.unit-cell-choices button { min-width: 0; border: 1px solid #b9cbd5; border-radius: 6px; padding: 6px 2px; color: #35576d; background: #fff; }
+.unit-cell-choices button[aria-pressed=true] { background: #e3f1f7; border-color: #397e9e; }
+.unit-cell-choices svg { display: block; height: 32px; width: 32px; margin: 0 auto 4px; fill: none; stroke: currentColor; stroke-width: 1.6; }
+.unit-cell-choices span { font-size: 12px; }

@@ -816,11 +816,41 @@ class FieldMapping:
 
 
 @dataclass(frozen=True)
+class LinearSizeRegion:
+    """Finite oriented rectangle in document world units; never clips contours."""
+    center_x: float
+    center_y: float
+    length: float
+    width: float
+    angle: float
+    feather: float = 0
+
+    def __post_init__(self):
+        for value in asdict(self).values():
+            if type(value) not in (int, float):
+                raise ValueError("线性局部范围参数必须是有限数字。")
+            _finite(value)
+        if self.length <= 0 or self.width <= 0 or not 0 <= self.feather <= min(self.length, self.width) / 2:
+            raise ValueError("线性局部范围长度/宽度必须大于0，过渡不能超过半宽或半长。")
+
+    def weight(self, element: Element) -> float:
+        radians = math.radians(self.angle)
+        dx, dy = element.x - self.center_x, element.y - self.center_y
+        along = dx * math.cos(radians) + dy * math.sin(radians)
+        across = -dx * math.sin(radians) + dy * math.cos(radians)
+        edge = min(self.length / 2 - abs(along), self.width / 2 - abs(across))
+        if edge < 0:
+            return 0
+        return min(1, edge / self.feather) if self.feather else 1
+
+
+@dataclass(frozen=True)
 class SizeModifier:
     id: str
     field_id: str
     mapping: FieldMapping
     enabled: bool = True
+    region: LinearSizeRegion | None = None
 
     def __post_init__(self):
         if not isinstance(self.id, str) or not self.id or not isinstance(self.field_id, str) or not self.field_id:
@@ -834,8 +864,11 @@ class SizeModifier:
         return self.mapping.evaluate(value, neutral=1.0) if self.enabled else 1.0
 
     def to_dict(self) -> dict:
-        return {"id": self.id, "type": "size", "field_id": self.field_id,
-                "mapping": asdict(self.mapping), "enabled": self.enabled}
+        result = {"id": self.id, "type": "size", "field_id": self.field_id,
+                  "mapping": asdict(self.mapping), "enabled": self.enabled}
+        if self.region is not None:
+            result["region"] = asdict(self.region)
+        return result
 
 
 @dataclass(frozen=True)
@@ -946,9 +979,18 @@ class SharedFieldEngine:
         result = deepcopy(source)
         for modifier in self.modifiers:
             if not modifier.enabled: continue
+            region_context = FieldContext.from_elements(result) if isinstance(modifier, SizeModifier) and modifier.region is not None else None
             for element, value in zip(result, values[modifier.field_id]):
                 if isinstance(modifier, SizeModifier):
+                    weight = 1
+                    if modifier.region is not None:
+                        weight = modifier.region.weight(element)
+                        if weight == 0:
+                            continue  # Preserve the complete previous layer, even its minimum size.
+                        value = self.fields.evaluate(modifier.field_id, element, region_context)
                     scale = modifier.scale(value)
+                    if weight != 1:
+                        scale = 1 + (scale - 1) * weight
                     element.width = max(0.01, element.width * scale)
                     element.height = max(0.01, element.height * scale)
                 elif isinstance(modifier, RotationModifier):
@@ -983,7 +1025,8 @@ class SharedFieldEngine:
                 raise ValueError("SharedFieldEngine 修饰器必须包含非空 id 和 field_id。")
             mapping = FieldMapping(**raw.get("mapping", {}))
             if raw.get("type") == "size":
-                modifiers.append(SizeModifier(raw["id"], raw["field_id"], mapping, raw.get("enabled", True)))
+                modifiers.append(SizeModifier(raw["id"], raw["field_id"], mapping, raw.get("enabled", True),
+                    LinearSizeRegion(**raw["region"]) if raw.get("region") is not None else None))
             elif raw.get("type") == "rotation":
                 modifiers.append(RotationModifier(raw["id"], raw["field_id"], mapping, raw.get("enabled", True)))
             elif raw.get("type") == "field_position":

@@ -23,10 +23,10 @@ export interface ParameterCatalog {
   definitions: Record<'layout' | 'field' | 'modifier', Record<string, ParameterGroup>> &
     { element?: Record<string, ParameterGroup>; fabric_base?: Record<string, ParameterGroup>;
       fabric_cell?: Record<string, ParameterGroup>; fabric_placement?: Record<string, ParameterGroup>;
-      fabric_modifier?: Record<string, ParameterGroup> }
+      fabric_modifier?: Record<string, ParameterGroup>; fabric_original?: Record<string, ParameterGroup> }
 }
 
-export function groupFor(catalog: ParameterCatalog | null, category: 'layout' | 'field' | 'modifier' | 'element' | 'fabric_base' | 'fabric_cell' | 'fabric_placement' | 'fabric_modifier',
+export function groupFor(catalog: ParameterCatalog | null, category: 'layout' | 'field' | 'modifier' | 'element' | 'fabric_base' | 'fabric_cell' | 'fabric_placement' | 'fabric_modifier' | 'fabric_original',
   type: string): ParameterGroup | null {
   return catalog?.definitions?.[category]?.[type] ?? null
 }

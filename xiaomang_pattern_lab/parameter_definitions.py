@@ -200,9 +200,19 @@ def parameter_definitions() -> dict[str, Any]:
                 _size("depth_mm", "单元深度", 4) | {"slider_min": 0.3, "slider_max": 20, "slider_step": 0.1},
                 _size("height_mm", "单元高度", 3) | {
                     "slider_min": 0.5, "slider_max": 10, "slider_step": 0.1},
-            ]} for kind, label in (
+            ] + ([_p("shape_ratio", {"frustum": "顶部比例", "cross": "臂宽比例", "ring": "孔径比例"}[kind],
+                     "number", .5, min=.1, max=.9, step=.01)] if kind in ("frustum", "cross", "ring") else [])} for kind, label in (
                 ("cylinder", "圆柱"), ("cone", "圆锥"), ("pyramid", "方锥"),
-                ("double_tower", "双塔"), ("fin", "鳍片"))
+                ("double_tower", "双塔"), ("fin", "鳍片"), ("dome", "圆顶"),
+                ("frustum", "圆台"), ("hex_prism", "六角柱"), ("wedge", "楔形脊"),
+                ("cross", "十字凸台"), ("ring", "圆环"))
+        },
+        "fabric_original": {
+            "original": {"label": "原图形状", "parameters": [
+                _p("size_scale", "图形大小", "number", 1, min=.01, max=100, step=.01) | {
+                    "slider_min": .3, "slider_max": 3, "slider_step": .01},
+                _size("height_mm", "图形高度", 2) | {"slider_min": .5, "slider_max": 10, "slider_step": .1},
+            ]},
         },
         "fabric_placement": {
             "regular": {"label": "规则布点", "parameters": [

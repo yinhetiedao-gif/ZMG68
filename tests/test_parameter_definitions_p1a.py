@@ -7,6 +7,23 @@ from xiaomang_pattern_lab.web.app import create_app
 
 
 class ParameterDefinitionTests(unittest.TestCase):
+    def test_all_eleven_unit_cells_have_real_common_schema_and_valid_defaults(self):
+        expected = {'cylinder', 'cone', 'pyramid', 'double_tower', 'fin',
+                    'dome', 'frustum', 'hex_prism', 'wedge', 'cross', 'ring'}
+        with TestClient(create_app()) as client:
+            catalog = client.get('/api/v1/contract').json()['parameter_definitions']
+        groups = catalog['definitions']['fabric_cell']
+        self.assertEqual(set(groups), expected)
+        for kind, group in groups.items():
+            with self.subTest(kind=kind):
+                parameters = {p['id']: p for p in group['parameters']}
+                self.assertTrue({'size_mode', 'width_mm', 'depth_mm', 'height_mm'} <= parameters.keys())
+                for dimension in ('width_mm', 'depth_mm', 'height_mm'):
+                    self.assertEqual(parameters[dimension]['unit'], 'mm')
+                for p in parameters.values():
+                    self.assertEqual(validate_parameter(p, p['default']), p['default'])
+        self.assertNotIn('shape_ratio', {p['id'] for p in groups['dome']['parameters']})
+
     def test_catalog_has_current_model_families(self):
         catalog = parameter_definitions()
         self.assertEqual(catalog["units"], "mm")

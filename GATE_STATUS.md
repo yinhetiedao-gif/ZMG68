@@ -1,5 +1,73 @@
 # Gate 状态（2026-10-05）
 
+## 阶段一完整工作流本地收口（2026-10-10）
+
+- 提交前feature/pattern-library-reuse / dd16f64aab07e894cdc09218c56a416579b45203，暂存区空；原backup/web-native-design-local-validated保持不动。完整A/B/C核对见`docs/PHASE1_COMPLETE_LOCAL_CLOSEOUT.md`，不是仅提交中心配方。
+- 明确47文件（22实现+25测试/fixture/记录/当前中心验收工具），六新单元/目录/布点、原图逐元素轮廓与高度、线性真实范围/元素UI、三套形状保持高度配方及必要依赖均纳入。基线两步工作区/图形/底图/尺寸快捷/控制柄/请求/草稿/Undo由父提交保留。无新产品开发/依赖/线上配置/旧补丁恢复。
+- 复用当前中心原图/Fin三套切换、Reset/Undo/Redo/刷新/保存失败/引用及stale证据；3实际STL与300逐元素读回仍存在。仅图案有效多组件/带基底连接要求分别保留。源码早于浏览器/80测试/构建，之后无产品修改。
+- 本轮只补交叉Web13文件51/51 PASS，覆盖原生设计/底图/线性径向/局部范围/控制柄/示例/草稿；最近80/34及build分别引用，不与51或历史叠加为全量。无Tk全量/重复制造矩阵/压力。
+- 原8792页鼠标确认OPEN；未应用快捷/旧Undo刷新边界、混合图形/旧堆栈限制、圆环慢项和warnings保留。本批公网/Linux/切片/实物未验收，历史Linux记录不抹掉也不冒充本批证明。
+- 明确列表本地提交消息`feat: finalize phase1 shape-preserving height recipes`，成功后创建新稳定`backup/web-phase1-complete-local-validated`，实际SHA与指向由最终Git核对，不覆盖旧引用。C类22旧验收/探查脚本及忽略资产保留、不被新Git引用保护。无push/部署/新阶段。
+
+## 1B 中心隆起与三套高度配方兼容（2026-10-10，本地未提交）
+
+- 分支/HEAD仍feature/pattern-library-reuse、dd16f64aab07e894cdc09218c56a416579b45203；所有既有未提交成果保留，暂存区空。无提交/推送/部署/生产配置/新依赖/旧补丁恢复。详见`docs/CENTER_RECIPE_1B_LOCAL_ACCEPTANCE.md`。
+- 数值先证实已有RingField radius=0、ring_width=2R、falloff=1、invert=false得到中心1/半径一半0.5/边界外0；沿用既有Height，外围最低高度，不新增算法/隐藏图片。默认中心为实际世界bounds中点，R半对角线，首次明确值保存，Reset稳定不重定位。
+- center-height v1、现有专用field ID归属/共享引用隔离；三套主要高度方案共用Height-only配方入口，原图/已选单元/base/output/placement/2D Size/Rotation保持；明确造型替换旧预设另行说明，不自动迁移历史。Apply/Reset各一次commit/Undo，save失败不替换，pending Layout/快捷二维表单边界保留。
+- 独立8797/当前生产dist/Edge真实WebGL与独立草稿：默认/宽缓/窄/偏心四图、非零原点/非正方形/.5mm映射、原图含孔+二维尺寸旋转、Fin均通过；两种来源各做方向→波浪→中心→方向切换、Reset/Undo/Redo/刷新完整引用恢复。松手/数值确认后自动预览，不宣称逐帧实时。56POST全200，参数动作1evaluate+1preview、0fusion。
+- 实际下载原图默认/偏心及Fin三份STL；每份100实体逐顶点/XY/Z/采样高度比对，原图真孔保留，Z=0、封闭/正体积/绕序一致/0退化面、100有效组件（不宣称融合整体）。Python带Solid9点为1组件，仅图案9组件；不对全部Fabric强制单组件。
+- 最终Web11文件80/80、Python34/34（含中心9）、build/diff check PASS；旧批次数不累加。已有bundle/Starlette warnings保留，中间fixture422、测试输入focus及脚本PYTHONPATH错误如实记录，无算法/Validator放宽。证据`work/center-height-1b-20261010/`。
+- 本轮范围：1B本地验收完成；公网/Linux/切片/实物未验收，本地结果不代替旧用户原页OPEN问题。未提交不是HEAD内成果，停止等待用户确认，不自动新增配方。
+
+## 原图形状默认及逐元素高度（2026-10-09，本地未提交）
+
+- HEAD/分支不变，保留所有前序未提交成果、暂存区空；无提交/推送/部署/生产开关修改/新依赖/旧补丁恢复。详见 `docs/ORIGINAL_SHAPE_LOCAL_ACCEPTANCE.md`。
+- 明确 shape_source=original + original_shape；无Fabric配置默认保留旧统一厚度原图链，额外轻量预览候选不提交。旧Fabric null/无单元不全局重解释；需主动选择原图。旧单元档案、输出、尺寸、效果保留，选择与生成方式共用一次提交。
+- 最终二维真实轮廓/孔洞 → 现有Adapter/单位高度Extrusion → 逐元素真实轮廓原型 → 现有Height场及变换 → 同一设计预览/候选 → 既有严格融合/校验/STLExporter；不以bbox/统一圆柱替代，不重复二维变换。原图方向/波浪操作只应用高度，不偷偷换方锥；完整造型替换另行说明。
+- 独立本地8796/当前生产dist/独立Edge与IndexedDB：默认169轮廓、大小/固定高度拖动、方向/波浪、原图↔Fin、Undo/Redo、草稿恢复、旧下载失效、真孔/L形通过。两种滑杆各12moves、拖中0计算、松手各1commit+1evaluate+1preview，无fusion；最后会话45个POST均200。旧8792原页历史问题不以本轮替代关闭。
+- 浏览器实际4份Fabric+1份普通STL已下载/严格读回；169逐元素顶点/XY/Z/高度独立对照，孔样本2组件/真孔保留。仅图案Z=0、多组件有效，不宣称融合；Solid/Grid候选/融合/读回回归及Grid孔洞detach拒绝通过。
+- 最新 Web49/49，Python84/84+31子测试，build PASS。各历史批次不相加；中间测试输入409及控件等待/属性误写已如实记录。Validator/普通制造/融合算法/Exporter未放宽或重写。
+- 截图、HTTP、实际STL与逐元素读回：`work/original-shape-20261009/`。仅本地，尚未公网/Linux/切片/实物验收；既有bundle与Starlette/httpx warning保留。仅逐元素高度，非法/歧义/开放轮廓拒绝；不实现自定义轮廓全区域重复或内部连续曲面。
+
+## 1B 波浪起伏完整Fabric配方（2026-10-09，本地未提交）
+
+- 分支`feature/pattern-library-reuse`/HEAD `dd16f64aab07e894cdc09218c56a416579b45203`不变；保留前序所有未提交/未跟踪成果，开始暂存区空，源码保护在`work/wave-recipe-1b-20261009/*.before`。上一批本地收口及8792原页鼠标确认仍OPEN，不以本轮另页替代。不提交、推送、部署或移动旧稳定引用。
+- 复用现有1A高度归属/引用扫描及正常DTO提交，新增`wave-height`v1完整配方、Wave专用ID和参数/Height绑定、Reset；direction/wave ID映射向后兼容version1。用户Wave、其他Fabric消费者、Composite/legacy共享引用均copy-isolate，不删除原场或叠加重复层。原五预设/Python算法/Validator/依赖/生产配置不变。
+- 配方管理Pyramid4.8×4.8×3mm、Pattern Points、Follow Pattern、完整Wave(36mm/0°/phase0/amplitude1/offset0/invertfalse)及2–6mm高度。保留输出方式/基底/范围外效果/原图/二维Layout、Size/Rotation/Position。应用前说明布点/单元变化，save失败不替换；Apply/Reset一次Undo，保存/刷新恢复完整图。
+- 原模式切换会清未应用2D快捷表单；本轮最小保护：仅上下文退出才结束该表单，切制造不清；配方应用遇未应用快捷效果提示先回设计应用/取消。pending Layout仍保留、不偷Apply；未应用shortcut刷新和Undo历史持久化边界不扩展。
+- 开始浏览器检查时8792/8793无监听，独立本地8795运行当前源码/production dist（最终`index-COZVmRCr.js`），只该测试进程使用既有本地test-export授权，后端提交身份UNKNOWN；独立Edge/IndexedDB不覆盖用户草稿。真实100点、60×60mm框/非零原点/0.5mm源比例，默认/120mm长波/18mm短波/45°斜向五截图含2D渐变组合；world-mm高度逐项校对，XY/相对大小/旋转不变、不重复Scale。
+- 实际slider12次鼠标move→拖动0commit/0请求，松手1commit、1evaluate+1preview，0最终制造；旧结果下载失效/Reset/Undo/Redo/refresh通过。真实默认/短波Fabric下载均HTTP200、30,084bytes/600三角面，严格读回58.800001×58.800001×5.879385/5.285575mm，100独立封闭组件、Z=0/正体积/绕序一致/0退化；逐单元与计划一致，不称已连接整体。带Solid默认/变体9点Python读回为1组件，仅单元9组件；浏览器带基底波浪下载未执行。
+- 最终Web12文件67/67 PASS（早期32/46批重叠不累加）、Python35 PASS另13 subtests、新Wave13用例包含其中；build/diff check PASS。日志/截图/真实文件/报告在同work目录，说明见`docs/WAVE_RECIPE_1B_LOCAL_ACCEPTANCE.md`。早期测试脚本selector超时和trimesh.split缺graph engine已换为真实输入定位及固定分离样本面组只读核对，无安装依赖/改模型。bundle/Starlette warning、用户原页OPEN保留。
+- 公网/Linux/Render/切片/实物NOT TESTED，无Physical声明；中心隆起及其他图案逻辑未开始。停止，等待用户确认。
+
+## 8792 用户现场参数目录（2026-10-09，服务已对齐，原页鼠标验收 OPEN）
+
+- 本轮不引用8793验收关闭用户故障。实际Edge现场先为8792附加文字路径，169元素/Fin，新六项鼠标打开菜单均显示参数不可用；正常根地址后来显示同一作品的草稿恢复提示。Windows工具读取URL失败并强制停止；用户随后授权改为代码/API修正，原页鼠标确认由用户配合。没有清草稿、换项目或恢复旧补丁。
+- 8792原PID21016（.venv启动器父PID27276，10:03启动）确属当前工作区；HTTP200目录只有原五项，`parameter_definitions.definitions.fabric_cell.dome`缺失，另外五项同样缺失。磁盘Schema/registry于11:43–11:47加入六项，新Python进程读取完整11项。首个断点为运行后端目录缺定义，不是空专属参数被过滤。源代码解析无类型过滤；组件groupFor查询缺项返回null，canSelectCell=false、option disabled。浏览器内部React状态/DOM属性的直接取证仍UNKNOWN，未以源码推导冒充捕获。
+- 只重启已核对的8792服务（当前PID29796、父29016），8793未触碰；保持已确认的本地staging/test-export能力，使用当前web/dist。原/新目录及headers/health留在`work/dome-contract-8792-20261009/`。新目录11项完整；Dome公共size_mode/width_mm/depth_mm/height_mm，不需shape_ratio；Frustum/Cross/Ring另有真实shape_ratio。新前端产物`index-B0jI0MJc.js`，运行后端提交身份仍UNKNOWN（未提交源码不能靠HEAD鉴别）。
+- 最小显示修正：无单元布点区明确提示；目录加载/失败/缺regular分别说明，不伪造参数；无单元清除中央旧模型，禁制造；保留旧有效模型时明确“上次预览，已失效”，不重建renderer来更新提示。保存/Undo和既有共享请求保护不变，未修改生产Python算法/依赖/Validator。
+- Web相关7文件36/36 PASS，build PASS；Python参数目录/仅单元相关13 PASS+11子测试。最初新增测试2项失败是测试选错无portal按钮名称及fixture仍为Pattern Points，改为真实状态后通过；无放宽产品断言。STL读回脚本第一次因Windows默认GBK读UTF8报告失败，指定UTF8后读回，不重新制造冒充修复。
+- 当前8792真实HTTP：11种各9实例预览200、cell_type对应且Z=0；Dome/Fin融合与model.stl均200、严格读回各9组件/水密/正体积/绕序一致/零退化，44.8×28.8×3mm。修改宽度后旧结果下载422/stale_result，失败不返回STL。此为API实际交付文件，不是原用户页鼠标下载。文件、原始报告/headers及日志同上述目录。
+- 原页鼠标11项切换、刷新/草稿恢复/重载、实际WebGL与浏览器下载仍待用户确认，问题不标最终关闭；不拿过去8793的测试替代。bundle/Starlette warning保留。HEAD仍dd16f64aab07e894cdc09218c56a416579b45203；未提交、推送、部署、新稳定引用或新功能。
+
+## Unit Cell 选择 / 参数加载（2026-10-09，本地未提交）
+
+- 保留全部现有未提交成果，HEAD仍`dd16f64aab07e894cdc09218c56a416579b45203`。原提示为Cell/placement Schema合并报错；目录失败曾静默置null。当前8793实际contract200含11种及regular，原历史失败未复现、具体缺失字段UNKNOWN，无旧进程证据，不重启。
+- 最小Web接线：独立参数加载/失败/重试、逐类型可用性、拒绝选择不留假标签、保留已有placement及合法尺寸；未改Python核心/依赖/开关。真实8793加载新构建、11种选择与预览就绪；卡片用Enter覆盖，窄IAB鼠标全项验收不声称PASS。
+- 当前页Fin及Ring实际制造/浏览器下载/原Exporter读回：9组件、36×36×3mm、Z=0、水密/正体积/绕序一致/0退化，Ring真实孔保留。类型切换stale、Undo/Redo、快速选择最后Ring、参数重载通过；网络故障注入由定向测试覆盖。
+- Web20/20及扩大子集40/40（重叠不累加），Python58 PASS+15子测试，build/diff check PASS。完整证据边界、文件/命令及剩余UNKNOWN见`docs/UNIT_CELL_SELECTION_LOCAL_ACCEPTANCE.md`。不提交、不推送、不部署，STOP。
+
+## 新单元 / 线性真实局部范围 / 元素UI / 输出分类（2026-10-09，本地未提交）
+
+- 分支`feature/pattern-library-reuse`，基线及当前HEAD `dd16f64aab07e894cdc09218c56a416579b45203`；原稳定引用不移动，13个旧未跟踪验收脚本保留，暂存区为空。本轮不提交、推送、部署或改生产开关；保护ZIP在`work/unit-range-ui-20261009/baseline-source.zip`。
+- 生成方式/单元输出/条件显示Solid与Grid基底分层；空单元不误走普通制造。元素控件14px/38px高；4种选择状态定向测试，3种桌面尺寸及缩小CSS视口布局通过。多选只做明确只读反馈，不新增手势或批量编辑；原生浏览器工具栏缩放NOT TESTED。
+- Linear旧全图保持原行为；SizeModifier新增可选有限矩形region，权威Python按本效果输入中心判断、范围外完整保留前层，过渡仅混合本层缩放差。现有专用ID/引用隔离、草稿/Apply/Undo复用；两端/中心/宽度与右栏同一候选配置。5轮各30指针事件→10次evaluate，最多1在途；Zoom/Pan下真实拖动同步，0commit，Apply1commit。Reset/Cancel/Undo/刷新通过；未应用快捷输入仍不持久化。
+- 6种新Cell共享原型工厂和缓存：dome/frustum/hex_prism/wedge/cross/ring。圆环保留孔洞且显式索引上下环面/内外壁；无删坏面、Repair或降低Validator。每种9实例真实WebGL预览、制造、浏览器下载及STL读回PASS；Solid/Grid及F3变换/Density定向回归通过。
+- 实际10个下载文件读回全部封闭/正体积/绕序一致/零退化：普通与仅单元9组件，Solid/Grid1组件，400圆环400组件。Grid孔洞1个悬空实例真实422/禁用下载；用户配置明确加宽线后重新制造通过，保留失败报告。
+- 最终Python99 PASS另28 subtest；Web24文件116 PASS；末次界面细调后5文件18 PASS（重叠不累加）；production build PASS。普通制造/STL、F2/F3、尺寸/保存/请求与旧响应保护回归通过。无无关Tk全量、无5000重复压力。
+- 100/400预览约0.42–0.67 / 0.44–0.51秒、各1请求；实例创建约4.9–7.4 / 8.2–10.6ms。六种100实例候选到STL严格读回约0.148–5.956秒；400圆环direct约13.098秒，HTTP冷制造到下载约22.810秒，缓存复用约1秒，不冒称制造即时。bundle/Starlette warning及5000既有限制未关闭。
+- 完整修改/命令/早期失败/截图/数值与文件证据：`docs/UNIT_SHAPES_LINEAR_REGION_LOCAL_ACCEPTANCE.md`及上述work目录。公网、Linux/Render、切片、实物均NOT TESTED；未创建新稳定/Physical引用。已停止，不扩展其他效果。
+
 ## 原生Web设计/制造工作流本地收口（2026-10-09）
 
 - 用户授权仅本地提交及稳定引用，不授权push/Render/线上配置/新功能/历史重写。实际分支`feature/pattern-library-reuse`，提交前HEAD `b5338a9af41d25ccd191d34366115578265920bb`；开始暂存区为空，未切换或操作其他worktree。

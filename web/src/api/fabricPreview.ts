@@ -20,6 +20,8 @@ export interface FabricDesignPreview {
   unmatched_reference_count: number
   preview_simplified: boolean
   prototype: { vertices: number[][]; faces: number[][] } | null
+  shape_source?: 'original' | 'unit_cell'
+  contour_prototypes?: Record<string, { vertices: number[][]; faces: number[][] }>
   instances: FabricPreviewInstance[]
   base_preview: { type: 'solid' | 'grid'; bounds_mm: number[]; thickness_mm: number;
     spacing_x_mm: number | null; spacing_y_mm: number | null; line_width_mm: number | null }
@@ -50,6 +52,13 @@ export interface FabricPreviewInstance {
   height_mm: number
 }
 
+function validContourPrototype(value: unknown): boolean {
+  const mesh = value as { vertices?: unknown[]; faces?: unknown[] } | undefined
+  return Boolean(mesh && Array.isArray(mesh.vertices) && mesh.vertices.length && Array.isArray(mesh.faces) && mesh.faces.length
+    && mesh.vertices.every(v => Array.isArray(v) && v.length === 3 && v.every(Number.isFinite))
+    && mesh.faces.every(f => Array.isArray(f) && f.length === 3 && f.every(i => Number.isInteger(i) && i >= 0 && i < mesh.vertices!.length)))
+}
+
 export async function requestFabricPreview(dto: PatternDocumentDTO, signal?: AbortSignal,
   fetcher: typeof fetch = fetch): Promise<FabricDesignPreview> {
   const started = performance.now()
@@ -69,6 +78,7 @@ export async function requestFabricPreview(dto: PatternDocumentDTO, signal?: Abo
   if (payload.document_id !== requestId || payload.document_revision !== requestRevision)
     throw new Error(`Fabric 预览版本不匹配：请求 ${requestId} / revision ${requestRevision}，响应 ${String(payload.document_id)} / revision ${String(payload.document_revision)}。`)
   if (!Array.isArray(payload.instances) || payload.instances.length !== payload.count
+    || (payload.shape_source ?? 'unit_cell') !== ((dto.document.metadata.fabric_config as any)?.shape_source === 'original' ? 'original' : 'unit_cell')
     || (payload.output_mode ?? 'cells_with_base') !== fabricOutputMode(dto)
     || !['fixed', 'follow_pattern'].includes(payload.unit_size_mode)
     || !Number.isInteger(payload.total_count)
@@ -90,6 +100,8 @@ export async function requestFabricPreview(dto: PatternDocumentDTO, signal?: Abo
       || typeof instance.base_height_mm !== 'number' || !Number.isFinite(instance.base_height_mm)
       || instance.base_height_mm <= 0
       || instance.scale_x <= 0 || instance.scale_y <= 0)
+    || payload.shape_source === 'original' && (!payload.contour_prototypes || payload.instances.some(i =>
+      !validContourPrototype(payload.contour_prototypes?.[i.id])))
     || !payload.base_preview || !Array.isArray(payload.base_preview.bounds_mm))
     throw new Error('Fabric 预览数据不完整或格式过旧；请重启当前项目的 FastAPI 后端。')
   return { ...payload, client_request_ms: performance.now() - started }

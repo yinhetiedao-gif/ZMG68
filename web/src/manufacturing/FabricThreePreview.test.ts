@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { Object3D, Vector3 } from 'three'
-import { fabricHeightColor, fabricPreviewPalette, setFabricInstanceTransform } from './FabricThreePreview'
-import type { FabricPreviewInstance } from '../api/fabricPreview'
+import { createElement } from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
+import { FabricThreePreview, fabricHeightColor, fabricPreviewPalette, setFabricInstanceTransform } from './FabricThreePreview'
+import type { FabricDesignPreview, FabricPreviewInstance } from '../api/fabricPreview'
 
 const instance: FabricPreviewInstance = {
   id: 'fabric:final:square-1', source_id: 'square-1', final_geometry_id: 'square-1',
@@ -12,6 +14,13 @@ const instance: FabricPreviewInstance = {
 }
 
 describe('Fabric instance transform', () => {
+  it('labels retained stale geometry as an old preview, not ready', () => {
+    const plan = { active_count: 4160 } as FabricDesignPreview
+    const html = renderToStaticMarkup(createElement(FabricThreePreview, {plan, stale: true}))
+    expect(html).toContain('上次预览，已失效 · 4160 个可见实例')
+    expect(html).not.toContain('已就绪')
+    expect(plan).toEqual({active_count: 4160})
+  })
   it('applies final translation, XY scale and Z rotation exactly once', () => {
     const dummy = new Object3D()
     setFabricInstanceTransform(dummy, instance)

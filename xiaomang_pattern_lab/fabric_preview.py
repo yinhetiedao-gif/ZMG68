@@ -1,7 +1,8 @@
 """Read-only, non-manufacturing Fabric design preview.
 
-No extrusion, Boolean, mesh validation, STL, or GLB is performed here. The
-returned prototype is shared by all instance transforms in the browser.
+Unit Cell previews share a prototype. Explicit original-shape previews use
+cached unit-height contour extrusion for display, never final fusion, mesh
+validation, STL or GLB. Both paths return the authoritative instance plan.
 """
 from __future__ import annotations
 
@@ -86,15 +87,18 @@ def build_fabric_design(document, dto: PatternDocumentDTO, *, preview_limit: boo
     if not isinstance(raw, dict):
         raise ValueError("请先配置 Fabric Base。")
     config = FabricConfig.from_mapping(raw)
+    original = raw.get('shape_source') == 'original'
+    if raw.get('shape_source', 'unit_cell') not in ('original', 'unit_cell'):
+        raise ValueError('不支持的图形来源。')
     cell_raw = raw.get("unit_cell")
-    cell = UnitCellDefinition.from_mapping(cell_raw) if isinstance(cell_raw, dict) else None
+    cell = UnitCellDefinition.from_mapping(cell_raw) if isinstance(cell_raw, dict) and not original else None
     size_mode = cell_raw.get("size_mode", "follow_pattern") if isinstance(cell_raw, dict) else "follow_pattern"
     if size_mode not in ("fixed", "follow_pattern"):
         raise ValueError("不支持的 Unit Cell 尺寸模式。")
     placement = raw.get("placement")
     if cell is not None and not isinstance(placement, dict):
         raise ValueError("Fabric 布点配置缺失。")
-    if cell is None and raw.get("field_modifiers"):
+    if cell is None and not original and raw.get("field_modifiers"):
         raise ValueError("请先配置 Unit Cell，再启用 Fabric Field Modifier。")
     mode = placement.get("mode", "area_fill") if isinstance(placement, dict) else "area_fill"
     if mode not in ("area_fill", "pattern_points"):
@@ -107,7 +111,11 @@ def build_fabric_design(document, dto: PatternDocumentDTO, *, preview_limit: boo
     margin = config.base.margin_mm
     base_bounds = (left - margin, bottom - margin, right + margin, top + margin)
     base_top_z = config.base.thickness_mm if config.output_mode == "cells_with_base" else 0.
-    if cell is None:
+    if original:
+        from .fabric_original import original_plan
+        plan = original_plan(document, raw, base_top_z, preview_limit=preview_limit)
+        mode, size_mode, unmatched_reference_count = 'pattern_points', 'follow_pattern', 0
+    elif cell is None:
         plan = None
     elif mode == "area_fill":
         plan = FabricPlanner().plan(base_bounds, base_top_z, cell,
@@ -137,10 +145,11 @@ def build_fabric_design(document, dto: PatternDocumentDTO, *, preview_limit: boo
             ))
         plan = FabricPlanner().plan_points(points, base_top_z, cell,
                                            follow_pattern_size=size_mode == "follow_pattern", preview_limit=preview_limit)
-    if plan is not None:
+    if plan is not None and not original:
         plan = apply_fabric_field_modifiers(plan, document, raw.get("field_modifiers"))
     planned_at = perf_counter()
     metadata = {"document_id": dto.document_id, "document_revision": dto.document_revision,
+                    "shape_source": 'original' if original else 'unit_cell',
                     "output_mode": config.output_mode,
                     "placement_mode": mode, "element_count": len(geometry),
                     "unit_size_mode": size_mode,
