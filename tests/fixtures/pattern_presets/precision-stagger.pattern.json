@@ -1,0 +1,381 @@
+{
+  "schema_version": "1.0",
+  "document_id": "preset-precision-stagger",
+  "document_revision": 0,
+  "document": {
+    "schema_version": 1,
+    "canvas": {
+      "width": 60,
+      "height": 60,
+      "unit": "mm",
+      "mm_per_unit": 1,
+      "origin_x": 0,
+      "origin_y": 0
+    },
+    "reference": {
+      "source_path": "",
+      "visible": false,
+      "preprocessing": {},
+      "metadata": {}
+    },
+    "elements": [
+      {
+        "id": "grid:r0:c0",
+        "type": "circle",
+        "x": 14,
+        "y": 14,
+        "width": 8,
+        "height": 8,
+        "rotation": 0,
+        "visible": true,
+        "style": {},
+        "group_id": null,
+        "metadata": {}
+      },
+      {
+        "id": "grid:r0:c1",
+        "type": "circle",
+        "x": 30,
+        "y": 14,
+        "width": 8,
+        "height": 8,
+        "rotation": 0,
+        "visible": true,
+        "style": {},
+        "group_id": null,
+        "metadata": {}
+      },
+      {
+        "id": "grid:r0:c2",
+        "type": "circle",
+        "x": 46,
+        "y": 14,
+        "width": 8,
+        "height": 8,
+        "rotation": 0,
+        "visible": true,
+        "style": {},
+        "group_id": null,
+        "metadata": {}
+      },
+      {
+        "id": "grid:r1:c0",
+        "type": "circle",
+        "x": 14,
+        "y": 30,
+        "width": 8,
+        "height": 8,
+        "rotation": 0,
+        "visible": true,
+        "style": {},
+        "group_id": null,
+        "metadata": {}
+      },
+      {
+        "id": "grid:r1:c1",
+        "type": "circle",
+        "x": 30,
+        "y": 30,
+        "width": 8,
+        "height": 8,
+        "rotation": 0,
+        "visible": true,
+        "style": {},
+        "group_id": null,
+        "metadata": {}
+      },
+      {
+        "id": "grid:r1:c2",
+        "type": "circle",
+        "x": 46,
+        "y": 30,
+        "width": 8,
+        "height": 8,
+        "rotation": 0,
+        "visible": true,
+        "style": {},
+        "group_id": null,
+        "metadata": {}
+      },
+      {
+        "id": "grid:r2:c0",
+        "type": "circle",
+        "x": 14,
+        "y": 46,
+        "width": 8,
+        "height": 8,
+        "rotation": 0,
+        "visible": true,
+        "style": {},
+        "group_id": null,
+        "metadata": {}
+      },
+      {
+        "id": "grid:r2:c1",
+        "type": "circle",
+        "x": 30,
+        "y": 46,
+        "width": 8,
+        "height": 8,
+        "rotation": 0,
+        "visible": true,
+        "style": {},
+        "group_id": null,
+        "metadata": {}
+      },
+      {
+        "id": "grid:r2:c2",
+        "type": "circle",
+        "x": 46,
+        "y": 46,
+        "width": 8,
+        "height": 8,
+        "rotation": 0,
+        "visible": true,
+        "style": {},
+        "group_id": null,
+        "metadata": {}
+      }
+    ],
+    "groups": [],
+    "transforms": {
+      "grid:r0:c0": {
+        "element_id": "grid:r0:c0",
+        "x": 14,
+        "y": 14,
+        "rotation": 0,
+        "scale_x": 1,
+        "scale_y": 1
+      },
+      "grid:r0:c1": {
+        "element_id": "grid:r0:c1",
+        "x": 30,
+        "y": 14,
+        "rotation": 0,
+        "scale_x": 1,
+        "scale_y": 1
+      },
+      "grid:r0:c2": {
+        "element_id": "grid:r0:c2",
+        "x": 46,
+        "y": 14,
+        "rotation": 0,
+        "scale_x": 1,
+        "scale_y": 1
+      },
+      "grid:r1:c0": {
+        "element_id": "grid:r1:c0",
+        "x": 14,
+        "y": 30,
+        "rotation": 0,
+        "scale_x": 1,
+        "scale_y": 1
+      },
+      "grid:r1:c1": {
+        "element_id": "grid:r1:c1",
+        "x": 30,
+        "y": 30,
+        "rotation": 0,
+        "scale_x": 1,
+        "scale_y": 1
+      },
+      "grid:r1:c2": {
+        "element_id": "grid:r1:c2",
+        "x": 46,
+        "y": 30,
+        "rotation": 0,
+        "scale_x": 1,
+        "scale_y": 1
+      },
+      "grid:r2:c0": {
+        "element_id": "grid:r2:c0",
+        "x": 14,
+        "y": 46,
+        "rotation": 0,
+        "scale_x": 1,
+        "scale_y": 1
+      },
+      "grid:r2:c1": {
+        "element_id": "grid:r2:c1",
+        "x": 30,
+        "y": 46,
+        "rotation": 0,
+        "scale_x": 1,
+        "scale_y": 1
+      },
+      "grid:r2:c2": {
+        "element_id": "grid:r2:c2",
+        "x": 46,
+        "y": 46,
+        "rotation": 0,
+        "scale_x": 1,
+        "scale_y": 1
+      }
+    },
+    "metadata": {
+      "xiaomang_pattern_lab.parametric": {
+        "mode": "grid",
+        "grid": {
+          "rows": 9,
+          "columns": 9,
+          "spacing_x": 6,
+          "spacing_y": 5.2,
+          "element_width": 3.2,
+          "element_height": 3.2,
+          "rotation": 0,
+          "offset_x": 30,
+          "offset_y": 30,
+          "lock_aspect": true,
+          "prototype": {
+            "kind": "circle"
+          }
+        },
+        "source_elements": []
+      },
+      "web_pattern_preset": {
+        "version": 1,
+        "id": "precision-stagger",
+        "scope": "grid_spacing_stagger_size",
+        "units": "mm"
+      },
+      "web_design_controls": {
+        "version": 1,
+        "size_percent": 100,
+        "aspect": 1,
+        "rotation": 0,
+        "size_random": 0,
+        "position_jitter": 0,
+        "rotation_random": 0,
+        "seed": 1,
+        "stagger": true
+      },
+      "xiaomang_pattern_lab.shared_modifiers": {
+        "version": 1,
+        "enabled": true,
+        "source_kind": "imported_elements",
+        "source_elements": [
+          {
+            "id": "grid:r0:c0",
+            "type": "circle",
+            "x": 14,
+            "y": 14,
+            "width": 8,
+            "height": 8,
+            "rotation": 0,
+            "visible": true,
+            "style": {},
+            "group_id": null,
+            "metadata": {}
+          },
+          {
+            "id": "grid:r0:c1",
+            "type": "circle",
+            "x": 30,
+            "y": 14,
+            "width": 8,
+            "height": 8,
+            "rotation": 0,
+            "visible": true,
+            "style": {},
+            "group_id": null,
+            "metadata": {}
+          },
+          {
+            "id": "grid:r0:c2",
+            "type": "circle",
+            "x": 46,
+            "y": 14,
+            "width": 8,
+            "height": 8,
+            "rotation": 0,
+            "visible": true,
+            "style": {},
+            "group_id": null,
+            "metadata": {}
+          },
+          {
+            "id": "grid:r1:c0",
+            "type": "circle",
+            "x": 14,
+            "y": 30,
+            "width": 8,
+            "height": 8,
+            "rotation": 0,
+            "visible": true,
+            "style": {},
+            "group_id": null,
+            "metadata": {}
+          },
+          {
+            "id": "grid:r1:c1",
+            "type": "circle",
+            "x": 30,
+            "y": 30,
+            "width": 8,
+            "height": 8,
+            "rotation": 0,
+            "visible": true,
+            "style": {},
+            "group_id": null,
+            "metadata": {}
+          },
+          {
+            "id": "grid:r1:c2",
+            "type": "circle",
+            "x": 46,
+            "y": 30,
+            "width": 8,
+            "height": 8,
+            "rotation": 0,
+            "visible": true,
+            "style": {},
+            "group_id": null,
+            "metadata": {}
+          },
+          {
+            "id": "grid:r2:c0",
+            "type": "circle",
+            "x": 14,
+            "y": 46,
+            "width": 8,
+            "height": 8,
+            "rotation": 0,
+            "visible": true,
+            "style": {},
+            "group_id": null,
+            "metadata": {}
+          },
+          {
+            "id": "grid:r2:c1",
+            "type": "circle",
+            "x": 30,
+            "y": 46,
+            "width": 8,
+            "height": 8,
+            "rotation": 0,
+            "visible": true,
+            "style": {},
+            "group_id": null,
+            "metadata": {}
+          },
+          {
+            "id": "grid:r2:c2",
+            "type": "circle",
+            "x": 46,
+            "y": 46,
+            "width": 8,
+            "height": 8,
+            "rotation": 0,
+            "visible": true,
+            "style": {},
+            "group_id": null,
+            "metadata": {}
+          }
+        ]
+      }
+    },
+    "fields": [],
+    "modifiers": []
+  },
+  "assets": []
+}

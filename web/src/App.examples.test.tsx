@@ -5,10 +5,10 @@ import type { PatternDocumentDTO } from './model/types'
 import basicGrid from './examples/fixtures/basic-grid.pattern.json'
 
 const draftMocks = vi.hoisted(() => ({ save: vi.fn(), load: vi.fn(), clear: vi.fn(),
-  saveBefore: vi.fn(), loadBefore: vi.fn() }))
+  saveBefore: vi.fn(), loadBefore: vi.fn(), returnSave: vi.fn() }))
 vi.mock('./draft/localDraft', () => ({ saveDraft: draftMocks.save, loadDraft: draftMocks.load,
   clearDraft: draftMocks.clear, saveBeforeExampleDraft: draftMocks.saveBefore,
-  loadBeforeExampleDraft: draftMocks.loadBefore }))
+  loadBeforeExampleDraft: draftMocks.loadBefore, saveExampleReturn: draftMocks.returnSave }))
 
 const parameter = (id: string, label: string, value: number, integer = false) => ({
   id, label, type: integer ? 'integer' : 'number', default: value, value, min: 1, max: 100,
@@ -77,6 +77,7 @@ describe('P1 built-in examples', () => {
       source_asset: sourceAsset, pending_layout: uiState?.pending_layout }))
     draftMocks.loadBefore.mockReset().mockResolvedValue(null)
     draftMocks.clear.mockReset().mockResolvedValue(undefined)
+    draftMocks.returnSave.mockReset().mockResolvedValue(undefined)
   })
 
   it('loads editable Grid, resets as one commit, and Undo/Redo restores edits', async () => {
@@ -207,7 +208,8 @@ describe('P1 built-in examples', () => {
     fireEvent.click(screen.getByRole('button', { name: '打开示例：参数渐变' }))
     await waitFor(() => expect(evaluations).toHaveLength(2))
     expect(draftMocks.save).toHaveBeenCalledWith(evaluations[0], '基础圆点阵列', null,
-      { pending_layout: null, example_session_active: false, image_sources: {}, reference_layer: null })
+      { pending_layout: null, example_session_active: false, image_sources: {}, reference_layer: null,
+        design_display: { grid: false, pngWidth: 1600, unit: 'mm' } })
     expect(evaluations[1].document.fields[0].type).toBe('linear')
     expect(evaluations[1].document.modifiers.map((item) => item.type)).toEqual(['size', 'rotation'])
     draftMocks.save.mockRejectedValueOnce(new Error('草稿写入失败'))
@@ -254,9 +256,11 @@ describe('P1 built-in examples', () => {
     fireEvent.click(screen.getByRole('button', { name: '打开示例：基础圆点阵列' }))
     await waitFor(() => expect(evaluations).toHaveLength(2))
     expect(draftMocks.save).toHaveBeenCalledWith(evaluations[0], 'my-work.pattern.json', null,
-      { pending_layout: null, example_session_active: false, image_sources: {}, reference_layer: null })
+      { pending_layout: null, example_session_active: false, image_sources: {}, reference_layer: null,
+        design_display: { grid: false, pngWidth: 1600, unit: 'mm' } })
     expect(draftMocks.saveBefore).toHaveBeenCalledWith(evaluations[0], 'my-work.pattern.json', null,
-      { pending_layout: null, example_session_active: false, image_sources: {}, reference_layer: null })
+      { pending_layout: null, example_session_active: false, image_sources: {}, reference_layer: null,
+        design_display: { grid: false, pngWidth: 1600, unit: 'mm' } })
     fireEvent.click(screen.getByRole('button', { name: '← 返回之前作品' }))
     await waitFor(() => expect(evaluations).toHaveLength(3))
     expect(evaluations[2].document.elements[0].id).toBe('work-1')

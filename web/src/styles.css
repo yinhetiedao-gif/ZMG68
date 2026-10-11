@@ -123,6 +123,13 @@ button { font: inherit; }
 .example-thumbnail.gradient i:nth-child(3n) { width: 11px; height: 11px; transform: rotate(40deg); }
 .example-copy { display: grid; gap: 4px; min-width: 0; }
 .example-copy strong { font-size: 12px; }
+.pattern-preset-card { display: grid; grid-template-columns: 90px minmax(0, 1fr); gap: 10px; margin: 12px 0; padding: 10px; border: 1px solid #d7e3e9; border-radius: 8px; background: #fff; }
+.pattern-preset-card img { width: 90px; height: 90px; background: #f3f6f8; border-radius: 5px; }
+.pattern-preset-card h4 { margin: 0 0 6px; font-size: 15px; }
+.pattern-preset-card p, .pattern-preset-card small { font-size: 12px; line-height: 1.5; }
+.pattern-preset-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.pattern-preset-actions button { padding: 7px 9px; border: 1px solid #b8d1dd; background: #f7fbfc; border-radius: 5px; color: #315d76; cursor: pointer; }
+.pattern-preset-actions button:disabled { opacity: .5; cursor: not-allowed; }
 .example-copy small { color: #748997; font-size: 10px; line-height: 1.35; }
 .example-capabilities { display: flex; flex-wrap: wrap; gap: 4px; }
 .example-capabilities em { font-size: 9px; font-style: normal; padding: 2px 4px; color: #3b7188; background: #e9f3f7; border-radius: 3px; }

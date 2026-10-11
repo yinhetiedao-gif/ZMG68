@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest'
-import { clearDraft, loadBeforeExampleDraft, loadDraft, saveBeforeExampleDraft, saveDraft } from './localDraft'
+import { describe, expect, it, vi } from 'vitest'
+import { IDBObjectStore as FakeObjectStore } from 'fake-indexeddb'
+import { clearDraft, loadBeforeExampleDraft, loadDraft, saveBeforeExampleDraft, saveDraft, saveExampleReturn } from './localDraft'
 import type { PatternDocumentDTO } from '../model/types'
 import { Blob as NodeBlob } from 'node:buffer'
 import { confirmUniformRealSize, realSizeConfirmed } from '../document/realSize'
@@ -81,5 +82,39 @@ describe('last working draft', () => {
       proposal.document.metadata['xiaomang_pattern_lab.parametric'])
     await expect(saveDraft(dto, 'draft.svg', null, { pending_layout: { ...pending, sourceRevision: 8 },
       example_session_active: true })).rejects.toThrow(/不匹配/)
+  })
+
+  it('atomically restores the original while retaining the edited recipe in the existing other slot', async () => {
+    const target = await saveBeforeExampleDraft(project(), 'original.svg', null,
+      { pending_layout: null, example_session_active: false, design_display: { unit: 'cm', grid: true, pngWidth: 1200 } })
+    const dto = { ...project(), document_id: 'custom-recipe', document_revision: 9 }
+    const current = await saveDraft(dto, 'custom recipe', null,
+      { pending_layout: null, example_session_active: true })
+    await saveExampleReturn(target, current)
+    const restored = await loadDraft(), retained = await loadBeforeExampleDraft()
+    expect(restored?.dto).toEqual(target.dto)
+    expect(restored?.design_display).toEqual(target.design_display)
+    expect(restored?.example_session_active).toBe(false)
+    expect(retained?.dto).toEqual(dto)
+    expect(retained?.example_session_active).toBe(false)
+    await saveDraft(target.dto, target.file_name, target.source_asset)
+    expect((await loadBeforeExampleDraft())?.dto).toEqual(dto)
+  })
+
+  it('a failed second write rolls back BOTH slots; retry is safe and invalid targets never write', async () => {
+    const target = await saveBeforeExampleDraft(project(), 'original.svg', null)
+    const current = await saveDraft({ ...project(), document_id: 'recipe' }, 'recipe', null)
+    const put = FakeObjectStore.prototype.put
+    const failure = vi.spyOn(FakeObjectStore.prototype, 'put')
+      .mockImplementationOnce(function(this: InstanceType<typeof FakeObjectStore>, value, key) { return put.call(this, value, key) })
+      .mockImplementationOnce(() => { throw new DOMException('quota fixture', 'QuotaExceededError') })
+    try { await expect(saveExampleReturn(target, current)).rejects.toThrow('quota fixture') }
+    finally { failure.mockRestore() }
+    expect((await loadDraft())?.dto).toEqual(current.dto)
+    expect((await loadBeforeExampleDraft())?.dto).toEqual(target.dto)
+    await expect(saveExampleReturn({ ...target, dto: current.dto }, current)).rejects.toThrow('上下文无效')
+    await saveExampleReturn(target, current)
+    expect((await loadDraft())?.dto).toEqual(target.dto)
+    expect((await loadBeforeExampleDraft())?.dto).toEqual(current.dto)
   })
 })

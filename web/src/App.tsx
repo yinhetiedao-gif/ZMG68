@@ -9,6 +9,9 @@ import { preparePattern, runPatternAction, type PatternFamily } from './api/patt
 import { Workspace2D } from './geometry/Workspace2D'
 import { DesignPanelControls, defaultDesignDisplay } from './document/DesignPanelControls'
 import { designCandidate } from './document/designControls'
+import { PatternPresetPicker } from './document/PatternPresetPicker'
+import { createPatternPreset, openPatternPreset, patternPreset, patternPresetId, patternPresetCandidate,
+  patternPresetControls, changePatternPresetParameter, selectPatternPresetDriver, type PatternPresetId } from './document/patternPresets'
 import { designSvg, designPng, deliverDesign } from './geometry/designExport'
 import { InspectorControls, type EditAction } from './document/InspectorControls'
 import { groupFor, validateParameter, type ParameterCatalog } from './document/parameterSchema'
@@ -28,8 +31,8 @@ import { appendPrimitive, createBlankDesign, type PrimitiveType } from './docume
 import { readReferenceLayer, updateReferenceLayer, type ReferenceLayer } from './document/referenceLayer'
 import { ReferenceLayerPanel } from './document/ReferenceLayerPanel'
 import { useLayoutPreview, useDocumentPreview } from './document/useLayoutPreview'
-import { openLinearSize, linearSizeCandidate, linearSizeGroup, linearRegionDefaults, linearSizeOwner,
-  sizeFieldTypes, sizeFieldGroup, sizeFieldValues, selectSizeField, changeSizeFieldParameter, resetLinearSizeDraft, type LinearSizeDraft } from './document/linearSize'
+import { openLinearSize, linearSizeGroup, linearRegionDefaults, linearSizeOwner,
+  sizeFieldTypes, sizeFieldGroup, sizeFieldValues, changeSizeFieldParameter, resetLinearSizeDraft, type LinearSizeDraft } from './document/linearSize'
 import { openRadialSize, radialSizeCandidate, radialSizeGroup, radialSizeDefaults, type RadialSizeDraft } from './document/radialSize'
 import { ParameterPanel } from './document/ParameterPanel'
 import { ParameterInteraction } from './document/ParameterInteraction'
@@ -47,7 +50,7 @@ import { isOriginalShape, originalPreviewDocument, setOriginalShape } from './do
 import { setFabricOutputMode } from './document/fabricBase'
 import { setFabricModifierEnabled, setFabricModifierField, updateFabricModifier, setUniformFabricHeight, setDirectionalFabricHeight, setWaveFabricHeight, setCenterFabricHeight } from './document/fabricModifiers'
 import { applyFabricPreset, directionalFabricRecipe, waveFabricRecipe, centerFabricRecipe, applyFabricHeightRecipe } from './document/fabricPresets'
-import { clearDraft, loadBeforeExampleDraft, loadDraft, saveBeforeExampleDraft, saveDraft,
+import { clearDraft, loadBeforeExampleDraft, loadDraft, saveBeforeExampleDraft, saveDraft, saveExampleReturn,
   type DraftUiState, type LocalDraft, type SourceAssetDraft } from './draft/localDraft'
 import { createExampleDocument, exampleIdFromDocument, examples, type BuiltInExample, type ExampleId } from './examples/catalog'
 import { confirmUniformRealSize } from './document/realSize'
@@ -110,8 +113,10 @@ export function App() {
   const [releaseHealth, setReleaseHealth] = useState<import('./api/client').HealthResponse | null>(null)
   const [retry, setRetry] = useState(0)
   const [browser, setBrowser] = useState(() => ({ ...initialBrowserState, activeMode: workspaceModeFromLocation() }))
-  const [designContext, publishDesignContext] = useState<'layout' | 'element' | 'effects' | 'reference' | 'linear' | null>(null)
+  const [designContext, publishDesignContext] = useState<'layout' | 'element' | 'effects' | 'reference' | 'linear' | 'presets' | null>(null)
   const [linearDraft, setLinearDraft] = useState<LinearSizeDraft | RadialSizeDraft | null>(null)
+  const [presetAdvanced, setPresetAdvanced] = useState(false)
+  const pendingPresetEdit = useRef<PatternPresetId | null>(null)
   const [designDisplay, setDesignDisplay] = useState(defaultDesignDisplay)
   const designDisplayRef = useRef(designDisplay); designDisplayRef.current = designDisplay
   const [designExportBusy, setDesignExportBusy] = useState(false)
@@ -229,7 +234,7 @@ export function App() {
       if (linearDraft.kind === 'linear' && ['image', 'distance'].includes(linearDraft.fieldType ?? '') &&
           !imageSourcesRef.current[linearDraft.imageAsset?.asset_id ?? '']?.blob.size)
         throw new Error('此尺寸效果缺少有效源图片，请选择 PNG/JPG 或已恢复源资产的参数场。参考底图不会自动参与。')
-      return { dto: linearDraft.kind === 'radial' ? radialSizeCandidate(linearDraft, parameterCatalog) : linearSizeCandidate(linearDraft, parameterCatalog), error: null }
+      return { dto: linearDraft.kind === 'radial' ? radialSizeCandidate(linearDraft, parameterCatalog) : patternPresetCandidate(linearDraft, parameterCatalog), error: null }
     }
     catch (error) { return { dto: null, error: error instanceof Error ? error.message : '渐变参数无效。' } }
   }, [linearActive, linearCurrent, linearDraft, parameterCatalog])
@@ -365,7 +370,7 @@ export function App() {
     if (project.evaluateStatus !== 'ready' || lastValidDocumentRef.current !== dto)
       throw new Error('当前设计仍在计算或修改未完成，已取消切换。')
     try {
-      await persistDraft(dto, project.fileName, sourceAssetRef.current, {
+      return await persistDraft(dto, project.fileName, sourceAssetRef.current, {
         pending_layout: pendingLayoutFor(dto, layoutDraft), example_session_active: activeExampleSession,
       })
     } catch (error) {
@@ -447,12 +452,16 @@ export function App() {
     setBrowser((current) => ({ ...current, selectedElementIds: [], activeMode: options.restored ? workspaceModeFromLocation() : 'design' }))
     runEvaluate(dto, { fileName, warnings, fitOnSuccess: true })
   }
-  const openExample = async (id: ExampleId) => {
-    if (importing || !connected) return
+  const openExample = async (id: ExampleId | PatternPresetId) => {
+    if (importing || !connected || recipeSavingRef.current) return
+    recipeSavingRef.current = true; setRecipeSaving(true)
     try {
       if (project.currentDocument && (project.evaluateStatus !== 'ready' ||
           lastValidDocumentRef.current !== project.currentDocument)) throw new Error('当前设计仍在计算，请完成后再打开示例。')
+      const switchingSource = project.currentDocument
       await saveBeforeReplacement()
+      if (switchingSource && activeDocumentRef.current !== switchingSource)
+        throw new Error('保存期间作品已变化，已取消创建，请重新操作。')
       const previous = !activeExampleSession && project.currentDocument && !exampleIdFromDocument(project.currentDocument)
         ? { dto: project.currentDocument, fileName: project.fileName, asset: sourceAssetRef.current,
           pending: pendingLayoutFor(project.currentDocument, layoutDraft) }
@@ -463,17 +472,20 @@ export function App() {
       if (previous) setPreExampleDraft(await saveBeforeExampleDraft(previous.dto, previous.fileName, previous.asset,
         { pending_layout: previous.pending, example_session_active: false,
           reference_layer: project.currentDocument ? referenceLayer : restorableDraft?.reference_layer,
-          image_sources: project.currentDocument ? imageSourcesRef.current : restorableDraft?.image_sources }))
+           image_sources: project.currentDocument ? imageSourcesRef.current : restorableDraft?.image_sources,
+           design_display: project.currentDocument ? designDisplayRef.current : restorableDraft?.design_display }))
       const identifier = globalThis.crypto?.randomUUID?.() ?? `example-${Date.now()}-${Math.random().toString(16).slice(2)}`
-      const dto = createExampleDocument(id, identifier)
-      const example = examples.find((item) => item.id === id)!
+      const example = examples.find((item) => item.id === id)
+      const dto = example ? createExampleDocument(example.id, identifier) : createPatternPreset(id as PatternPresetId, identifier, parameterCatalog)
       sourceAssetRef.current = null
       imageSourcesRef.current = {}
       setExampleChooserOpen(false)
-      acceptProject(dto, example.title, [], { exampleSessionActive: activeExampleSession || Boolean(previous) })
+      pendingPresetEdit.current = example ? null : id as PatternPresetId
+      acceptProject(dto, example?.title ?? patternPreset(id).title, [], { exampleSessionActive: activeExampleSession || Boolean(previous) })
     } catch (error) {
       setProjectError(error instanceof Error ? error.message : '无法保存当前草稿，示例未打开。')
     }
+    finally { recipeSavingRef.current = false; setRecipeSaving(false) }
   }
   const onFile = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -685,9 +697,35 @@ export function App() {
       setProjectError('请先应用或取消未完成的布局/参数修改，再打开尺寸渐变。'); return
     }
     if (linearDraft && !window.confirm('已有未应用尺寸配置。打开另一个尺寸入口将丢弃它，正式作品不变。继续？')) return
+    setPresetAdvanced(false)
     setLinearDraft(kind === 'radial' ? openRadialSize(dto, project.bounds) : { ...openLinearSize(dto, project.bounds), controlsOnly }); setLinearSync(value => value + 1)
     setDesignContext('linear'); setBrowser(current => ({ ...current, activeMode: 'design' })); setProjectError(null)
   }
+  const selectPatternPreset = (id: PatternPresetId) => {
+    const dto = project.currentDocument
+    if (!dto || !canEditDocument || !project.bounds || recipeSavingRef.current) return
+    if (pendingLayoutFor(dto, layoutDraft) || preparingLayout || parameterPending) {
+      setProjectError('请先应用或取消未完成的布局/参数修改，再应用预设效果。'); return
+    }
+    if (linearDraft && sizeFormPending && !window.confirm('已有未应用配置。切换预设会丢弃它，正式作品不变。继续？')) return
+    const previous = patternPresetId(dto)
+    if (id !== 'precision-stagger' && (previous !== id) && linearSizeOwner(dto) &&
+        !window.confirm(`${patternPreset(id).title}将替换尺寸快捷入口管理的尺寸效果及其范围；原图、布局和其他效果保持不变。继续？`)) return
+    try {
+      setLinearDraft(openPatternPreset(dto, project.bounds, id, parameterCatalog))
+      setPresetAdvanced(false); setLinearSync(v => v + 1)
+      publishDesignContext('linear'); setBrowser(current => ({ ...current, activeMode: 'design' })); setProjectError(null)
+    } catch (error) { setProjectError(error instanceof Error ? error.message : '无法打开预设效果。') }
+  }
+  useEffect(() => {
+    const id = pendingPresetEdit.current, dto = project.currentDocument
+    if (!id || !dto || patternPresetId(dto) !== id || project.evaluateStatus !== 'ready' || !project.bounds) return
+    pendingPresetEdit.current = null
+    try {
+      setLinearDraft(openPatternPreset(dto, project.bounds, id, parameterCatalog))
+      setPresetAdvanced(false); setLinearSync(v => v + 1); publishDesignContext('linear')
+    } catch (error) { setProjectError(error instanceof Error ? error.message : '预设已创建，请从高级面板继续编辑。') }
+  }, [project.currentDocument, project.evaluateStatus, project.bounds, parameterCatalog])
   const applyLinearSize = async () => {
     const dto = project.currentDocument
     if (!dto || !linearDraft || !canEditDocument || canvasEditing || parameterPending || !stagedLinear.result || !linearProposal.dto ||
@@ -854,6 +892,10 @@ export function App() {
   }
 
   const connected = connection.kind === 'online'
+  // Recipe identity describes the current effect, not whether a saved return
+  // target exists. The existing session and validated draft own this context.
+  const canReturnBeforeProject = Boolean(activeExampleSession && preExampleDraft && project.currentDocument &&
+    preExampleDraft.dto.document_id !== project.currentDocument.document_id)
   const hasEditableGeometry = Boolean(project.currentDocument?.document.elements.some((element) =>
     element.visible && Number.isFinite(element.x) && Number.isFinite(element.y)
       && Number.isFinite(element.width) && Number.isFinite(element.height)
@@ -880,18 +922,26 @@ export function App() {
     })
   }
   const restorePreExampleDraft = async () => {
-    if (!preExampleDraft) return
+    const target = preExampleDraft, source = project.currentDocument
+    if (!canReturnBeforeProject || !target || !source || !canEditDocument || recipeSavingRef.current) return
+    recipeSavingRef.current = true; setRecipeSaving(true)
     try {
-      await saveBeforeReplacement()
-      sourceAssetRef.current = preExampleDraft.source_asset
-      setDesignDisplay(preExampleDraft.design_display ?? defaultDesignDisplay)
-      imageSourcesRef.current = preExampleDraft.image_sources ?? {}
-      acceptProject(preExampleDraft.dto, preExampleDraft.file_name ?? '示例前的作品', [], {
-        pendingLayout: preExampleDraft.pending_layout, restored: true, referenceLayer: preExampleDraft.reference_layer,
+      const current = await saveBeforeReplacement()
+      if (!current || activeDocumentRef.current !== source || preExampleDraft !== target)
+        throw new Error('保存期间作品已变化，已取消返回，请重新操作。')
+      // Atomically retain both works in the two existing draft slots. Otherwise
+      // the restored project's autosave would overwrite the edited recipe.
+      await saveExampleReturn(target, current)
+      sourceAssetRef.current = target.source_asset
+      setDesignDisplay(target.design_display ?? defaultDesignDisplay)
+      imageSourcesRef.current = target.image_sources ?? {}
+      acceptProject(target.dto, target.file_name ?? '示例前的作品', [], {
+        pendingLayout: target.pending_layout, restored: true, referenceLayer: target.reference_layer,
       })
     } catch (error) {
       setProjectError(error instanceof Error ? error.message : '无法恢复示例前的作品。')
     }
+    finally { recipeSavingRef.current = false; setRecipeSaving(false) }
   }
   const startFresh = async () => {
     try {
@@ -996,6 +1046,9 @@ export function App() {
           <small>仅二维参考，不生成图案，不进入 STL。</small>
         </section>
         <section className="side-group" aria-label="参数场与效果">
+          <button className="side-item" type="button" onClick={() => {
+            if (setDesignContext('presets')) setBrowser(current => ({ ...current, activeMode: 'design' }))
+          }}>图案预设 · 首批3套</button>
           <button className="side-item" type="button" disabled={!project.currentDocument}
             onClick={() => { setDesignContext('effects'); setBrowser(current => ({ ...current, activeMode: 'design' })) }}>参数场与效果</button>
           <span className="eyebrow">尺寸变化效果</span>
@@ -1026,9 +1079,10 @@ export function App() {
           <div className="history-actions"><button type="button" onClick={undo} title="Ctrl+Z" disabled={!historyCount.past || !canEditDocument}>撤销</button>
             <button type="button" onClick={redo} title="Ctrl+Y / Ctrl+Shift+Z" disabled={!historyCount.future || !canEditDocument}>重做</button>
             {exampleIdFromDocument(project.currentDocument) && <span className="example-session-label">正在试用示例：{project.fileName}</span>}
+            {patternPresetId(project.currentDocument) && <span className="example-session-label">当前图案预设：{patternPreset(patternPresetId(project.currentDocument)!).title}</span>}
             {exampleIdFromDocument(project.currentDocument) && <button type="button" onClick={resetExample}
               disabled={!canEditDocument}>恢复示例初始状态</button>}
-            {activeExampleSession && exampleIdFromDocument(project.currentDocument) && preExampleDraft && <button type="button"
+            {canReturnBeforeProject && <button type="button"
               onClick={() => void restorePreExampleDraft()} disabled={!canEditDocument}>← 返回之前作品</button>}</div>
         </div>
         <div className="canvas-stage" onDragOver={(event) => event.preventDefault()} onDrop={onDrop}>
@@ -1137,10 +1191,15 @@ export function App() {
       <aside className={`inspector ${browser.activeMode !== 'design' ? 'manufacture-inspector' : ''}`} aria-label="右侧检查器">
         <div className="inspector-title"><div><span className="eyebrow">PROPERTIES</span><h2>检查器</h2></div><span className="inspector-dots" aria-hidden="true">•••</span></div>
         <div className="inspector-content">
-        {!project.currentDocument && <div className="inspector-empty"><span className="inspect-glyph" aria-hidden="true">⌗</span><strong>未选择对象</strong><p>No selection</p><small>点击元素可查看其世界毫米信息。</small></div>}
+        {browser.activeMode === 'design' && designContext === 'presets' && <PatternPresetPicker
+          currentId={patternPresetId(project.currentDocument)}
+          createDisabled={!connected || importing || recipeSaving || parameterPending || Boolean(project.currentDocument && !canEditDocument)}
+          applyDisabled={!project.currentDocument || !canEditDocument || !project.bounds || parameterPending || recipeSaving}
+          onCreate={id => void openExample(id)} onApply={selectPatternPreset} onEdit={selectPatternPreset} />}
+        {!project.currentDocument && designContext !== 'presets' && <div className="inspector-empty"><span className="inspect-glyph" aria-hidden="true">⌗</span><strong>未选择对象</strong><p>No selection</p><small>点击元素可查看其世界毫米信息。</small></div>}
         {project.currentDocument && <div style={{ display: browser.activeMode === 'design' ? undefined : 'none' }}><InspectorControls key={project.currentDocument.document_id}
           selectionCount={browser.selectedElementIds.length}
-          context={designContext === 'reference' || designContext === 'linear' || !designContext ? 'none' : designContext}
+          context={designContext === 'reference' || designContext === 'linear' || designContext === 'presets' || !designContext ? 'none' : designContext}
           onElementDraft={(key, value) => setElementDraft(current => {
             const next = { ...current }; if (typeof value === 'number') next[key] = value; else delete next[key]; return next
           })}
@@ -1163,20 +1222,33 @@ export function App() {
           onEdit={editParameter} disabled={!canEditDocument} />
           {!designContext && <p className="inspector-readonly">在左侧选择图案逻辑、参数场或底图，或点击画布中的图形以编辑。</p>}
           {linearActive && linearDraft && sizeGroup && <section aria-label={linearDraft.kind === 'radial' ? '径向尺寸渐变参数' : '尺寸变化参数'}>
-            <h3>{linearDraft.kind === 'radial' ? '径向尺寸渐变' : linearDraft.controlsOnly ? '完整图案控制' : '参数场驱动的尺寸变化'}</h3>
+            <h3>{linearDraft.kind === 'radial' ? '径向尺寸渐变' : linearDraft.presetId ? patternPreset(linearDraft.presetId).title : linearDraft.controlsOnly ? '完整图案控制' : '参数场驱动的尺寸变化'}</h3>
             <p className="layout-pending" role="status">{sizeFormPending ? '有未应用修改' : '公共参数未改变 · 显示设置无需应用到几何'}</p>
-            {linearDraft.kind === 'linear' && <ParameterInteraction.Provider value={{ syncToken: String(linearSync), onPending: onParameterPending }}>
+            {linearDraft.kind === 'linear' && linearDraft.presetId && <>
+              <p className="inspector-readonly">{patternPreset(linearDraft.presetId).scope} 恢复默认只重置此范围，仍需应用。</p>
+              <button type="button" className="ui-secondary" onClick={() => setPresetAdvanced(v => !v)}>{presetAdvanced ? '返回关键参数' : '高级参数与影响区'}</button>
+              {!presetAdvanced && <ParameterInteraction.Provider value={{ syncToken: String(linearSync), onPending: onParameterPending }}>
+                <fieldset disabled={!linearCurrent || !canEditDocument} style={{ border: 0, padding: 0, minWidth: 0 }}>
+                  <ParameterPanel group={patternPresetControls(linearDraft, parameterCatalog).group}
+                    values={patternPresetControls(linearDraft, parameterCatalog).values} onCommit={(key, value) => {
+                      try { setLinearDraft(current => current?.kind === 'linear' ? changePatternPresetParameter(current, parameterCatalog, key, value) : current) }
+                      catch (error) { setProjectError(error instanceof Error ? error.message : '预设参数无效。') }
+                    }} />
+                </fieldset>
+              </ParameterInteraction.Provider>}
+            </>}
+            {linearDraft.kind === 'linear' && (!linearDraft.presetId || presetAdvanced) && <ParameterInteraction.Provider value={{ syncToken: String(linearSync), onPending: onParameterPending }}>
               <fieldset disabled={!linearCurrent || !canEditDocument} style={{ border: 0, padding: 0, minWidth: 0 }}>
                 <DesignPanelControls draft={linearDraft} catalog={parameterCatalog} onChange={setLinearDraft} display={designDisplay} onDisplay={setDesignDisplay} />
               </fieldset>
             </ParameterInteraction.Provider>}
-            {linearDraft.kind === 'linear' && !linearDraft.controlsOnly && <>
+            {linearDraft.kind === 'linear' && !linearDraft.controlsOnly && (!linearDraft.presetId || presetAdvanced) && <>
               <div className="field-picker"><label htmlFor="size-field-source">驱动来源</label>
                 <select id="size-field-source" disabled={!linearCurrent || !canEditDocument || parameterPending}
                   value={linearDraft.existingFieldId ? 'existing' : 'owned'} onChange={event => {
-                    if (event.target.value === 'owned') setLinearDraft(selectSizeField(linearDraft, linearDraft.fieldType ?? 'linear', parameterCatalog))
+                    if (event.target.value === 'owned') setLinearDraft(selectPatternPresetDriver(linearDraft, linearDraft.fieldType ?? 'linear', parameterCatalog))
                     else { const field = project.currentDocument?.document.fields.find(f => f.enabled !== false && sizeFieldTypes(parameterCatalog).some(([id]) => f.type === id))
-                      if (field) setLinearDraft(selectSizeField(linearDraft, String(field.type), parameterCatalog, String(field.id)))
+                      if (field) setLinearDraft(selectPatternPresetDriver(linearDraft, String(field.type), parameterCatalog, String(field.id)))
                       else setProjectError('没有可绑定的已启用参数场。请先在高级面板创建，或使用本效果专用场。') }
                     setLinearSync(v => v + 1)
                   }}><option value="owned">快捷：本效果专用场</option><option value="existing">高级：绑定已有场</option></select>
@@ -1184,13 +1256,13 @@ export function App() {
               <div className="field-picker"><label htmlFor="size-field-type">变化方式</label>
                 <select id="size-field-type" disabled={!linearCurrent || !canEditDocument || parameterPending}
                   value={linearDraft.fieldType ?? 'linear'} onChange={event => {
-                    setLinearDraft(selectSizeField(linearDraft, event.target.value, parameterCatalog)); setLinearSync(v => v + 1)
+                    setLinearDraft(selectPatternPresetDriver(linearDraft, event.target.value, parameterCatalog)); setLinearSync(v => v + 1)
                   }}>{sizeFieldTypes(parameterCatalog).map(([id, group]) => <option key={id} value={id}>{group.label}</option>)}</select>
               </div>
               {linearDraft.existingFieldId && <div className="field-picker"><label htmlFor="size-existing-field">已有场</label>
                 <select id="size-existing-field" value={linearDraft.existingFieldId} disabled={!linearCurrent || !canEditDocument || parameterPending}
                   onChange={event => { const field = project.currentDocument!.document.fields.find(f => f.id === event.target.value)!
-                    setLinearDraft(selectSizeField(linearDraft, String(field.type), parameterCatalog, String(field.id))); setLinearSync(v => v + 1) }}>
+                    setLinearDraft(selectPatternPresetDriver(linearDraft, String(field.type), parameterCatalog, String(field.id))); setLinearSync(v => v + 1) }}>
                   {project.currentDocument.document.fields.filter(f => f.enabled !== false && sizeFieldTypes(parameterCatalog).some(([id]) => f.type === id))
                     .map(f => <option key={String(f.id)} value={String(f.id)}>{groupFor(parameterCatalog, 'field', String(f.type))?.label} · {String(f.id)}</option>)}
                 </select><small>绑定未改动的已有场；修改下方场参数时只编辑本效果副本，不改变原共享场。</small></div>}
@@ -1221,7 +1293,7 @@ export function App() {
             <p className="inspector-readonly">图案参考范围：X {linearDraft.bounds.min_x.toFixed(2)}–{linearDraft.bounds.max_x.toFixed(2)} mm，Y {linearDraft.bounds.min_y.toFixed(2)}–{linearDraft.bounds.max_y.toFixed(2)} mm。{linearDraft.kind === 'linear' && linearDraft.values.scope_mode === 'local' ? '局部区域由下方中心、方向、长度和宽度独立确定。' : ''}</p>
             {project.currentDocument.document.modifiers.some(item => item.type === 'size' && item.enabled !== false && item.id !== linearSizeOwner(project.currentDocument!)?.modifier.id) &&
               <p className="inspector-readonly">其他尺寸效果仍按现有顺序叠加；本效果不会关闭它们。</p>}
-            {! (linearDraft.kind === 'linear' && linearDraft.controlsOnly) && <ParameterInteraction.Provider value={{ syncToken: String(linearSync), onPending: onParameterPending }}>
+            {!(linearDraft.kind === 'linear' && (linearDraft.controlsOnly || linearDraft.presetId && !presetAdvanced)) && <ParameterInteraction.Provider value={{ syncToken: String(linearSync), onPending: onParameterPending }}>
               <fieldset disabled={!linearCurrent || !canEditDocument} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
                 {linearDraft.kind === 'radial' ? <ParameterPanel group={sizeGroup} values={{ ...linearDraft.values }} onCommit={updateSizeDraftValue} /> : <>
                   <h4>尺寸映射</h4>
@@ -1244,7 +1316,9 @@ export function App() {
             <p className="inspector-readonly">画布控制点拖动中限频自动预览；数值控件松手或确认后自动预览。控制点松手仍未应用，点击应用才提交。未应用输入不会保存；刷新或切换上下文将丢弃它们。</p>
             <div className="layout-inspector-actions">
               <button type="button" onClick={() => { setLinearDraft(current => current ? current.kind === 'radial'
-                ? { ...current, values: radialSizeDefaults(current.bounds) } : resetLinearSizeDraft(current, parameterCatalog) : null); setLinearSync(value => value + 1) }}>恢复默认</button>
+                ? { ...current, values: radialSizeDefaults(current.bounds) } : current.presetId
+                ? openPatternPreset(current.source, current.bounds, patternPreset(current.presetId).id, parameterCatalog, true)
+                : resetLinearSizeDraft(current, parameterCatalog) : null); setLinearSync(value => value + 1) }}>恢复默认</button>
               <button type="button" onClick={() => { setLinearDraft(null); publishDesignContext('effects') }}>取消效果</button>
               <button type="button" className="ui-primary" disabled={!canEditDocument || !linearCurrent || canvasEditing || parameterPending || !stagedLinear.result || !linearProposal.dto}
                 onClick={applyLinearSize}>应用效果</button>

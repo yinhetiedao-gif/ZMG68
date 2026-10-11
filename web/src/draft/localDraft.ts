@@ -141,6 +141,42 @@ export async function loadBeforeExampleDraft(): Promise<LocalDraft | null> {
   return readDraft(PRE_EXAMPLE_KEY)
 }
 
+/** Returning ends the session. Reuse its two slots to keep the restored user
+ * work AND the edited recipe, atomically; no project stack or extra record. */
+export async function saveExampleReturn(target: LocalDraft, current: LocalDraft): Promise<void> {
+  validateStoredDraft(target)
+  validateStoredDraft(current)
+  if (target.key !== PRE_EXAMPLE_KEY || current.key !== KEY || target.dto.document_id === current.dto.document_id)
+    throw new LocalDraftError('返回作品上下文无效，当前作品仍保留。')
+  const saved_at = new Date().toISOString(), db = await database()
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(STORE, 'readwrite'), store = tx.objectStore(STORE)
+      tx.oncomplete = () => resolve()
+      tx.onerror = tx.onabort = () => reject(new LocalDraftError('返回前保存失败，已取消返回；两份作品仍保留。'))
+      try {
+        store.put({ ...target, key: KEY, saved_at, example_session_active: false })
+        store.put({ ...current, key: PRE_EXAMPLE_KEY, saved_at, example_session_active: false })
+      } catch (error) { tx.abort(); reject(error) }
+    })
+  } finally { db.close() }
+}
+
+function validateStoredDraft(draft: LocalDraft): void {
+  if (draft.schema_version !== '1.0') throw new LocalDraftError('本地草稿版本不受支持。')
+  validateDraftDocument(draft.dto)
+  validateImageSources(draft.dto, draft.image_sources)
+  if (draft.reference_layer) validateReferenceLayer(draft.reference_layer)
+  if (draft.pending_layout) {
+    const pending = draft.pending_layout
+    if ((!pending.changed && pending.family === currentLayoutFamily(draft.dto)) ||
+        pending.sourceRevision !== draft.dto.document_revision ||
+        (pending.family !== 'free' && (!pending.proposal || pending.proposal.document_id !== draft.dto.document_id)))
+      throw new LocalDraftError('未应用的布局草稿无效。')
+    if (pending.proposal) validateDraftDocument(pending.proposal)
+  }
+}
+
 async function readDraft(key: LocalDraft['key']): Promise<LocalDraft | null> {
   const db = await database()
   try {
@@ -151,18 +187,7 @@ async function readDraft(key: LocalDraft['key']): Promise<LocalDraft | null> {
       request.onerror = () => reject(new LocalDraftError('无法读取本地草稿。'))
     })
     if (!draft) return null
-    if (draft.schema_version !== '1.0') throw new LocalDraftError('本地草稿版本不受支持。')
-    validateDraftDocument(draft.dto)
-    validateImageSources(draft.dto, draft.image_sources)
-    if (draft.reference_layer) validateReferenceLayer(draft.reference_layer)
-    if (draft.pending_layout) {
-      const pending = draft.pending_layout
-      if ((!pending.changed && pending.family === currentLayoutFamily(draft.dto)) ||
-          pending.sourceRevision !== draft.dto.document_revision ||
-          (pending.family !== 'free' && (!pending.proposal || pending.proposal.document_id !== draft.dto.document_id)))
-        throw new LocalDraftError('未应用的布局草稿无效。')
-      if (pending.proposal) validateDraftDocument(pending.proposal)
-    }
+    validateStoredDraft(draft)
     return draft
   } finally { db.close() }
 }

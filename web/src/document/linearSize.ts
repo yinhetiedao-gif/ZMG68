@@ -19,6 +19,7 @@ export interface LinearSizeDraft {
   explicitLinear?: boolean
   imageAsset?: PatternDocumentDTO['assets'][number]
   controlsOnly?: boolean
+  presetId?: string
   designValues?: Record<string, ParameterValue>
   gridValues?: Record<string, number>
   artboard?: { width: number; height: number }

@@ -1,5 +1,22 @@
 # Gate 状态（2026-10-05）
 
+## P1预设返回入口补充（2026-10-11，本地未提交，限定流程PASS）
+
+- 修前8803/index-RWHjP4JC真实复现：原作品→光谱渐隐→Stripe自定义Apply，身份移除使返回按钮1→0，原作上下文实际仍存在；Undo后正常返回又发现autosave把两个槽都写成原作、退出预设未留存。证据 `work/preset-return-20261011/`，不以代码推断代替复现。
+- 最小App条件改为有效active session＋不同ID返回草稿，不依赖当前预设身份；同步入口锁/保存快照/失败不切换保持，补原作design_display。现有IndexedDB两槽原子写：原作作为当前草稿、退出作品作为另一槽，结束会话；复用原验证、无新key/项目管理/导航。第二写失败整体回滚。
+- 新产物index-BODxwr7-真实三套：普通编辑/Cancel/Apply/Undo/Redo→显式自定义→刷新→返回→autosave/刷新，原作最新revision1（当时磁盘0）、完整几何/孔洞/比例/源资产保持，退出作品仍留存；Wave注入quota后两槽不变、可重试。54POST全200、0pageerror、0最终制造请求；原用户会话未覆盖。无/同ID返回上下文及pending Layout由定向测试覆盖。
+- 定向5文件39/39、tsc/vite build/diff check PASS；初始测试确认模拟/查询/TS错误、并行5秒时限及浏览器undefined/JSON格式差异完整保留，未放宽产品校验或延长测试超时。没有Python/Tk全量或重复STL，本轮不新增输出验收结论。
+- 白名单由17变19，只新增既有draft/localDraft.ts与其测试；32tools及所有运行产物原地保留。单槽留存不等于多项目历史，后续明确切换会按原机制复用；pending/Undo刷新及所有历史OPEN保持。HEAD仍3b41af3c/index空，无commit/备份/push/deploy，STOP等待确认。详见 `docs/PATTERN_PRESETS_P1_LOCAL_ACCEPTANCE.md` 补充章节。
+
+## P1 首批三套图案预设（2026-10-11，本地未提交，限定样本PASS）
+
+- 基线仍 `3b41af3c93bfd24e54730d07a2d038dc8a49f683` / feature/pattern-library-reuse；只实现精密错列、光谱渐隐、斜向潮汐。复用正式Grid/Linear/Wave/Size、候选控制器、作品切换与草稿保护，未新增算法/依赖/项目格式。
+- 精密错列只创建/编辑自己的Grid，管理间距、错列、尺寸；Linear/Wave可作用于当前图案，替换受管Size层和专用源/范围，不重排、不污染用户场或Fabric高度。候选不提交，Apply一次Undo；Reset按声明范围。高级换其他驱动后显式成为自定义效果。
+- 三套默认与调整的真实浏览器截图、六组真实SVG/透明PNG均核验。代表性标准/Fabric STL实际下载读回：各216684bytes/4332面/81有效组件，Z0、水密/正体积/绕序一致/零退化；逐元素XY和高度对照权威计划。仅单元不错误要求单组件。带孔、非零原点/.5mm、60×40画板以及Fin PatternPoints单次尺寸继承补充PASS。
+- Web十相关套60/60；最后高级驱动身份修改后三相关套17/17；Python三相关文件29/29，分批不累加。tsc与vite生产构建exit0，既有bundle warning保留。首次浏览器后段脚本假设Fin布点导致超时与异步恢复等待问题保留记录，修正验收脚本后补充PASS，未改算法迎合测试。
+- 证据与准确边界见 `docs/PATTERN_PRESETS_P1_LOCAL_ACCEPTANCE.md`、`work/pattern-presets-p1-20261011/`。独立本地8803测试进程允许现有测试STL导出，原8802未重启/改开关；backend commit UNKNOWN。不覆盖原用户草稿，不扩大Production权限。
+- 未应用快捷表单/Undo刷新边界、旧故障页鼠标确认、混合追加、旧堆栈、Arc/Skew/通用曲线/自动毫米映射/历史迁移及全部既有OPEN保持。公网/本批Linux/切片/实物NOT TESTED。无commit/push/deploy/稳定备份；STOP，等待试用。
+
 ## 综合作品BLOCKED限定复验（2026-10-11，已测样本PASS，其他边界继续OPEN）
 
 - 产品代码不变，feature/pattern-library-reuse / HEAD `369dc01ea58809bbb1b3644e9fe3f1f572277765`；仅更新本验收记录与`docs/ARTWORK_WORKFLOW_CLOSEOUT.md`，证据在`work/artwork-recheck-20261011/`，不暂存/提交/推送/部署、不移动备份。
