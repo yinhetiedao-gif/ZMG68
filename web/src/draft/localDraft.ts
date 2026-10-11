@@ -16,6 +16,7 @@ export interface SourceAssetDraft {
 }
 
 export interface LocalDraft {
+  design_display?: { unit: 'mm' | 'cm' | 'px'; grid: boolean; pngWidth: number }
   key: typeof KEY | typeof PRE_EXAMPLE_KEY
   schema_version: '1.0'
   saved_at: string
@@ -29,6 +30,7 @@ export interface LocalDraft {
 }
 
 export interface DraftUiState {
+  design_display?: LocalDraft['design_display']
   pending_layout: LayoutDraft | null
   example_session_active: boolean
   image_sources?: ImageSources
@@ -116,6 +118,7 @@ async function writeDraft(key: LocalDraft['key'], dto: PatternDocumentDTO, fileN
     example_session_active: uiState?.example_session_active ?? false,
     image_sources: uiState?.image_sources ?? {},
     reference_layer: uiState?.reference_layer ?? null,
+    design_display: uiState?.design_display,
   }
   const db = await database()
   try {

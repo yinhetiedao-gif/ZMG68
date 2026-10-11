@@ -61,6 +61,37 @@ def parameter_definitions() -> dict[str, Any]:
     angle = lambda id, label, default=0.0: _p(id, label, "number", default, min=-360, max=360, step=1, unit="°")
     invert = _p("invert", "反转", "boolean", False)
     return {"schema_version": "1.0", "units": "mm", "definitions": {
+        "design": {
+            "shape": {"label": "形状", "parameters": [
+                _p("size_percent", "单元尺寸", "number", 100, min=1, max=500, step=1, unit="%"),
+                _p("aspect", "宽扁比例", "number", 1, min=.1, max=10, step=.01),
+                angle("rotation", "基础旋转"),
+            ]},
+            "random": {"label": "随机", "parameters": [
+                _p("size_random", "尺寸随机", "number", 0, min=0, max=.8, step=.01),
+                _p("position_jitter", "随机错位", "number", 0, min=0, max=100, step=.1, unit="mm"),
+                angle("rotation_random", "旋转随机范围"),
+                _p("seed", "随机种子", "integer", 1, min=0, max=2147483647, step=1),
+            ]},
+            "stagger": {"label": "排列", "parameters": [_p("stagger", "错列排列", "boolean", False)]},
+            "line": {"label": "直线轴影响区", "parameters": [
+                _coord("x", "中心 X"), _coord("y", "中心 Y"), angle("angle", "轴方向"),
+                _size("length", "轴长度", 40), _size("width", "影响宽度", 20),
+                _p("feather", "边缘过渡", "number", 2, min=0, max=10000, step=.1, unit="mm"),
+            ]},
+            "ellipse": {"label": "椭圆轴影响区", "parameters": [
+                _coord("x", "中心 X"), _coord("y", "中心 Y"), angle("angle", "轴方向"),
+                _size("length", "长轴直径", 40), _size("width", "短轴直径", 20),
+                _p("feather", "边缘过渡", "number", 2, min=0, max=10000, step=.1, unit="mm"),
+            ]},
+            "curve": {"label": "曲线轴影响区", "parameters": [
+                _coord("x0", "起点 X"), _coord("y0", "起点 Y"),
+                _coord("x1", "控制点 X"), _coord("y1", "控制点 Y"),
+                _coord("x2", "终点 X"), _coord("y2", "终点 Y"),
+                _size("width", "影响宽度", 20),
+                _p("feather", "边缘过渡", "number", 2, min=0, max=10000, step=.1, unit="mm"),
+            ]},
+        },
         "layout": {
             "free": {"label": "自由布局", "parameters": []},
             "grid": {"label": "规则矩阵", "parameters": [

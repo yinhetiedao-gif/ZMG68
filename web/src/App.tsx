@@ -7,8 +7,11 @@ import { importImage } from './api/import'
 import { bindImageSource, imageAssetFetcher, type ImageSources } from './api/imageAssets'
 import { preparePattern, runPatternAction, type PatternFamily } from './api/pattern'
 import { Workspace2D } from './geometry/Workspace2D'
+import { DesignPanelControls, defaultDesignDisplay } from './document/DesignPanelControls'
+import { designCandidate } from './document/designControls'
+import { designSvg, designPng, deliverDesign } from './geometry/designExport'
 import { InspectorControls, type EditAction } from './document/InspectorControls'
-import { validateParameter, type ParameterCatalog } from './document/parameterSchema'
+import { groupFor, validateParameter, type ParameterCatalog } from './document/parameterSchema'
 import { currentLayoutFamily, editLayoutDraft, initialLayoutDraft, layoutCommitDocument, type LayoutDraft } from './document/layoutDraft'
 import {
   addField, addModifier, bindScalarModifierField, removeField, removeModifier, restoreSnapshot, setFieldEnabled,
@@ -25,7 +28,8 @@ import { appendPrimitive, createBlankDesign, type PrimitiveType } from './docume
 import { readReferenceLayer, updateReferenceLayer, type ReferenceLayer } from './document/referenceLayer'
 import { ReferenceLayerPanel } from './document/ReferenceLayerPanel'
 import { useLayoutPreview, useDocumentPreview } from './document/useLayoutPreview'
-import { openLinearSize, linearSizeCandidate, linearSizeGroup, linearSizeDefaults, linearRegionDefaults, linearSizeOwner, type LinearSizeDraft } from './document/linearSize'
+import { openLinearSize, linearSizeCandidate, linearSizeGroup, linearRegionDefaults, linearSizeOwner,
+  sizeFieldTypes, sizeFieldGroup, sizeFieldValues, selectSizeField, changeSizeFieldParameter, resetLinearSizeDraft, type LinearSizeDraft } from './document/linearSize'
 import { openRadialSize, radialSizeCandidate, radialSizeGroup, radialSizeDefaults, type RadialSizeDraft } from './document/radialSize'
 import { ParameterPanel } from './document/ParameterPanel'
 import { ParameterInteraction } from './document/ParameterInteraction'
@@ -106,8 +110,17 @@ export function App() {
   const [releaseHealth, setReleaseHealth] = useState<import('./api/client').HealthResponse | null>(null)
   const [retry, setRetry] = useState(0)
   const [browser, setBrowser] = useState(() => ({ ...initialBrowserState, activeMode: workspaceModeFromLocation() }))
-  const [designContext, setDesignContext] = useState<'layout' | 'element' | 'effects' | 'reference' | 'linear' | null>(null)
+  const [designContext, publishDesignContext] = useState<'layout' | 'element' | 'effects' | 'reference' | 'linear' | null>(null)
   const [linearDraft, setLinearDraft] = useState<LinearSizeDraft | RadialSizeDraft | null>(null)
+  const [designDisplay, setDesignDisplay] = useState(defaultDesignDisplay)
+  const designDisplayRef = useRef(designDisplay); designDisplayRef.current = designDisplay
+  const [designExportBusy, setDesignExportBusy] = useState(false)
+  const setDesignContext = (context: typeof designContext) => {
+    if (linearDraft && sizeFormPending && context !== 'linear' && context !== designContext &&
+        !window.confirm('尺寸变化尚未应用。离开此编辑会丢弃待应用配置，正式作品保持不变。继续？')) return false
+    publishDesignContext(context)
+    return true
+  }
   const [linearSync, setLinearSync] = useState(0)
   const [referenceLayer, setReferenceLayer] = useState<ReferenceLayer | null>(null)
   const referenceLayerRef = useRef<ReferenceLayer | null>(null); referenceLayerRef.current = referenceLayer
@@ -203,18 +216,42 @@ export function App() {
   const linearActive = designContext === 'linear' && browser.activeMode === 'design' && Boolean(linearDraft)
   const linearCurrent = Boolean(linearDraft && linearDraft.sourceKey === JSON.stringify(project.currentDocument))
   const sizeGroup = linearDraft?.kind === 'radial' ? radialSizeGroup(parameterCatalog, linearDraft.source, linearDraft.bounds) : linearSizeGroup(parameterCatalog, linearDraft ?? undefined)
+  const scalarSizeGroup = linearDraft?.kind === 'linear' ? sizeFieldGroup(parameterCatalog, linearDraft) : null
+  const sizeDriverGroup = scalarSizeGroup?.parameters.length === 0
+    ? { ...scalarSizeGroup, parameters: sizeGroup?.parameters.filter(p => p.id === 'angle') ?? [] } : scalarSizeGroup
+  const updateSizeDraftValue = (key: string, value: import('./document/parameterSchema').ParameterValue) => {
+    if (typeof value === 'number') setLinearDraft(current => !current ? null : current.kind === 'radial'
+      ? { ...current, values: { ...current.values, [key]: value } } : { ...current, values: { ...current.values, [key]: value } })
+  }
   const linearProposal = useMemo(() => {
     if (!linearActive || !linearCurrent || !linearDraft) return { dto: null, error: null }
-    try { return { dto: linearDraft.kind === 'radial' ? radialSizeCandidate(linearDraft, parameterCatalog) : linearSizeCandidate(linearDraft, parameterCatalog), error: null } }
+    try {
+      if (linearDraft.kind === 'linear' && ['image', 'distance'].includes(linearDraft.fieldType ?? '') &&
+          !imageSourcesRef.current[linearDraft.imageAsset?.asset_id ?? '']?.blob.size)
+        throw new Error('此尺寸效果缺少有效源图片，请选择 PNG/JPG 或已恢复源资产的参数场。参考底图不会自动参与。')
+      return { dto: linearDraft.kind === 'radial' ? radialSizeCandidate(linearDraft, parameterCatalog) : linearSizeCandidate(linearDraft, parameterCatalog), error: null }
+    }
     catch (error) { return { dto: null, error: error instanceof Error ? error.message : '渐变参数无效。' } }
   }, [linearActive, linearCurrent, linearDraft, parameterCatalog])
   const stagedLinear = useDocumentPreview(linearProposal.dto, assetFetch, null,
     linearActive && linearCurrent ? linearDraft!.sourceKey : '')
+  const sizeProposalKey = useRef(''); sizeProposalKey.current = JSON.stringify(linearProposal.dto)
+  const sizeFormPending = useMemo(() => {
+    if (!linearDraft) return false
+    if (linearDraft.kind !== 'linear' || !linearDraft.controlsOnly || !linearCurrent) return true
+    try { return JSON.stringify(designCandidate(linearDraft.source, parameterCatalog, linearDraft.designValues, linearDraft.gridValues, linearDraft.artboard)) !== linearDraft.sourceKey }
+    catch { return true }
+  }, [linearDraft, linearCurrent, parameterCatalog])
+  useEffect(() => {
+    if (browser.activeMode !== 'design' && linearDraft?.kind === 'linear' && linearDraft.controlsOnly && !sizeFormPending) {
+      setLinearDraft(null); publishDesignContext(null)
+    }
+  }, [browser.activeMode, linearDraft, sizeFormPending])
   useEffect(() => {
     // A workspace switch is not an explicit cancellation of a size-effect draft.
     if (designContext !== 'linear') setLinearDraft(null)
   }, [designContext])
-  const geometryInputsPending = linearActive || parameterPending || canvasEditing || Boolean(project.currentDocument && pendingLayoutFor(project.currentDocument, layoutDraft))
+  const geometryInputsPending = sizeFormPending || parameterPending || canvasEditing || Boolean(project.currentDocument && pendingLayoutFor(project.currentDocument, layoutDraft))
   const inputsReady = useRef(false)
   const inputSnapshot = useRef(project.currentDocument); inputSnapshot.current = project.currentDocument
   inputsReady.current = !geometryInputsPending && project.evaluateStatus === 'ready'
@@ -281,7 +318,7 @@ export function App() {
     sourceAsset: SourceAssetDraft | null, uiState: DraftUiState): Promise<LocalDraft> => {
     const sequence = ++draftSaveSequence.current
     setDraftSaveStatus('saving')
-    const metadata = { reference_layer: referenceLayerRef.current, ...uiState, image_sources: imageSourcesRef.current }
+    const metadata = { reference_layer: referenceLayerRef.current, ...uiState, image_sources: imageSourcesRef.current, design_display: designDisplayRef.current }
     const next = draftWrites.current.catch(() => undefined).then(() => saveDraft(dto, fileName, sourceAsset, metadata))
     draftWrites.current = next
     return next.then((saved) => {
@@ -309,7 +346,7 @@ export function App() {
     }, 450)
     return () => { if (draftTimer.current) clearTimeout(draftTimer.current) }
   }, [project.currentDocument, project.evaluateStatus, project.fileName, layoutDraft,
-    activeExampleSession, persistDraft, referenceLayer])
+    activeExampleSession, persistDraft, referenceLayer, designDisplay])
 
   useEffect(() => {
     if (draftSaveStatus !== 'saving' && draftSaveStatus !== 'error') return
@@ -319,6 +356,8 @@ export function App() {
   }, [draftSaveStatus])
 
   const saveBeforeReplacement = async () => {
+    if (linearDraft && sizeFormPending && !window.confirm('尺寸变化尚未应用，未应用内容不会保存。切换作品将丢弃它；当前正式作品会先保存。继续？'))
+      throw new Error('已取消切换，待应用尺寸配置和当前作品均保留。')
     if (draftTimer.current) clearTimeout(draftTimer.current)
     draftTimer.current = null
     const dto = project.currentDocument
@@ -390,7 +429,8 @@ export function App() {
     ++layoutSequence.current
     setSelectedFamily(pending?.family ?? currentLayoutFamily(dto))
     setSelectedFieldId('')
-    setDesignContext(exampleIdFromDocument(dto) === 'gradient-grid' ? 'effects' : exampleIdFromDocument(dto) ? 'layout' : null)
+    setLinearDraft(null)
+    publishDesignContext(exampleIdFromDocument(dto) === 'gradient-grid' ? 'effects' : exampleIdFromDocument(dto) ? 'layout' : null)
     setReferenceLayer(options.referenceLayer ?? null)
     referenceLayerRef.current = options.referenceLayer ?? null
     setReferenceDraft(null)
@@ -576,9 +616,9 @@ export function App() {
   const selectLayout = async (family: PatternFamily) => {
     const dto = project.currentDocument
     if (!dto || !connected || !hasEditableGeometry) return
+    if (!setDesignContext('layout')) return
     const sequence = ++layoutSequence.current
     setSelectedFamily(family)
-    setDesignContext('layout')
     setBrowser(current => ({ ...current, activeMode: 'design' }))
     setLayoutPreviewSeed(null)
     setProjectError(null)
@@ -638,21 +678,46 @@ export function App() {
     setPreparingLayout(false)
     setProjectError(null)
   }
-  const selectLinearSize = (kind: 'linear' | 'radial' = 'linear') => {
+  const selectLinearSize = (kind: 'linear' | 'radial' = 'linear', controlsOnly = false) => {
     const dto = project.currentDocument
     if (!dto || !canEditDocument || !project.bounds || !linearSizeGroup(parameterCatalog)) return
     if (pendingLayoutFor(dto, layoutDraft) || preparingLayout || parameterPending) {
       setProjectError('请先应用或取消未完成的布局/参数修改，再打开尺寸渐变。'); return
     }
-    setLinearDraft(kind === 'radial' ? openRadialSize(dto, project.bounds) : openLinearSize(dto, project.bounds)); setLinearSync(value => value + 1)
+    if (linearDraft && !window.confirm('已有未应用尺寸配置。打开另一个尺寸入口将丢弃它，正式作品不变。继续？')) return
+    setLinearDraft(kind === 'radial' ? openRadialSize(dto, project.bounds) : { ...openLinearSize(dto, project.bounds), controlsOnly }); setLinearSync(value => value + 1)
     setDesignContext('linear'); setBrowser(current => ({ ...current, activeMode: 'design' })); setProjectError(null)
   }
-  const applyLinearSize = () => {
+  const applyLinearSize = async () => {
     const dto = project.currentDocument
     if (!dto || !linearDraft || !canEditDocument || canvasEditing || parameterPending || !stagedLinear.result || !linearProposal.dto ||
-      linearDraft.sourceKey !== JSON.stringify(dto) || activeDocumentRef.current !== dto || pendingLayoutFor(dto, layoutDraft)) return
-    commitDocument({ ...linearProposal.dto, document_revision: dto.document_revision + 1 }, dto)
-    setLinearDraft(null); setDesignContext('effects')
+      linearDraft.sourceKey !== JSON.stringify(dto) || activeDocumentRef.current !== dto || pendingLayoutFor(dto, layoutDraft) || recipeSavingRef.current) return
+    const proposal = linearProposal.dto, key = JSON.stringify(proposal)
+    if (linearDraft.kind === 'linear' && linearDraft.controlsOnly && key === JSON.stringify(dto)) {
+      setLinearDraft(null); publishDesignContext('effects'); return
+    }
+    recipeSavingRef.current = true; setRecipeSaving(true)
+    try {
+      await persistDraft(dto, project.fileName, sourceAssetRef.current, { pending_layout: null, example_session_active: activeExampleSession })
+      if (activeDocumentRef.current !== dto || sizeProposalKey.current !== key) throw new Error('保存期间输入已变化，请重新确认最新预览。')
+      commitDocument({ ...proposal, document_revision: dto.document_revision + 1 }, dto)
+      setLinearDraft(null); publishDesignContext('effects')
+    } catch (error) { setProjectError(`未应用配置，正式作品已保留：${error instanceof Error ? error.message : '当前作品保存失败。'}`) }
+    finally { recipeSavingRef.current = false; setRecipeSaving(false) }
+  }
+  const exportDesign = async (type: 'svg' | 'png') => {
+    const dto = project.currentDocument
+    if (!dto || geometryInputsPending || project.evaluateStatus !== 'ready' || lastValidDocumentRef.current !== dto || designExportBusy) return
+    setDesignExportBusy(true)
+    try {
+      const svg = designSvg(dto, { schema_version: '1.0', document_id: dto.document_id, document_revision: dto.document_revision,
+        geometry: project.finalGeometry, bounds_mm: project.bounds, warnings: [] })
+      const blob = type === 'svg' ? new Blob([svg], { type: 'image/svg+xml' })
+        : await designPng(svg, designDisplay.pngWidth, dto.document.canvas.height / dto.document.canvas.width)
+      if (activeDocumentRef.current !== dto) throw new Error('设计在导出期间已变化，请重新导出。')
+      deliverDesign(blob, `xiaomang-pattern.${type}`)
+    } catch (error) { setProjectError(error instanceof Error ? error.message : '设计导出失败。') }
+    finally { setDesignExportBusy(false) }
   }
   const addPrimitive = (type: PrimitiveType) => {
     if (!connected || importing || parameterPending) return
@@ -805,6 +870,7 @@ export function App() {
   const restoreLocalDraft = () => {
     if (!restorableDraft) return
     sourceAssetRef.current = restorableDraft.source_asset
+    setDesignDisplay(restorableDraft.design_display ?? defaultDesignDisplay)
     imageSourcesRef.current = restorableDraft.image_sources ?? {}
     acceptProject(restorableDraft.dto, restorableDraft.file_name ?? '上次编辑', [], {
       pendingLayout: restorableDraft.pending_layout,
@@ -818,6 +884,7 @@ export function App() {
     try {
       await saveBeforeReplacement()
       sourceAssetRef.current = preExampleDraft.source_asset
+      setDesignDisplay(preExampleDraft.design_display ?? defaultDesignDisplay)
       imageSourcesRef.current = preExampleDraft.image_sources ?? {}
       acceptProject(preExampleDraft.dto, preExampleDraft.file_name ?? '示例前的作品', [], {
         pendingLayout: preExampleDraft.pending_layout, restored: true, referenceLayer: preExampleDraft.reference_layer,
@@ -932,9 +999,12 @@ export function App() {
           <button className="side-item" type="button" disabled={!project.currentDocument}
             onClick={() => { setDesignContext('effects'); setBrowser(current => ({ ...current, activeMode: 'design' })) }}>参数场与效果</button>
           <span className="eyebrow">尺寸变化效果</span>
+          <button type="button" className="side-item" disabled={!canEditDocument || !project.bounds || !groupFor(parameterCatalog, 'design', 'shape')}
+            onClick={() => selectLinearSize('linear', true)}>图案控制 · 排列/形状/随机/画板</button>
           <button type="button" className={`side-item ${linearActive && linearDraft?.kind === 'linear' ? 'selected' : ''}`}
             disabled={!canEditDocument || !project.bounds || !linearSizeGroup(parameterCatalog)}
-            onClick={() => selectLinearSize()}>线性尺寸渐变</button>
+            title="尺寸变化：线性、波浪、条纹及其他参数场共用此入口" onClick={() => selectLinearSize()}>尺寸变化</button>
+          <small className="inspector-readonly">支持切换波浪、条纹、棋盘、噪声、图片等驱动。</small>
           <button type="button" className={`side-item ${linearActive && linearDraft?.kind === 'radial' ? 'selected' : ''}`}
             disabled={!canEditDocument || !project.bounds || !project.currentDocument || !radialSizeGroup(parameterCatalog, project.currentDocument)}
             onClick={() => selectLinearSize('radial')}>径向尺寸渐变</button>
@@ -964,7 +1034,7 @@ export function App() {
         <div className="canvas-stage" onDragOver={(event) => event.preventDefault()} onDrop={onDrop}>
           {browser.activeMode === 'design' && project.currentDocument && project.evaluateStatus !== 'idle' ? (
             <Workspace2D geometry={(linearActive && linearCurrent ? stagedLinear.displayResult?.geometry ?? project.finalGeometry : stagedLayout.result?.geometry ?? project.finalGeometry).map(item => designContext === 'element' && item.id === selectedId && sourceCanDrag(item)
-              ? { ...item, ...elementDraft } : item)} bounds={stagedLayout.result?.bounds_mm ?? project.bounds ?? (referenceLayer ? {
+              ? { ...item, ...elementDraft } : item)} bounds={(linearActive && linearCurrent ? stagedLinear.displayResult?.bounds_mm : null) ?? stagedLayout.result?.bounds_mm ?? project.bounds ?? (referenceLayer ? {
                 min_x: referenceLayer.x_mm - referenceLayer.width_mm / 2, min_y: referenceLayer.y_mm - referenceLayer.height_mm / 2,
                 max_x: referenceLayer.x_mm + referenceLayer.width_mm / 2, max_y: referenceLayer.y_mm + referenceLayer.height_mm / 2,
                 width: referenceLayer.width_mm, height: referenceLayer.height_mm, units: 'mm',
@@ -975,15 +1045,27 @@ export function App() {
               onViewChange={(viewTransform) => setBrowser((current) => ({ ...current, viewTransform }))}
               selectedId={selectedId}
               onSelect={(id) => { if (linearActive && !id) return; setBrowser((current) => ({ ...current, selectedElementIds: id ? [id] : [] })); setDesignContext(id ? 'element' : null) }}
-              gradientControl={linearActive && linearCurrent && canEditDocument ? linearDraft : null}
+              artboard={project.currentDocument ? { x: (project.currentDocument.document.canvas.origin_x ?? 0) * (millimetresPerUnit(project.currentDocument.document) ?? 1), y: (project.currentDocument.document.canvas.origin_y ?? 0) * (millimetresPerUnit(project.currentDocument.document) ?? 1),
+                width: (linearDraft?.kind === 'linear' && linearDraft.artboard ? linearDraft.artboard.width : project.currentDocument.document.canvas.width * (millimetresPerUnit(project.currentDocument.document) ?? 1)),
+                height: (linearDraft?.kind === 'linear' && linearDraft.artboard ? linearDraft.artboard.height : project.currentDocument.document.canvas.height * (millimetresPerUnit(project.currentDocument.document) ?? 1)), grid: designDisplay.grid } : undefined}
+              influenceAreas={linearActive && linearCurrent && canEditDocument && linearDraft?.kind === 'linear' && linearDraft.values.scope_mode === 'areas' ? linearDraft.influenceAreas : undefined}
+              selectedArea={linearDraft?.kind === 'linear' ? linearDraft.selectedArea : undefined}
+              onAreaChange={(id, parameters) => setLinearDraft(draft => draft?.kind === 'linear' ? { ...draft, selectedArea: id,
+                influenceAreas: draft.influenceAreas?.map(a => a.id === id ? { ...a, parameters: { ...a.parameters, ...parameters } } : a) } : draft)}
+              gradientControl={linearActive && linearCurrent && canEditDocument && linearDraft && !(linearDraft.kind === 'linear' && (linearDraft.controlsOnly || linearDraft.values.scope_mode === 'areas')) ? linearDraft.kind === 'radial' ? linearDraft
+                : (!linearDraft.fieldType || linearDraft.fieldType === 'linear') && !linearDraft.existingFieldId && !linearDraft.explicitLinear ? linearDraft
+                : linearDraft.values.scope_mode === 'local' ? { ...linearDraft, kind: 'region', values: { ...linearDraft.values, angle: linearDraft.values.scope_angle ?? 0 } } : null : null}
               onGradientChange={values => {
                 if (!linearCurrent || !canEditDocument || !sizeGroup) return
-                const valid = Object.entries(values).every(([key, value]) => {
+                const changes = linearDraft?.kind === 'linear' && (linearDraft.fieldType && linearDraft.fieldType !== 'linear' || linearDraft.existingFieldId || linearDraft.explicitLinear) && 'angle' in values
+                  ? { ...values, scope_angle: values.angle } : values
+                if (changes !== values) delete (changes as Record<string, number>).angle
+                const valid = Object.entries(changes).every(([key, value]) => {
                   const definition = sizeGroup.parameters.find(item => item.id === key)
                   return definition && validateParameter(definition, value)
                 })
                 if (valid) setLinearDraft(current => !current ? null : current.kind === 'radial'
-                  ? { ...current, values: { ...current.values, ...values } } : { ...current, values: { ...current.values, ...values } })
+                  ? { ...current, values: { ...current.values, ...changes } } : { ...current, values: { ...current.values, ...changes } })
               }}
               canDrag={item => !linearActive && !pendingLayoutFor(project.currentDocument!, layoutDraft) && sourceCanDrag(item)} onDragCommit={commitDrag} pendingPreview={pendingPreview} fitToken={fitToken}
               onEditingChange={setCanvasEditing} />
@@ -1080,38 +1162,102 @@ export function App() {
           }}
           onEdit={editParameter} disabled={!canEditDocument} />
           {!designContext && <p className="inspector-readonly">在左侧选择图案逻辑、参数场或底图，或点击画布中的图形以编辑。</p>}
-          {linearActive && linearDraft && sizeGroup && <section aria-label={linearDraft.kind === 'radial' ? '径向尺寸渐变参数' : '线性尺寸渐变参数'}>
-            <h3>{linearDraft.kind === 'radial' ? '径向尺寸渐变' : '线性尺寸渐变'}</h3>
-            <p className="layout-pending" role="status">有未应用修改</p>
+          {linearActive && linearDraft && sizeGroup && <section aria-label={linearDraft.kind === 'radial' ? '径向尺寸渐变参数' : '尺寸变化参数'}>
+            <h3>{linearDraft.kind === 'radial' ? '径向尺寸渐变' : linearDraft.controlsOnly ? '完整图案控制' : '参数场驱动的尺寸变化'}</h3>
+            <p className="layout-pending" role="status">{sizeFormPending ? '有未应用修改' : '公共参数未改变 · 显示设置无需应用到几何'}</p>
+            {linearDraft.kind === 'linear' && <ParameterInteraction.Provider value={{ syncToken: String(linearSync), onPending: onParameterPending }}>
+              <fieldset disabled={!linearCurrent || !canEditDocument} style={{ border: 0, padding: 0, minWidth: 0 }}>
+                <DesignPanelControls draft={linearDraft} catalog={parameterCatalog} onChange={setLinearDraft} display={designDisplay} onDisplay={setDesignDisplay} />
+              </fieldset>
+            </ParameterInteraction.Provider>}
+            {linearDraft.kind === 'linear' && !linearDraft.controlsOnly && <>
+              <div className="field-picker"><label htmlFor="size-field-source">驱动来源</label>
+                <select id="size-field-source" disabled={!linearCurrent || !canEditDocument || parameterPending}
+                  value={linearDraft.existingFieldId ? 'existing' : 'owned'} onChange={event => {
+                    if (event.target.value === 'owned') setLinearDraft(selectSizeField(linearDraft, linearDraft.fieldType ?? 'linear', parameterCatalog))
+                    else { const field = project.currentDocument?.document.fields.find(f => f.enabled !== false && sizeFieldTypes(parameterCatalog).some(([id]) => f.type === id))
+                      if (field) setLinearDraft(selectSizeField(linearDraft, String(field.type), parameterCatalog, String(field.id)))
+                      else setProjectError('没有可绑定的已启用参数场。请先在高级面板创建，或使用本效果专用场。') }
+                    setLinearSync(v => v + 1)
+                  }}><option value="owned">快捷：本效果专用场</option><option value="existing">高级：绑定已有场</option></select>
+              </div>
+              <div className="field-picker"><label htmlFor="size-field-type">变化方式</label>
+                <select id="size-field-type" disabled={!linearCurrent || !canEditDocument || parameterPending}
+                  value={linearDraft.fieldType ?? 'linear'} onChange={event => {
+                    setLinearDraft(selectSizeField(linearDraft, event.target.value, parameterCatalog)); setLinearSync(v => v + 1)
+                  }}>{sizeFieldTypes(parameterCatalog).map(([id, group]) => <option key={id} value={id}>{group.label}</option>)}</select>
+              </div>
+              {linearDraft.existingFieldId && <div className="field-picker"><label htmlFor="size-existing-field">已有场</label>
+                <select id="size-existing-field" value={linearDraft.existingFieldId} disabled={!linearCurrent || !canEditDocument || parameterPending}
+                  onChange={event => { const field = project.currentDocument!.document.fields.find(f => f.id === event.target.value)!
+                    setLinearDraft(selectSizeField(linearDraft, String(field.type), parameterCatalog, String(field.id))); setLinearSync(v => v + 1) }}>
+                  {project.currentDocument.document.fields.filter(f => f.enabled !== false && sizeFieldTypes(parameterCatalog).some(([id]) => f.type === id))
+                    .map(f => <option key={String(f.id)} value={String(f.id)}>{groupFor(parameterCatalog, 'field', String(f.type))?.label} · {String(f.id)}</option>)}
+                </select><small>绑定未改动的已有场；修改下方场参数时只编辑本效果副本，不改变原共享场。</small></div>}
+              {['image', 'distance'].includes(linearDraft.fieldType ?? '') && <div>
+                <p className="inspector-readonly">源图片：{imageSourcesRef.current[linearDraft.imageAsset?.asset_id ?? '']?.filename ?? '未选择或尚未恢复'}。图片采样范围使用文档世界坐标；参考底图不会自动参与。</p>
+                <button type="button" disabled={!linearCurrent || !canEditDocument} onClick={() => {
+                  fieldImageTarget.current = '__size_draft'; fieldImageInputRef.current?.click()
+                }}>选择尺寸效果源图片</button>
+              </div>}
+              {sizeDriverGroup && sizeDriverGroup.parameters.length > 0 && <ParameterInteraction.Provider value={{ syncToken: String(linearSync), onPending: onParameterPending }}>
+                <fieldset disabled={!linearCurrent || !canEditDocument} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
+                  <h4>场参数 · {sizeDriverGroup.label}</h4>
+                  <ParameterPanel group={sizeDriverGroup} values={{ ...linearDraft.values, ...sizeFieldValues(linearDraft, parameterCatalog) }} onCommit={(key, value) => {
+                    if (key === 'angle') { updateSizeDraftValue(key, value); return }
+                    try { setLinearDraft(current => current?.kind === 'linear' ? changeSizeFieldParameter(current, parameterCatalog, key, value) : current) }
+                    catch (error) { setProjectError(error instanceof Error ? error.message : '场参数无效。') }
+                  }} />
+                </fieldset>
+              </ParameterInteraction.Provider>}
+            </>}
             <p className="inspector-readonly">{linearDraft.kind === 'radial'
               ? '作用于全部有效图案元素，保留原中心与布局。按到中心的直线距离变化；半径处及范围外保持外围比例。线性及其他尺寸效果仍按原顺序叠加。'
+              : linearDraft.controlsOnly ? '公共参数只控制二维结构源，之后沿用现有场与效果顺序；不会创建尺寸场或改变制造输出模式。'
+              : linearDraft.values.scope_mode === 'areas' ? '只在启用影响区内施加本层尺寸变化；重叠取最大权重，外部保留之前效果。'
               : linearDraft.values.scope_mode === 'local' ? '只按进入本效果时的元素中心判断矩形范围；区域外完整保留之前效果。过渡只混合本层尺寸变化，不切割轮廓，不移动中心。'
-              : '作用于全部有效图案元素，保留原中心与布局。方向起点为最小比例，终点为最大比例；范围外保持端点值。'}</p>
-            {linearDraft.kind === 'linear' && <div className="field-picker"><label htmlFor="linear-scope-mode">作用范围</label><select id="linear-scope-mode" value={linearDraft.values.scope_mode ?? 'global'}
-              disabled={!linearCurrent || !canEditDocument} onChange={event => {
-                const mode = event.target.value as 'global' | 'local'
-                setLinearDraft(current => current?.kind === 'linear' ? { ...current, values: { ...linearRegionDefaults(current.bounds), ...current.values, scope_mode: mode } } : current)
-              }}><option value="global">全图</option><option value="local">局部区域</option></select></div>}
+              : !linearDraft.fieldType || linearDraft.fieldType === 'linear' ? `作用于全部有效图案元素，保留原中心与布局。${linearDraft.values.invert ? '已反转：方向起点为最大比例，终点为最小比例' : '方向起点为最小比例，终点为最大比例'}；范围外保持端点值。`
+              : '参数场输出 0–1 标量，再映射为尺寸比例。只改变各元素大小，保留中心、旋转与原布局；实际变化取决于各元素中心的采样值。'}</p>
             <p className="inspector-readonly">图案参考范围：X {linearDraft.bounds.min_x.toFixed(2)}–{linearDraft.bounds.max_x.toFixed(2)} mm，Y {linearDraft.bounds.min_y.toFixed(2)}–{linearDraft.bounds.max_y.toFixed(2)} mm。{linearDraft.kind === 'linear' && linearDraft.values.scope_mode === 'local' ? '局部区域由下方中心、方向、长度和宽度独立确定。' : ''}</p>
             {project.currentDocument.document.modifiers.some(item => item.type === 'size' && item.enabled !== false && item.id !== linearSizeOwner(project.currentDocument!)?.modifier.id) &&
               <p className="inspector-readonly">其他尺寸效果仍按现有顺序叠加；本效果不会关闭它们。</p>}
-            <ParameterInteraction.Provider value={{ syncToken: String(linearSync), onPending: onParameterPending }}>
+            {! (linearDraft.kind === 'linear' && linearDraft.controlsOnly) && <ParameterInteraction.Provider value={{ syncToken: String(linearSync), onPending: onParameterPending }}>
               <fieldset disabled={!linearCurrent || !canEditDocument} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
-                <ParameterPanel group={sizeGroup} values={{ ...linearDraft.values }} onCommit={(key, value) => {
-                  if (typeof value === 'number') setLinearDraft(current => !current ? null : current.kind === 'radial'
-                    ? { ...current, values: { ...current.values, [key]: value } } : { ...current, values: { ...current.values, [key]: value } })
-                }} />
+                {linearDraft.kind === 'radial' ? <ParameterPanel group={sizeGroup} values={{ ...linearDraft.values }} onCommit={updateSizeDraftValue} /> : <>
+                  <h4>尺寸映射</h4>
+                  <small>作用强度即本尺寸层的逻辑强度；0保留之前尺寸，1应用完整映射。不会改变共享场或其他消费者。</small>
+                  <label><input type="checkbox" checked={linearDraft.values.invert ?? false} onChange={e => setLinearDraft({ ...linearDraft, values: { ...linearDraft.values, invert: e.target.checked } })} />反转渐变（仅本层）</label>
+                  <ParameterPanel group={{ ...sizeGroup, parameters: sizeGroup.parameters.filter(p => ['min_output', 'max_output', 'strength'].includes(p.id)) }}
+                    values={{ ...linearDraft.values }} onCommit={updateSizeDraftValue} />
+                  <h4>作用范围</h4>
+                  <div className="field-picker"><label htmlFor="linear-scope-mode">作用范围</label><select id="linear-scope-mode" value={linearDraft.values.scope_mode ?? 'global'}
+                    onChange={event => {
+                      const mode = event.target.value as 'global' | 'local' | 'areas'
+                      setLinearDraft(current => current?.kind === 'linear' ? { ...current, values: { ...linearRegionDefaults(current.bounds), ...current.values, scope_mode: mode } } : current)
+                    }}><option value="global">全图</option><option value="local">局部区域</option><option value="areas">多影响区（最多3个）</option></select></div>
+                  {linearDraft.values.scope_mode === 'areas' && <DesignPanelControls areaOnly draft={linearDraft} catalog={parameterCatalog} onChange={setLinearDraft} display={designDisplay} onDisplay={setDesignDisplay} />}
+                  <ParameterPanel group={{ ...sizeGroup, parameters: sizeGroup.parameters.filter(p => !['angle', 'min_output', 'max_output', 'strength'].includes(p.id)) }}
+                    values={{ ...linearDraft.values }} onCommit={updateSizeDraftValue} />
+                </>}
               </fieldset>
-            </ParameterInteraction.Provider>
+            </ParameterInteraction.Provider>}
             <p className="inspector-readonly">画布控制点拖动中限频自动预览；数值控件松手或确认后自动预览。控制点松手仍未应用，点击应用才提交。未应用输入不会保存；刷新或切换上下文将丢弃它们。</p>
             <div className="layout-inspector-actions">
               <button type="button" onClick={() => { setLinearDraft(current => current ? current.kind === 'radial'
-                ? { ...current, values: radialSizeDefaults(current.bounds) } : { ...current, values: { ...linearSizeDefaults, ...linearRegionDefaults(current.bounds), scope_mode: current.values.scope_mode ?? 'global' } } : null); setLinearSync(value => value + 1) }}>恢复默认</button>
-              <button type="button" onClick={() => { setLinearDraft(null); setDesignContext('effects') }}>取消效果</button>
+                ? { ...current, values: radialSizeDefaults(current.bounds) } : resetLinearSizeDraft(current, parameterCatalog) : null); setLinearSync(value => value + 1) }}>恢复默认</button>
+              <button type="button" onClick={() => { setLinearDraft(null); publishDesignContext('effects') }}>取消效果</button>
               <button type="button" className="ui-primary" disabled={!canEditDocument || !linearCurrent || canvasEditing || parameterPending || !stagedLinear.result || !linearProposal.dto}
                 onClick={applyLinearSize}>应用效果</button>
             </div>
           </section>}
+          <section aria-label="当前设计导出">
+            <h3>导出当前设计</h3>
+            <p className="inspector-readonly">{geometryInputsPending ? '请先应用或取消待确认配置，再导出当前设计。' : '按画板边界导出已应用结果；不含底图、网格及辅助标记。'}</p>
+            <div className="layout-inspector-actions">
+            <button type="button" className="ui-secondary" disabled={geometryInputsPending || project.evaluateStatus !== 'ready' || designExportBusy || !project.finalGeometry.length} onClick={() => void exportDesign('svg')}>下载设计SVG</button>
+            <button type="button" className="ui-secondary" disabled={geometryInputsPending || project.evaluateStatus !== 'ready' || designExportBusy || !project.finalGeometry.length} onClick={() => void exportDesign('png')}>下载透明PNG</button>
+            </div>
+          </section>
           {designContext === 'reference' && referenceLayer && <ReferenceLayerPanel layer={referenceLayer}
             onCommit={(key, value) => {
               try { setReferenceLayer(updateReferenceLayer(referenceLayer, key, value)); setReferenceDraft(null) }
@@ -1122,6 +1268,7 @@ export function App() {
             }} onRemove={() => { setReferenceLayer(null); setReferenceDraft(null); setDesignContext(null) }} />}
         </div>}
         <div className="manufacturing-inspector-form" hidden={browser.activeMode === 'design'}>
+            {sizeFormPending && <p className="layout-pending" role="status">二维尺寸效果尚未应用。当前3D仅显示已应用设计；请返回设计应用或取消后再制造／下载。</p>}
             <ManufacturingPanel heightText={manufacturing.heightText} onHeightChange={manufacturing.setHeightText}
               projectWarnings={project.warnings}
               document={project.currentDocument} designBounds={project.bounds} parameterCatalog={parameterCatalog}
@@ -1278,6 +1425,12 @@ export function App() {
           const mediaType = /\.png$/i.test(file.name) ? 'image/png' : /\.jpe?g$/i.test(file.name) ? 'image/jpeg' : ''
           if (!mediaType || !file.size || file.size > 8 * 1024 * 1024) throw new Error('请选择 8 MiB 内的 PNG/JPG 图片。')
           const token = `image-${crypto.randomUUID()}`
+          if (fieldImageTarget.current === '__size_draft') {
+            imageSourcesRef.current = { ...imageSourcesRef.current, [token]: { blob: file, filename: file.name, media_type: mediaType } }
+            setLinearDraft(current => current?.kind === 'linear' && ['image', 'distance'].includes(current.fieldType ?? '')
+              ? { ...current, imageAsset: { role: '', asset_id: token, media_type: mediaType } } : current)
+            return
+          }
           const next = bindImageSource(dto, fieldImageTarget.current, token, mediaType)
           imageSourcesRef.current = { ...imageSourcesRef.current,
             [token]: { blob: file, filename: file.name, media_type: mediaType } }

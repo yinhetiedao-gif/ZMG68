@@ -1,0 +1,6 @@
+<!-- New regression sample (2026-10-10), NOT the historical failed user SVG. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="60mm" height="40mm" viewBox="20 40 120 80">
+  <path id="hole" fill="black" fill-rule="evenodd"
+        d="M31 83 H55 V107 H31 Z M37 89 V101 H49 V89 Z"/>
+  <path id="relative" fill="black" d="M75 55 h16 v8 h-6 v6 h-10 z"/>
+</svg>

@@ -150,7 +150,7 @@ describe('Phase 1A real editor connections', () => {
   })
   it('does not discard or apply an unapplied 2D shortcut when switching to wave recipes', async () => {
     const backend = startBackend(); await open()
-    fireEvent.click(screen.getByRole('button', { name: '线性尺寸渐变' }))
+    fireEvent.click(screen.getByRole('button', { name: '尺寸变化' }))
     await waitFor(() => expect(screen.getByRole('button', { name: '应用效果' })).toBeEnabled())
     const minimum = screen.getByLabelText('最小尺寸比例')
     fireEvent.change(minimum, { target: { value: '.8' } }); fireEvent.blur(minimum)

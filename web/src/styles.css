@@ -405,6 +405,8 @@ button.ui-danger:hover:not(:disabled) { background: #fff1ef; }
 .gradient-controls [data-gradient-range] { stroke-dasharray: 6 4; }
 .gradient-controls [data-gradient-handle] { fill: #fff; cursor: grab; touch-action: none; }
 .gradient-controls [data-gradient-handle]:active { cursor: grabbing; fill: #bcf5ef; }
+.gradient-controls [data-area-handle] { fill: #fff; cursor: grab; touch-action: none; }
+.gradient-controls [data-area-handle]:active { cursor: grabbing; fill: #bcf5ef; }
 .gradient-controls text { stroke: none; fill: #006c79; paint-order: stroke; }
 
 /* Readable inspector controls without changing the workspace or hit geometry. */

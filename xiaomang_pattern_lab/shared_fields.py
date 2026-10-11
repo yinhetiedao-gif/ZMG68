@@ -851,6 +851,7 @@ class SizeModifier:
     mapping: FieldMapping
     enabled: bool = True
     region: LinearSizeRegion | None = None
+    influence_areas: tuple | None = None
 
     def __post_init__(self):
         if not isinstance(self.id, str) or not self.id or not isinstance(self.field_id, str) or not self.field_id:
@@ -859,6 +860,9 @@ class SizeModifier:
             raise ValueError("尺寸修饰器启用状态必须为布尔值。")
         if min(self.mapping.min_output, self.mapping.max_output) < 0:
             raise ValueError("尺寸比例不能小于 0。")
+        if self.influence_areas is not None and (len(self.influence_areas) > 3 or
+                len({area.id for area in self.influence_areas}) != len(self.influence_areas)):
+            raise ValueError("影响区最多3个，身份不能重复。")
 
     def scale(self, value: float) -> float:
         return self.mapping.evaluate(value, neutral=1.0) if self.enabled else 1.0
@@ -868,6 +872,8 @@ class SizeModifier:
                   "mapping": asdict(self.mapping), "enabled": self.enabled}
         if self.region is not None:
             result["region"] = asdict(self.region)
+        if self.influence_areas is not None:
+            result["influence_areas"] = [area.to_dict() for area in self.influence_areas]
         return result
 
 
@@ -979,12 +985,12 @@ class SharedFieldEngine:
         result = deepcopy(source)
         for modifier in self.modifiers:
             if not modifier.enabled: continue
-            region_context = FieldContext.from_elements(result) if isinstance(modifier, SizeModifier) and modifier.region is not None else None
+            region_context = FieldContext.from_elements(result) if isinstance(modifier, SizeModifier) and (modifier.region is not None or modifier.influence_areas is not None) else None
             for element, value in zip(result, values[modifier.field_id]):
                 if isinstance(modifier, SizeModifier):
                     weight = 1
-                    if modifier.region is not None:
-                        weight = modifier.region.weight(element)
+                    if modifier.region is not None or modifier.influence_areas is not None:
+                        weight = max((area.weight(element) for area in modifier.influence_areas), default=0) if modifier.influence_areas is not None else modifier.region.weight(element)
                         if weight == 0:
                             continue  # Preserve the complete previous layer, even its minimum size.
                         value = self.fields.evaluate(modifier.field_id, element, region_context)
@@ -1025,8 +1031,10 @@ class SharedFieldEngine:
                 raise ValueError("SharedFieldEngine 修饰器必须包含非空 id 和 field_id。")
             mapping = FieldMapping(**raw.get("mapping", {}))
             if raw.get("type") == "size":
+                from .influence_areas import InfluenceArea
                 modifiers.append(SizeModifier(raw["id"], raw["field_id"], mapping, raw.get("enabled", True),
-                    LinearSizeRegion(**raw["region"]) if raw.get("region") is not None else None))
+                    LinearSizeRegion(**raw["region"]) if raw.get("region") is not None else None,
+                    tuple(InfluenceArea(**area) for area in raw["influence_areas"]) if raw.get("influence_areas") is not None else None))
             elif raw.get("type") == "rotation":
                 modifiers.append(RotationModifier(raw["id"], raw["field_id"], mapping, raw.get("enabled", True)))
             elif raw.get("type") == "field_position":

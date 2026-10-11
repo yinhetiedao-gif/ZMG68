@@ -19,13 +19,13 @@ from .models import (
     RectElement,
     Reference,
 )
+from .region_geometry import path_subpaths, path_data_from_polygons
 
 
 NUMBER = r"[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?"
 NUMBER_RE = re.compile(NUMBER)
 RECT_PATH_RE = re.compile(
     r"^\s*M\s*(%s)[ ,]+(%s)\s*H\s*(%s)\s*V\s*(%s)\s*H\s*(%s)\s*[zZ]\s*$" % (NUMBER, NUMBER, NUMBER, NUMBER, NUMBER),
-    re.IGNORECASE,
 )
 ELLIPSE_PATH_RE = re.compile(
     r"^\s*M\s*(%s)[ ,]+(%s)\s*A\s*(%s)[ ,]+(%s)\s+0[ ,]+1[ ,]+0\s+(%s)[ ,]+(%s)"
@@ -145,11 +145,15 @@ class SVGNormalizer:
             )
         if tag == "path":
             path_data = node.attrib.get("d", "").strip()
+            # Explicit project geometry wins over re-import normalization.
+            # Never silently reinterpret saved legacy source/base transforms.
+            if state.normalization_mode == "semantic":
+                foundation_path = _foundation_path_element(identifier, node, path_data, visible, style, group_id)
+                if foundation_path is not None:
+                    return foundation_path
+            path_data, transform = _normalize_linear_path_transform(path_data, transform)
             if state.normalization_mode == "faithful" and path_data:
                 return _filled_region_element(identifier, path_data, _path_bounds(path_data), transform, visible, style, group_id)
-            foundation_path = _foundation_path_element(identifier, node, path_data, visible, style, group_id)
-            if foundation_path is not None:
-                return foundation_path
             recovered = _recover_path_primitive(identifier, path_data, transform, visible, style, group_id)
             if recovered is not None:
                 return recovered
@@ -182,6 +186,49 @@ class _NormalizerState:
             candidate = "%s-%d" % (seed, index)
         self.ids.add(candidate)
         return candidate
+
+
+def _normalize_linear_path_transform(path_data: str, transform: _TransformInfo) -> Tuple[str, _TransformInfo]:
+    """Bake only new closed straight paths, once, in SVG CTM order.
+
+    Curves keep the established import route; this is not a new tessellator.
+    Stored documents and their explicit foundation metadata never enter here.
+    """
+    commands = re.findall(r"[A-Za-z]", NUMBER_RE.sub("", path_data))
+    operations = re.findall(r"([A-Za-z]+)\s*\(([^)]*)\)", transform.raw_text)
+    if (not commands or any(command not in "MmLlHhVvZz" for command in commands)
+            or commands[-1] not in "Zz" or not operations):
+        return path_data, transform
+    # Single translate/scale already has verified primitive recovery; keep it.
+    if len(operations) == 1 and operations[0][0].lower() in {"translate", "scale"}:
+        return path_data, transform
+    matrix = (1., 0., 0., 1., 0., 0.)
+    for name, body in operations:
+        values = [float(value) for value in NUMBER_RE.findall(body)]
+        name = name.lower()
+        if name == "translate" and len(values) in {1, 2}:
+            local = (1., 0., 0., 1., values[0], values[1] if len(values) == 2 else 0.)
+        elif name == "scale" and len(values) in {1, 2}:
+            local = (values[0], 0., 0., values[1] if len(values) == 2 else values[0], 0., 0.)
+        elif name == "rotate" and len(values) in {1, 3}:
+            c, s = math.cos(math.radians(values[0])), math.sin(math.radians(values[0]))
+            cx, cy = values[1:] if len(values) == 3 else (0., 0.)
+            local = (c, s, -s, c, cx - c * cx + s * cy, cy - s * cx - c * cy)
+        elif name == "matrix" and len(values) == 6:
+            local = tuple(values)
+        else:
+            return path_data, transform
+        a, b, c, d, e, f = matrix
+        u, v, w, x, y, z = local
+        matrix = (a*u+c*v, b*u+d*v, a*w+c*x, b*w+d*x, a*y+c*z+e, b*y+d*z+f)
+    a, b, c, d, e, f = matrix
+    polygons = path_subpaths(path_data)
+    if not polygons:
+        return path_data, transform
+    transformed = [[(a*px+c*py+e, b*px+d*py+f) for px, py in polygon] for polygon in polygons]
+    if not all(math.isfinite(value) for polygon in transformed for point in polygon for value in point):
+        raise ValueError("SVG Transform 产生了非有限坐标。")
+    return path_data_from_polygons(transformed, precision=15), _TransformInfo()
 
 
 def _canvas_from_root(root: ET.Element) -> Canvas:
@@ -410,6 +457,54 @@ def _foundation_path_element(identifier: str, node: ET.Element, path_data: str,
 
 
 def _path_bounds(path_data: str) -> Tuple[float, float, float, float]:
+    # H/V have ONE coordinate, and lowercase commands contain displacements.
+    # Walk command operands before taking their bounds; numeric XY pairing
+    # loses both facts, especially across holes/subpaths. Keep the established
+    # non-H/V curve bounds policy unchanged; this is an import-only fix, not a
+    # migration of persisted PathElement/base_* metadata.
+    tokens = re.findall(r"[AaCcHhLlMmQqSsTtVvZz]|" + NUMBER, path_data)
+    if any(token in {"H", "h", "V", "v"} for token in tokens):
+        points: List[Tuple[float, float]] = []
+        current = start = (0.0, 0.0)
+        command = ""
+        index = 0
+        arities = {"M": 2, "L": 2, "H": 1, "V": 1, "C": 6, "S": 4, "Q": 4, "T": 2, "A": 7}
+        while index < len(tokens):
+            if tokens[index].isalpha():
+                command = tokens[index]
+                index += 1
+                if command in {"Z", "z"}:
+                    current = start
+                    command = ""
+                    continue
+            count = arities.get(command.upper())
+            if count is None or index + count > len(tokens):
+                break
+            operands = tokens[index:index + count]
+            if any(token.isalpha() for token in operands):
+                break
+            values = [float(value) for value in operands]
+            index += count
+            name = command.upper()
+            ox, oy = current if command.islower() else (0.0, 0.0)
+            if name == "H":
+                current = (values[0] + ox, current[1])
+            elif name == "V":
+                current = (current[0], values[0] + oy)
+            else:
+                # Retain the conservative control-point box for mixed curves.
+                # Arc radii/flags are not XY; only their endpoint belongs here.
+                coordinates = values[-2:] if name == "A" else values
+                points.extend((coordinates[i] + ox, coordinates[i + 1] + oy)
+                              for i in range(0, len(coordinates), 2))
+                current = (values[-2] + ox, values[-1] + oy)
+                if name == "M":
+                    start = current
+                    command = "l" if command.islower() else "L"
+            points.append(current)
+        if points:
+            xs, ys = zip(*points)
+            return min(xs), min(ys), max(xs), max(ys)
     values = [float(value) for value in NUMBER_RE.findall(path_data)]
     pairs = list(zip(values[0::2], values[1::2]))
     if not pairs:

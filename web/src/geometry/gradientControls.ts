@@ -3,7 +3,7 @@ import type { Point } from './view'
 
 /** Display-only interaction data, in the same world millimetres as Workspace2D. */
 export type GradientControl =
-  | { kind: 'linear'; bounds: BoundsMM; values: { angle: number; scope_mode?: 'global' | 'local'; center_x?: number; center_y?: number; length?: number; width?: number } }
+  | { kind: 'linear' | 'region'; bounds: BoundsMM; values: { angle: number; scope_mode?: 'global' | 'local' | 'areas'; center_x?: number; center_y?: number; length?: number; width?: number } }
   | { kind: 'radial'; bounds: BoundsMM; values: { center_x: number; center_y: number; radius: number } }
 export type GradientHandle = 'direction' | 'center' | 'radius' | 'start' | 'end' | 'width'
 export function gradientMarkers(control: GradientControl) {
@@ -19,7 +19,7 @@ export function gradientMarkers(control: GradientControl) {
 }
 export function gradientHandleChange(control: GradientControl, handle: GradientHandle, world: Point): Record<string, number> {
   const { center } = gradientMarkers(control)
-  if (control.kind === 'linear') {
+  if (control.kind !== 'radial') {
     if (control.values.scope_mode === 'local') {
       if (handle === 'center') return { center_x: world.x, center_y: world.y }
       if (handle === 'width') {

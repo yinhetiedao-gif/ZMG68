@@ -1,5 +1,46 @@
 # Gate 状态（2026-10-05）
 
+## SVG 最终补充验收（2026-10-10，本地未提交，限定样本PASS）
+
+- HEAD仍`4a1c799255ca71002dc4cd9bae88e38ef0fea69e`/feature/pattern-library-reuse，index空、旧成果保留，无commit/push/deploy/旧补丁恢复/生产权限/依赖/制造算法或Validator改动；H/V `_path_bounds`本轮未再修改。详见`docs/SVG_FINAL_LOCAL_ACCEPTANCE.md`。
+- 补充样本修前13FAIL：源旋转+element旋转重复，复合Transform几何顺序不符、matrix未应用，Path SVG丢fill-rule。新导入闭合直线M/L/H/V路径最小CTM物化一次，显式foundation历史字段仍优先，不改共享旧Transform解释/历史保存；复用多边形输出，只新增可选精度参数（默认不变）。45/90°、指定中心、T@S/S@T/nested/matrix、Bounds/中心/影响权重/逐点对照通过；通用曲线/Arc/Skew等不宣称PASS。
+- exporter公共属性保留fill-rule；same/opposite winding evenodd、semantic/faithful多子路径测试通过。捕获修前源码仅诊断输出缺属性→`ambiguous_nonzero_fill`拒绝hole；修后2对象/真孔保持，无恢复旧代码。foundation单位恢复边界仍OPEN，Web物理mm输出单独实测。
+- 当前浏览器8797旧页面及服务不触碰；同一本地IAB新8801隔离来源跑当前工作区+index-BeMizbJw，真实导入→ellipse影响区→Apply→SVG/透明PNG下载→同页重新导入→再导出；孔/外部L/毫米Bounds一致，PNG1600×1067逐像素相等/vision diff0%。浏览器代表STL真实下载读回：2684bytes/52面、28.5×24.5×2mm、2组件/水密/正体积/绕序一致/零退化/孔保留；13POST与STLGET全200。
+- 最后受影响Python47PASS+2子测试、真实文件readback/diff check PASS，批次不累加。证据`work/svg-final-acceptance-20261010/`，截图/DOM/server请求日志/实际文件齐；现有warnings及旧用户页、通用Transform、旧作品不迁移、公网/Linux/切片/实物边界保留，无整体收口冻结声明。STOP。
+
+## SVG H/V Bounds 定向修复（2026-10-10，本地未提交）
+
+- 保持feature/pattern-library-reuse / `4a1c799255ca71002dc4cd9bae88e38ef0fea69e`与全部旧未提交成果，index空；无commit/push/deploy/服务重启/旧作品迁移。详见`docs/SVG_HV_BOUNDS_LOCAL_REGRESSION.md`。
+- 原始用户失败SVG未取得；本轮`svg_hv_bounds_regression.svg`及内联样本明确为新建回归样本。先只读证实数字XY配对忽略H/V、相对矩形大小写误识别；修前实际19FAIL/3PASS、pytest exit1。新带孔Bounds错误(31,37,89,107)→正确(31,83,55,107)，center(60,72)→(43,95)，.5映射、影响区采样及真实孔洞/制造均核对。
+- 只改svg_normalizer.py命令操作数Bounds与绝对矩形识别；无依赖/公共模型/共享多边形解析/几何Validator改动。平移和非均匀缩放覆盖；通用旋转/matrix/复合变换未验收，不宣称完整SVG实现。历史.pattern.json及应用SVG显式geometry/base字段保持，原错误保存数据不自动修正。
+- 定向Python51PASS+7子测试（含SVG/PNG导入、P0 Grid、原图Fabric/普通STL、影响区）；最后补local-scope真实HTTP制造后新回归25PASS，批次重叠不累加。STL响应实际落盘读回：2组件/水密/正体积/绕序一致/0退化，局部缩放外部不变且孔保留。diff check PASS，无无关Tk全量或冗余前端构建。
+- 新测试到达API后补齐测试自身schema_version；历史PathElement SVG exporter丢fill-rule另行OPEN，仅JSON完整保存和SVGgeometry字段保持通过，不修改无关Exporter。证据`work/svg-hv-bounds-20261010/`。旧综合作品收口仍待新版补验收，用户当前服务/浏览器、公网/Linux/切片/实物不冒称PASS；本轮到此STOP。
+
+## 真实作品综合验收 / 收口暂停（2026-10-10，BLOCKED）
+
+- 分支/HEAD仍feature/pattern-library-reuse / `4a1c799255ca71002dc4cd9bae88e38ef0fea69e`，所有未提交成果保留、index空；仅补验收工具/记录，产品无新修改，未commit/新稳定引用/push/deploy。见`docs/ARTWORK_WORKFLOW_CLOSEOUT.md`与`work/artwork-closeout-20261010/`。
+- 规则48→63、真实SVG5对象、Fin48波浪三类作品实际默认/调整截图及浏览器操作完成；35/49/53POST各自全200，pageerror0/max evaluate在途1，Undo/Redo/刷新及纹理仅单元↔Solid/stale通过相应步骤；不能据此宣布整体作品PASS。
+- 新真实阻塞：fixture带孔M/H/V多子路径，svg_normalizer.py:412 `_path_bounds`按数字配对忽略H/V语义，将正确native Bounds(30,85,50,105)误记(30,35,90,105)，.5映射中心应(20,47.5)mm却为(30,35)，宽高应10×10却30×35；放在可见带孔区域的ellipse中心20/47.5、直径14×12，5个元素权重全0，readback inside/outside断言FAIL(exit1)。现有HEAD同函数，无本轮修改，但旧文件中心透明/拓扑PASS不能关闭这个语义缺陷。
+- 11真实下载（6 SVG/PNG+5 STL）文件存在并读回；SVG真矢量/PNG透明及真实孔中心alpha0；STL严格封闭/正体积/绕序/零退化，组件63/5/48/1/48按模式分别正确，模式计划XY/宽深/旋转/高度保持。但完整作品验收BLOCKED，不冻结、不制造空提交，旧稳定引用不移动。
+- 最小待批范围仅SVG路径Bounds复用现有解析＋H/V/多子路径/孔洞锚点回归；旧已保存错误base_*不得静默迁移。没有修产品、降Validator或换样本绕过。引用上轮定向测试/build，无Tk全量；本轮公网/Linux/切片/实物未验收，已停止。
+
+## 主编辑器完整图案控制面板（2026-10-10，本地未提交）
+
+- 分支feature/pattern-library-reuse/HEAD `4a1c799255ca71002dc4cd9bae88e38ef0fea69e`不变；前批通用尺寸及全部旧成果保留、暂存区空；未commit/push/deploy/恢复旧补丁/改变生产权限/新增依赖。快照`work/full-design-panel-20261010/source-before.zip`，逐项清单和边界`docs/FULL_DESIGN_PANEL_LOCAL_ACCEPTANCE.md`。参考三截图本条未提供，不宣称算法等价复刻。
+- 同一draft/candidate/正式文档接公共Grid密度/间距/错列、二维尺寸/宽扁/旋转及seed随机，复用真实Schema/hash/源链；显式opt-in metadata，不自动重排自由导入。三种真实Size消费者局部权重（有限直线、旋转填充椭圆、128段二次Bezier），最多3区，重叠max/order independent/outside跳过本层；不改共享Field，不创建第二套场/制造系统。
+- 画板宽高独立、不拉伸/重排；mm/cm及明确文档/96DPI px表示，display-only无几何commit；主编辑器真实SVG/透明PNG取同一已应用Python结果，画板clip、不含底图/grid/handles，pending禁导出。Apply先IndexedDB保护、一次commit/Undo；Reset完整受管配置、Cancel/刷新/引用/stale边界保持。
+- 最终独立8800/Edge/生产index-BeMizbJw：65POST全200、0pageerror；20点/非零原点/.5映射，3控制柄8/8/24moves分别1/1/4evaluate、0commit/制造，max在途1。12outside完整不变，真实SVG/PNG及普通/Fabric STL交付读回，两STL均20有效组件/Z0/封闭/正体积/绕序一致/0退化，全部几何/高度顶点一致，不对仅图案强制单组件。
+- 定向Web19文件91/91；测试补充后3文件14/14（重叠不相加）；Python60/60+2子测试，独立导入4/4+5子测试；build/diff check PASS。Python3区evaluate100/400/1000约8.58–9.53/32.80–44.86/79.69–81.61ms，不冒称FPS。中途同帧冲突被正确拒绝，脚本等待预览再制造，未删busy/放宽Validator。
+- 数值松手/确认更新、未应用/旧Undo刷新边界、curve近似、mixed append/旧隐式堆栈、原8792鼠标OPEN、bundle/Starlette warnings保留；本轮公网/Linux/切片/实物NOT TESTED。没有新稳定Git引用，不宣布冻结/上线，停止。
+
+## 参数场驱动二维尺寸快捷（2026-10-10，本地未提交）
+
+- 真实基线/HEAD `4a1c799255ca71002dc4cd9bae88e38ef0fea69e`，feature/pattern-library-reuse；tracked/index开始为空，22旧脚本及所有稳定引用保留。无commit/push/deploy/旧补丁恢复/依赖或Python算法修改。源码保护与全部证据 `work/field-size-20261010/`，说明 `docs/FIELD_SIZE_LOCAL_ACCEPTANCE.md`。
+- 原线性draft/归属/Size层扩展为目录驱动共用参数面板；10个真实Schema标量类型，专用ID映射及已有场复制隔离。波浪/条纹/棋盘/噪声/图片/距离实际采样变化，Constant正常固定，Ring不冒充旧径向；Composite无快捷Schema不虚构支持。图片缺源具体引导、0求值/禁Apply，显式PNG后正常，不借底图。
+- 既有PythonSize region通用接线，范围外不改本层前状态、过渡混合本层增量；100样本77个outside数值完全保持。通用矩形不画假线性轴，世界单位转换一次；位置/旋转/Layout/用户场/Height保留。Apply1commit/Undo、Reset/Cancel0commit，刷新已应用配置与引用恢复；未应用输入和旧Undo刷新边界明确。跨workspace保留pending并禁止制造下载，退出上下文/换作品需明确确认。
+- 独立8798/Edge/当前production dist index-Bw680_BK：最终52 POST全200、0pageerror；4次快切2次evaluate、0commit/制造。三真实STL严格读回均100有效组件/Z0/封闭/正体积/绕序一致/0退化；两份2D Size及一份原图Fabric Height逐元素/顶点一致。不对无基底强制单组件。
+- 相关Web66/66；最后分组后22/22、referenceLayer3/3；Python68/68含新21，批次不叠加；final build PASS。中途fixture409/脚本选择器与观察时序/TS类型错误等详实记录，无放宽guard/Validator。既有bundle/Starlette warning、8792旧OPEN保留，本轮公网/Linux/切片/实物NOT TESTED。不开始其他逻辑，停止。
+
 ## 阶段一完整工作流本地收口（2026-10-10）
 
 - 提交前feature/pattern-library-reuse / dd16f64aab07e894cdc09218c56a416579b45203，暂存区空；原backup/web-native-design-local-validated保持不动。完整A/B/C核对见`docs/PHASE1_COMPLETE_LOCAL_CLOSEOUT.md`，不是仅提交中心配方。

@@ -101,6 +101,8 @@ def field_engine_from_document(document: PatternDocument) -> SharedFieldEngine |
 def _evaluate_shared_layers(document: PatternDocument, source: Iterable[Element],
                             stack: SharedModifierStack | None) -> list[Element]:
     """Apply persisted scalar fields once, then post-field compatibility layers."""
+    from .design_controls import apply_design_controls
+    source = apply_design_controls(document, source)
     engine = field_engine_from_document(document)
     evaluated = engine.apply(source) if engine is not None else deepcopy(list(source))
     if stack is not None:

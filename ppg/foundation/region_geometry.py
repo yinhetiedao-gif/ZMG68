@@ -184,7 +184,7 @@ def element_polygons(element, samples: int = 32) -> List[List[Point]]:
     return []
 
 
-def path_data_from_polygons(polygons: Iterable[Sequence[Point]]) -> str:
+def path_data_from_polygons(polygons: Iterable[Sequence[Point]], *, precision: int = 7) -> str:
     parts: List[str] = []
     for polygon in polygons:
         points = list(polygon)
@@ -192,7 +192,8 @@ def path_data_from_polygons(polygons: Iterable[Sequence[Point]]) -> str:
             continue
         if points[0] == points[-1]:
             points = points[:-1]
-        parts.append("M " + " L ".join("%.7g %.7g" % (x, y) for x, y in points) + " Z")
+        number_pair = "%%.%dg %%.%dg" % (precision, precision)
+        parts.append("M " + " L ".join(number_pair % (x, y) for x, y in points) + " Z")
     return " ".join(parts)
 
 

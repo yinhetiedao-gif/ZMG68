@@ -95,7 +95,7 @@ def _append_element(parent: ET.Element, element: Element) -> None:
 
 def _common_attributes(element: Element) -> Dict[str, str]:
     attributes = {"id": element.id}
-    for key in ("fill", "stroke", "stroke-width", "opacity"):
+    for key in ("fill", "fill-rule", "stroke", "stroke-width", "opacity"):
         value = element.style.get(key)
         if value is not None:
             attributes[key] = str(value)
