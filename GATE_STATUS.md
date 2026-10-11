@@ -1,5 +1,14 @@
 # Gate 状态（2026-10-05）
 
+## 综合作品BLOCKED限定复验（2026-10-11，已测样本PASS，其他边界继续OPEN）
+
+- 产品代码不变，feature/pattern-library-reuse / HEAD `369dc01ea58809bbb1b3644e9fe3f1f572277765`；仅更新本验收记录与`docs/ARTWORK_WORKFLOW_CLOSEOUT.md`，证据在`work/artwork-recheck-20261011/`，不暂存/提交/推送/部署、不移动备份。
+- 历史用户原SVG缺失，使用同一已记录**新建回归样本**full_design_holes.svg，不冒充原作品；真实IAB/独立8802/current dist与当前源码服务：导入5对象保留Free→公共90%/宽扁1.05/2°→Wave23mm/35°/映射.8–1.15＋ellipse中心20/47.5mm、14×12mm/过渡1mm→Apply→刷新/恢复→真实SVG/PNG/STL下载。
+- 原H/V错误Bounds(30,35,90,105)及中心(30,35)mm，现为(30,85,50,105)、(20,47.5)mm；历史ellipse全0，现0/0/0/1/0。hole本层比例.8693699577，4个outside结构及实际SVG组完全不变；XY/旋转、孔洞和.5mm映射一次保持。旧保存作品不迁移。
+- 恢复配置及SVG/PNG逐字节一致；SVG真5矢量/60×40mm、PNG1600×1067真透明/孔alpha0。真实标准STL10084bytes/200面/5有效组件、XYZ约32.645781×23.746452×2mm、Z0、封闭/正体积/绕序一致/0退化/0错误，各组件顶点与权威Adapter逐项吻合。普通二维不强制单体、无repair/Validator改动。
+- 本轮只读文件核验脚本exit0；18POST及STL GET均200，未全量回归/重建。实际截图/DOM/日志/文件保留；glance命令缺失不伪报自动视觉PASS。backend运行commit UNKNOWN，启动来源已知；Fabric测试导出仍false，不扩Production权限。
+- 综合作品当前结论更新为“已测样本PASS，其他边界继续OPEN”，历史BLOCKED数据原样保留；曲线/Arc/Skew/任意Transform、核心SVG自动毫米恢复、历史迁移、旧原页、pending/Undo刷新、mixed/旧堆栈及warnings继续OPEN。公网/Linux/切片/实物NOT TESTED。STOP。
+
 ## SVG 最终补充验收（2026-10-10，本地未提交，限定样本PASS）
 
 - HEAD仍`4a1c799255ca71002dc4cd9bae88e38ef0fea69e`/feature/pattern-library-reuse，index空、旧成果保留，无commit/push/deploy/旧补丁恢复/生产权限/依赖/制造算法或Validator改动；H/V `_path_bounds`本轮未再修改。详见`docs/SVG_FINAL_LOCAL_ACCEPTANCE.md`。

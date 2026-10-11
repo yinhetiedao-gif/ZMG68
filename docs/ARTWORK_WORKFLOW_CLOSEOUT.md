@@ -1,6 +1,51 @@
-# 真实作品综合验收与本地收口（2026-10-10）
+# 真实作品综合验收（历史记录与限定复验）
 
-## 结论：BLOCKED，未收口
+## 当前结论：已测样本PASS，其他边界继续OPEN（2026-10-11）
+
+本轮仅复验此前BLOCKED的不规则带孔样本；产品代码不变，HEAD为`369dc01ea58809bbb1b3644e9fe3f1f572277765`，未暂存、提交、推送或部署。此前规则图案/3D纹理的成功子证据保持历史记录，不冒称本轮重复验收。历史用户原始失败SVG仍未取得，以下输入是仓库已记录的**新建回归样本**，不是原始作品认证。
+
+### 实际浏览器流程与输入
+
+- 输入：`tests/fixtures/full_design_holes.svg`，5个对象（圆、椭圆、矩形、H/V带孔区域、L形）；画板60×40mm、源viewBox20/40/120/80，非零原点，`mm_per_unit=.5`。
+- 本地`http://127.0.0.1:8802/`，Codex in-app browser真实文件选择、数值输入、Apply、刷新/恢复、下载操作。独立origin不覆盖旧用户草稿；未重启、清理旧页面。
+- 当前工作区新启Uvicorn：启动器PID12200、服务PID36840，现有`.venv`/standalone Python及`web/dist`；实际资源`index-BeMizbJw.js`。健康接口后端提交为UNKNOWN，不能把Git HEAD或Contract1.0冒充运行身份；已知启动来源为当前稳定工作区。仅测试进程使用staging单任务槽，Fabric测试导出开关仍false，未修改配置文件或生产权限。
+- 导入后保留Free排列，不自动将不规则图案重排Grid。公共尺寸90%、宽扁1.05、附加旋转2°，随机保持默认；一次应用并下载影响区前的正式对照SVG。
+- 现有Wave尺寸驱动：波长23mm、角度35°、相位0、振幅1、基线0、反转false；尺寸映射.8–1.15、强度1。单一启用ellipse：中心20/47.5mm、长短轴直径14/12mm、轴角0°、过渡1mm，与历史失败时的物理中心/范围一致。
+- 数值确认后候选由现有Python求值；Apply一次。实际下载SVG/透明PNG，刷新后点击“恢复上次编辑”，再次下载两文件；重新打开快捷入口，23mm波长及公共参数、映射、ellipse引用/中心/范围全部恢复。旧Undo历史刷新后不保留，页面明确说明；未应用表单恢复边界未扩展。
+- 取消只读重开的快捷草稿后进入②，等待轻量设计预览完成，再使用现有标准制造“检查并生成”→实际“导出STL”。不以Fabric预览代替最终校验，也不执行完整Fabric融合来冒充实时预览。
+
+### 历史失败与本次闭合证据
+
+| 核对项 | 2026-10-10历史失败 | 当前同一新建样本复验 |
+| --- | --- | --- |
+| 带孔路径native Bounds | (30,35,90,105) | (30,85,50,105) |
+| 带孔元素中心mm | (30,35)，有轻微随机偏移的案例约(29.9131,34.9856) | (20,47.5)，本次无位置随机 |
+| 椭圆命中权重 | 5项全0 | circle/ellipse/rect/hole/outline = 0/0/0/1/0 |
+| 区域内真实尺寸变化 | 未命中、无法成立 | hole采样0.1981998792，本层比例0.8693699577，中心及2°旋转不变 |
+| 范围外保持前层结果 | 完整作品断言停止 | 其余4对象Python结构完全一致；实际导出SVG对应对象组逐字一致 |
+| 保存恢复及实际交付 | 旧锚点语义错误未关闭 | 恢复前后SVG/PNG逐字节一致，当前STL逐组件坐标/孔洞/高度吻合 |
+
+H/V单坐标造成的新导入Bounds/锚点错误、该样本椭圆可见覆盖却全未命中、及由此阻塞的样本输出链路已关闭。SVG路径复合缩放/2°旋转按实际导出文件独立CTM对照，且STL每组件顶点与现有权威Adapter一致，未重复应用坐标或毫米比例。以上只关闭已测样本，不自动修正历史已保存错误锚点，不代表通用SVG支持完成。
+
+### 实际下载与严格读回
+
+- SVG：真5矢量对象，60×40mm、viewBox10/20/60/40，无嵌入图片；保留evenodd多子路径真孔，无底图/控制柄/参考网格进入作品文件。
+- PNG：1600×1067 RGBA，透明与实体像素均存在；真实孔中心alpha0，材料内部alpha255。恢复前后SVG与PNG均逐字节相同。
+- STL：实际文件10,084bytes、200三角面、108顶点；Bounds `(15.6958408,27.7090073,0)–(48.3416214,51.4554596,2)`mm，XYZ约32.6457806×23.7464523×2mm。
+- 5个有效组件、watertight、有限坐标、正体积268.435025mm³、绕序一致、零退化/非流形/边界边，0错误。多组件是现有warning，不强制普通二维成为Fabric单体。逐组件XY顶点、孔洞及Z0–2mm对应当前权威几何，未删除坏面/repair/放宽Validator。
+- 读回脚本只调用现有Normalizer、Evaluate、Wave/Size/InfluenceArea、Adapter及STLExporter/MeshValidator；按实际浏览器参数建立独立权威对照，不伪称已捕获未公开的React状态或完整网络DTO。
+- 命令：`xiaomang_pattern_lab/.venv/Scripts/python.exe work/artwork-recheck-20261011/readback.py`，退出0，全部文件/采样/几何断言通过。仅本轮缺口检查，没有全量测试或冗余构建。
+- 请求日志：18个POST（1 assets、1 import、14 evaluate、1轻量fabric preview、1标准manufacturing build）及实际STL GET均200。无429复现，不由此关闭其他历史请求/页面OPEN项。
+
+### 本轮证据与继续OPEN
+
+证据目录：`work/artwork-recheck-20261011/`；`import-source.svg`、`before-ellipse.svg`、`applied-design.svg/png`、`restored-design.svg/png`、`design.stl`为实际浏览器交付的保留副本；`readback.py`、`readback-report.json`、`readback.log`、`server.log`及实际DOM记录可核对。浏览器截图：`ellipse-candidate.jpg`、`applied-browser.jpg`、`restored-config-browser.jpg`、`manufacturing-browser.jpg`。`glance`命令未安装，未伪报自动视觉模型PASS；实际截图已直接查看，文件孔洞/透明性另有数值证据。
+
+继续OPEN：缺失的历史用户原文件/旧原页鼠标确认、历史错误锚点迁移、通用曲线/Arc/Skew/任意Transform、核心可编辑SVG自动毫米恢复、curve128段近似、未应用快捷表单与旧Undo刷新边界、混合追加/旧隐式堆栈限制及已有warnings。本轮仅独立本地已测样本；公网、Linux、切片、实物均NOT TESTED。产品代码与稳定备份不变，证据未纳入Git提交。
+
+---
+
+## 历史结论：BLOCKED，未收口（2026-10-10，原始记录保留）
 
 本轮真实作品验收发现不规则SVG的路径Bounds/元素锚点错误。按照用户“发现阻塞即停止收口”的授权边界，未修改产品、未暂存/提交、未创建新稳定备份，等待批准最小修复。浏览器操作成功、HTTP200、网格校验通过，均不替代作品作用范围语义正确；不把本轮标为全部PASS。
 
