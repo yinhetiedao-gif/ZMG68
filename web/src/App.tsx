@@ -33,7 +33,7 @@ import { ReferenceLayerPanel } from './document/ReferenceLayerPanel'
 import { useLayoutPreview, useDocumentPreview } from './document/useLayoutPreview'
 import { openLinearSize, linearSizeGroup, linearRegionDefaults, linearSizeOwner,
   sizeFieldTypes, sizeFieldGroup, sizeFieldValues, changeSizeFieldParameter, resetLinearSizeDraft, type LinearSizeDraft } from './document/linearSize'
-import { openRadialSize, radialSizeCandidate, radialSizeGroup, radialSizeDefaults, type RadialSizeDraft } from './document/radialSize'
+import { openRadialSize, radialSizeGroup, radialSizeDefaults, type RadialSizeDraft } from './document/radialSize'
 import { ParameterPanel } from './document/ParameterPanel'
 import { ParameterInteraction } from './document/ParameterInteraction'
 import { initialDocumentState } from './state/documentState'
@@ -234,7 +234,7 @@ export function App() {
       if (linearDraft.kind === 'linear' && ['image', 'distance'].includes(linearDraft.fieldType ?? '') &&
           !imageSourcesRef.current[linearDraft.imageAsset?.asset_id ?? '']?.blob.size)
         throw new Error('此尺寸效果缺少有效源图片，请选择 PNG/JPG 或已恢复源资产的参数场。参考底图不会自动参与。')
-      return { dto: linearDraft.kind === 'radial' ? radialSizeCandidate(linearDraft, parameterCatalog) : patternPresetCandidate(linearDraft, parameterCatalog), error: null }
+      return { dto: patternPresetCandidate(linearDraft, parameterCatalog), error: null }
     }
     catch (error) { return { dto: null, error: error instanceof Error ? error.message : '渐变参数无效。' } }
   }, [linearActive, linearCurrent, linearDraft, parameterCatalog])
@@ -709,8 +709,8 @@ export function App() {
     }
     if (linearDraft && sizeFormPending && !window.confirm('已有未应用配置。切换预设会丢弃它，正式作品不变。继续？')) return
     const previous = patternPresetId(dto)
-    if (id !== 'precision-stagger' && (previous !== id) && linearSizeOwner(dto) &&
-        !window.confirm(`${patternPreset(id).title}将替换尺寸快捷入口管理的尺寸效果及其范围；原图、布局和其他效果保持不变。继续？`)) return
+    if (id !== 'precision-stagger' && (previous !== id) && (previous || linearSizeOwner(dto)) &&
+        !window.confirm(`${patternPreset(id).title}将替换旧预设受管尺寸层/范围及其声明的随机配置；用户独立效果、原图、布局与Fabric保持不变。继续？`)) return
     try {
       setLinearDraft(openPatternPreset(dto, project.bounds, id, parameterCatalog))
       setPresetAdvanced(false); setLinearSync(v => v + 1)
@@ -1048,7 +1048,7 @@ export function App() {
         <section className="side-group" aria-label="参数场与效果">
           <button className="side-item" type="button" onClick={() => {
             if (setDesignContext('presets')) setBrowser(current => ({ ...current, activeMode: 'design' }))
-          }}>图案预设 · 首批3套</button>
+          }}>图案预设 · 6套</button>
           <button className="side-item" type="button" disabled={!project.currentDocument}
             onClick={() => { setDesignContext('effects'); setBrowser(current => ({ ...current, activeMode: 'design' })) }}>参数场与效果</button>
           <span className="eyebrow">尺寸变化效果</span>
@@ -1222,16 +1222,16 @@ export function App() {
           onEdit={editParameter} disabled={!canEditDocument} />
           {!designContext && <p className="inspector-readonly">在左侧选择图案逻辑、参数场或底图，或点击画布中的图形以编辑。</p>}
           {linearActive && linearDraft && sizeGroup && <section aria-label={linearDraft.kind === 'radial' ? '径向尺寸渐变参数' : '尺寸变化参数'}>
-            <h3>{linearDraft.kind === 'radial' ? '径向尺寸渐变' : linearDraft.presetId ? patternPreset(linearDraft.presetId).title : linearDraft.controlsOnly ? '完整图案控制' : '参数场驱动的尺寸变化'}</h3>
+            <h3>{linearDraft.presetId ? patternPreset(linearDraft.presetId).title : linearDraft.kind === 'radial' ? '径向尺寸渐变' : linearDraft.controlsOnly ? '完整图案控制' : '参数场驱动的尺寸变化'}</h3>
             <p className="layout-pending" role="status">{sizeFormPending ? '有未应用修改' : '公共参数未改变 · 显示设置无需应用到几何'}</p>
-            {linearDraft.kind === 'linear' && linearDraft.presetId && <>
+            {linearDraft.presetId && <>
               <p className="inspector-readonly">{patternPreset(linearDraft.presetId).scope} 恢复默认只重置此范围，仍需应用。</p>
               <button type="button" className="ui-secondary" onClick={() => setPresetAdvanced(v => !v)}>{presetAdvanced ? '返回关键参数' : '高级参数与影响区'}</button>
               {!presetAdvanced && <ParameterInteraction.Provider value={{ syncToken: String(linearSync), onPending: onParameterPending }}>
                 <fieldset disabled={!linearCurrent || !canEditDocument} style={{ border: 0, padding: 0, minWidth: 0 }}>
                   <ParameterPanel group={patternPresetControls(linearDraft, parameterCatalog).group}
                     values={patternPresetControls(linearDraft, parameterCatalog).values} onCommit={(key, value) => {
-                      try { setLinearDraft(current => current?.kind === 'linear' ? changePatternPresetParameter(current, parameterCatalog, key, value) : current) }
+                      try { setLinearDraft(current => current ? changePatternPresetParameter(current, parameterCatalog, key, value) : current) }
                       catch (error) { setProjectError(error instanceof Error ? error.message : '预设参数无效。') }
                     }} />
                 </fieldset>
@@ -1293,7 +1293,7 @@ export function App() {
             <p className="inspector-readonly">图案参考范围：X {linearDraft.bounds.min_x.toFixed(2)}–{linearDraft.bounds.max_x.toFixed(2)} mm，Y {linearDraft.bounds.min_y.toFixed(2)}–{linearDraft.bounds.max_y.toFixed(2)} mm。{linearDraft.kind === 'linear' && linearDraft.values.scope_mode === 'local' ? '局部区域由下方中心、方向、长度和宽度独立确定。' : ''}</p>
             {project.currentDocument.document.modifiers.some(item => item.type === 'size' && item.enabled !== false && item.id !== linearSizeOwner(project.currentDocument!)?.modifier.id) &&
               <p className="inspector-readonly">其他尺寸效果仍按现有顺序叠加；本效果不会关闭它们。</p>}
-            {!(linearDraft.kind === 'linear' && (linearDraft.controlsOnly || linearDraft.presetId && !presetAdvanced)) && <ParameterInteraction.Provider value={{ syncToken: String(linearSync), onPending: onParameterPending }}>
+            {!(linearDraft.presetId && !presetAdvanced || linearDraft.kind === 'linear' && linearDraft.controlsOnly) && <ParameterInteraction.Provider value={{ syncToken: String(linearSync), onPending: onParameterPending }}>
               <fieldset disabled={!linearCurrent || !canEditDocument} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
                 {linearDraft.kind === 'radial' ? <ParameterPanel group={sizeGroup} values={{ ...linearDraft.values }} onCommit={updateSizeDraftValue} /> : <>
                   <h4>尺寸映射</h4>
@@ -1315,9 +1315,9 @@ export function App() {
             </ParameterInteraction.Provider>}
             <p className="inspector-readonly">画布控制点拖动中限频自动预览；数值控件松手或确认后自动预览。控制点松手仍未应用，点击应用才提交。未应用输入不会保存；刷新或切换上下文将丢弃它们。</p>
             <div className="layout-inspector-actions">
-              <button type="button" onClick={() => { setLinearDraft(current => current ? current.kind === 'radial'
-                ? { ...current, values: radialSizeDefaults(current.bounds) } : current.presetId
-                ? openPatternPreset(current.source, current.bounds, patternPreset(current.presetId).id, parameterCatalog, true)
+              <button type="button" onClick={() => { setLinearDraft(current => current ? current.presetId
+                ? openPatternPreset(current.source, current.bounds, patternPreset(current.presetId).id, parameterCatalog, true) : current.kind === 'radial'
+                ? { ...current, values: radialSizeDefaults(current.bounds) }
                 : resetLinearSizeDraft(current, parameterCatalog) : null); setLinearSync(value => value + 1) }}>恢复默认</button>
               <button type="button" onClick={() => { setLinearDraft(null); publishDesignContext('effects') }}>取消效果</button>
               <button type="button" className="ui-primary" disabled={!canEditDocument || !linearCurrent || canvasEditing || parameterPending || !stagedLinear.result || !linearProposal.dto}

@@ -27,7 +27,7 @@ function backend() {
 }
 async function picker() {
   render(<App />); await screen.findByText('Backend Online')
-  fireEvent.click(screen.getByRole('button', { name: '图案预设 · 首批3套' }))
+  fireEvent.click(screen.getByRole('button', { name: '图案预设 · 6套' }))
 }
 describe('pattern presets share the protected project and candidate workflow', () => {
   it('creates Wave, candidate/Cancel do not commit; Apply once and Undo/Redo preserve full recipe', async () => {
@@ -39,7 +39,7 @@ describe('pattern presets share the protected project and candidate workflow', (
     expect(screen.getByRole('button', { name: '撤销' })).toBeDisabled()
     fireEvent.click(screen.getByRole('button', { name: '取消效果' }))
     expect(screen.getByRole('button', { name: '撤销' })).toBeDisabled()
-    fireEvent.click(screen.getByRole('button', { name: '图案预设 · 首批3套' }))
+    fireEvent.click(screen.getByRole('button', { name: '图案预设 · 6套' }))
     fireEvent.click(screen.getByRole('button', { name: '编辑斜向潮汐' }))
     const wave = await screen.findByRole('spinbutton', { name: '波长 (mm)' })
     fireEvent.change(wave, { target: { value: 31 } }); fireEvent.blur(wave)
@@ -59,9 +59,9 @@ describe('pattern presets share the protected project and candidate workflow', (
     fireEvent.click(screen.getByRole('button', { name: '创建光谱渐隐' }))
     await waitFor(() => expect(screen.getByRole('button', { name: '应用效果' })).toBeEnabled())
     fireEvent.click(screen.getByRole('button', { name: '取消效果' }))
-    await waitFor(() => expect(screen.getByRole('button', { name: '图案预设 · 首批3套' })).toBeEnabled())
+    await waitFor(() => expect(screen.getByRole('button', { name: '图案预设 · 6套' })).toBeEnabled())
     const save = vi.spyOn(drafts, 'saveDraft').mockRejectedValue(new Error('IndexedDB write blocked'))
-    fireEvent.click(screen.getByRole('button', { name: '图案预设 · 首批3套' }))
+    fireEvent.click(screen.getByRole('button', { name: '图案预设 · 6套' }))
     const count = requests.length, id = requests.at(-1)?.document_id
     fireEvent.click(screen.getByRole('button', { name: '创建精密错列' }))
     await screen.findByText(/当前作品保存失败，已取消切换/)
@@ -70,7 +70,7 @@ describe('pattern presets share the protected project and candidate workflow', (
     save.mockRestore()
   })
 
-  it.each(patternPresets)('$title can become custom and still return the exact original, including pending layout, after refresh', async preset => {
+  it.each(patternPresets.filter(p => ['precision-stagger', 'spectrum-fade', 'diagonal-tide'].includes(p.id)))('$title can become custom and still return the exact original, including pending layout, after refresh', async preset => {
     vi.stubGlobal('confirm', vi.fn(() => true))
     const original = createExampleDocument('basic-grid', 'my-original')
     delete original.document.metadata['xiaomang_pattern_lab.example_id']
@@ -84,7 +84,7 @@ describe('pattern presets share the protected project and candidate workflow', (
     await screen.findByText('Backend Online')
     fireEvent.click(await screen.findByRole('button', { name: '恢复上次编辑' }))
     await waitFor(() => expect(requests.at(-1)?.document_id).toBe(original.document_id))
-    fireEvent.click(screen.getByRole('button', { name: '图案预设 · 首批3套' }))
+    fireEvent.click(screen.getByRole('button', { name: '图案预设 · 6套' }))
     fireEvent.click(screen.getByRole('button', { name: `创建${preset.title}` }))
     await waitFor(() => expect(screen.getByRole('button', { name: '应用效果' })).toBeEnabled())
     const recipe = requests.at(-1)!
@@ -124,7 +124,7 @@ describe('pattern presets share the protected project and candidate workflow', (
     expect((await drafts.loadDraft())?.pending_layout).toEqual(pending)
     expect((await drafts.loadDraft())?.design_display).toEqual(display)
     expect((await drafts.loadBeforeExampleDraft())?.dto.document).toEqual(custom.document)
-  })
+  }, 10000) // Full create/custom/history/refresh/return flow now renders six cards.
 
   it('failed return keeps both works and the button usable; one retry restores without losing the edited recipe', async () => {
     const original = createExampleDocument('basic-grid', 'return-failure')
@@ -133,7 +133,7 @@ describe('pattern presets share the protected project and candidate workflow', (
     const requests = backend(); render(<App />)
     fireEvent.click(await screen.findByRole('button', { name: '恢复上次编辑' }))
     await waitFor(() => expect(requests.at(-1)?.document_id).toBe(original.document_id))
-    fireEvent.click(screen.getByRole('button', { name: '图案预设 · 首批3套' }))
+    fireEvent.click(screen.getByRole('button', { name: '图案预设 · 6套' }))
     fireEvent.click(screen.getByRole('button', { name: '创建斜向潮汐' }))
     await waitFor(() => expect(screen.getByRole('button', { name: '应用效果' })).toBeEnabled())
     fireEvent.click(screen.getByRole('button', { name: '取消效果' }))

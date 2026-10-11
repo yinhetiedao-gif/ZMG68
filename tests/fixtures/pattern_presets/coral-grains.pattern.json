@@ -1,0 +1,456 @@
+{
+  "schema_version": "1.0",
+  "document_id": "preset-coral-grains",
+  "document_revision": 0,
+  "document": {
+    "schema_version": 1,
+    "canvas": {
+      "width": 60,
+      "height": 60,
+      "unit": "mm",
+      "mm_per_unit": 1,
+      "origin_x": 0,
+      "origin_y": 0
+    },
+    "reference": {
+      "source_path": "",
+      "visible": false,
+      "preprocessing": {},
+      "metadata": {}
+    },
+    "elements": [
+      {
+        "id": "grid:r0:c0",
+        "type": "circle",
+        "x": 14,
+        "y": 14,
+        "width": 8,
+        "height": 8,
+        "rotation": 0,
+        "visible": true,
+        "style": {},
+        "group_id": null,
+        "metadata": {}
+      },
+      {
+        "id": "grid:r0:c1",
+        "type": "circle",
+        "x": 30,
+        "y": 14,
+        "width": 8,
+        "height": 8,
+        "rotation": 0,
+        "visible": true,
+        "style": {},
+        "group_id": null,
+        "metadata": {}
+      },
+      {
+        "id": "grid:r0:c2",
+        "type": "circle",
+        "x": 46,
+        "y": 14,
+        "width": 8,
+        "height": 8,
+        "rotation": 0,
+        "visible": true,
+        "style": {},
+        "group_id": null,
+        "metadata": {}
+      },
+      {
+        "id": "grid:r1:c0",
+        "type": "circle",
+        "x": 14,
+        "y": 30,
+        "width": 8,
+        "height": 8,
+        "rotation": 0,
+        "visible": true,
+        "style": {},
+        "group_id": null,
+        "metadata": {}
+      },
+      {
+        "id": "grid:r1:c1",
+        "type": "circle",
+        "x": 30,
+        "y": 30,
+        "width": 8,
+        "height": 8,
+        "rotation": 0,
+        "visible": true,
+        "style": {},
+        "group_id": null,
+        "metadata": {}
+      },
+      {
+        "id": "grid:r1:c2",
+        "type": "circle",
+        "x": 46,
+        "y": 30,
+        "width": 8,
+        "height": 8,
+        "rotation": 0,
+        "visible": true,
+        "style": {},
+        "group_id": null,
+        "metadata": {}
+      },
+      {
+        "id": "grid:r2:c0",
+        "type": "circle",
+        "x": 14,
+        "y": 46,
+        "width": 8,
+        "height": 8,
+        "rotation": 0,
+        "visible": true,
+        "style": {},
+        "group_id": null,
+        "metadata": {}
+      },
+      {
+        "id": "grid:r2:c1",
+        "type": "circle",
+        "x": 30,
+        "y": 46,
+        "width": 8,
+        "height": 8,
+        "rotation": 0,
+        "visible": true,
+        "style": {},
+        "group_id": null,
+        "metadata": {}
+      },
+      {
+        "id": "grid:r2:c2",
+        "type": "circle",
+        "x": 46,
+        "y": 46,
+        "width": 8,
+        "height": 8,
+        "rotation": 0,
+        "visible": true,
+        "style": {},
+        "group_id": null,
+        "metadata": {}
+      }
+    ],
+    "groups": [],
+    "transforms": {
+      "grid:r0:c0": {
+        "element_id": "grid:r0:c0",
+        "x": 14,
+        "y": 14,
+        "rotation": 0,
+        "scale_x": 1,
+        "scale_y": 1
+      },
+      "grid:r0:c1": {
+        "element_id": "grid:r0:c1",
+        "x": 30,
+        "y": 14,
+        "rotation": 0,
+        "scale_x": 1,
+        "scale_y": 1
+      },
+      "grid:r0:c2": {
+        "element_id": "grid:r0:c2",
+        "x": 46,
+        "y": 14,
+        "rotation": 0,
+        "scale_x": 1,
+        "scale_y": 1
+      },
+      "grid:r1:c0": {
+        "element_id": "grid:r1:c0",
+        "x": 14,
+        "y": 30,
+        "rotation": 0,
+        "scale_x": 1,
+        "scale_y": 1
+      },
+      "grid:r1:c1": {
+        "element_id": "grid:r1:c1",
+        "x": 30,
+        "y": 30,
+        "rotation": 0,
+        "scale_x": 1,
+        "scale_y": 1
+      },
+      "grid:r1:c2": {
+        "element_id": "grid:r1:c2",
+        "x": 46,
+        "y": 30,
+        "rotation": 0,
+        "scale_x": 1,
+        "scale_y": 1
+      },
+      "grid:r2:c0": {
+        "element_id": "grid:r2:c0",
+        "x": 14,
+        "y": 46,
+        "rotation": 0,
+        "scale_x": 1,
+        "scale_y": 1
+      },
+      "grid:r2:c1": {
+        "element_id": "grid:r2:c1",
+        "x": 30,
+        "y": 46,
+        "rotation": 0,
+        "scale_x": 1,
+        "scale_y": 1
+      },
+      "grid:r2:c2": {
+        "element_id": "grid:r2:c2",
+        "x": 46,
+        "y": 46,
+        "rotation": 0,
+        "scale_x": 1,
+        "scale_y": 1
+      }
+    },
+    "metadata": {
+      "xiaomang_pattern_lab.parametric": {
+        "mode": "grid",
+        "grid": {
+          "rows": 11,
+          "columns": 11,
+          "spacing_x": 4.6,
+          "spacing_y": 4.6,
+          "element_width": 2.8,
+          "element_height": 2.8,
+          "rotation": 0,
+          "offset_x": 30,
+          "offset_y": 30,
+          "lock_aspect": true,
+          "prototype": {
+            "kind": "circle"
+          }
+        },
+        "source_elements": []
+      },
+      "web_pattern_preset": {
+        "version": 1,
+        "id": "coral-grains",
+        "scope": "owned_size_effect",
+        "units": "mm",
+        "bounds_mm": {
+          "min_x": 5.6,
+          "max_x": 54.4,
+          "min_y": 6.15,
+          "max_y": 53.85,
+          "width": 48.8,
+          "height": 47.7,
+          "units": "mm"
+        },
+        "mm_per_unit": 1,
+        "random_before": {
+          "seed": 1,
+          "size_random": 0,
+          "position_jitter": 0,
+          "rotation_random": 0
+        },
+        "random_after": {
+          "seed": 27,
+          "size_random": 0.1,
+          "position_jitter": 0.35,
+          "rotation_random": 35
+        }
+      },
+      "web_design_controls": {
+        "version": 1,
+        "size_percent": 77.91937224739797,
+        "aspect": 1.6470588235294117,
+        "rotation": 0,
+        "size_random": 0.1,
+        "position_jitter": 0.35,
+        "rotation_random": 35,
+        "seed": 27,
+        "stagger": false
+      },
+      "xiaomang_pattern_lab.shared_modifiers": {
+        "version": 1,
+        "enabled": true,
+        "source_kind": "imported_elements",
+        "source_elements": [
+          {
+            "id": "grid:r0:c0",
+            "type": "circle",
+            "x": 14,
+            "y": 14,
+            "width": 8,
+            "height": 8,
+            "rotation": 0,
+            "visible": true,
+            "style": {},
+            "group_id": null,
+            "metadata": {}
+          },
+          {
+            "id": "grid:r0:c1",
+            "type": "circle",
+            "x": 30,
+            "y": 14,
+            "width": 8,
+            "height": 8,
+            "rotation": 0,
+            "visible": true,
+            "style": {},
+            "group_id": null,
+            "metadata": {}
+          },
+          {
+            "id": "grid:r0:c2",
+            "type": "circle",
+            "x": 46,
+            "y": 14,
+            "width": 8,
+            "height": 8,
+            "rotation": 0,
+            "visible": true,
+            "style": {},
+            "group_id": null,
+            "metadata": {}
+          },
+          {
+            "id": "grid:r1:c0",
+            "type": "circle",
+            "x": 14,
+            "y": 30,
+            "width": 8,
+            "height": 8,
+            "rotation": 0,
+            "visible": true,
+            "style": {},
+            "group_id": null,
+            "metadata": {}
+          },
+          {
+            "id": "grid:r1:c1",
+            "type": "circle",
+            "x": 30,
+            "y": 30,
+            "width": 8,
+            "height": 8,
+            "rotation": 0,
+            "visible": true,
+            "style": {},
+            "group_id": null,
+            "metadata": {}
+          },
+          {
+            "id": "grid:r1:c2",
+            "type": "circle",
+            "x": 46,
+            "y": 30,
+            "width": 8,
+            "height": 8,
+            "rotation": 0,
+            "visible": true,
+            "style": {},
+            "group_id": null,
+            "metadata": {}
+          },
+          {
+            "id": "grid:r2:c0",
+            "type": "circle",
+            "x": 14,
+            "y": 46,
+            "width": 8,
+            "height": 8,
+            "rotation": 0,
+            "visible": true,
+            "style": {},
+            "group_id": null,
+            "metadata": {}
+          },
+          {
+            "id": "grid:r2:c1",
+            "type": "circle",
+            "x": 30,
+            "y": 46,
+            "width": 8,
+            "height": 8,
+            "rotation": 0,
+            "visible": true,
+            "style": {},
+            "group_id": null,
+            "metadata": {}
+          },
+          {
+            "id": "grid:r2:c2",
+            "type": "circle",
+            "x": 46,
+            "y": 46,
+            "width": 8,
+            "height": 8,
+            "rotation": 0,
+            "visible": true,
+            "style": {},
+            "group_id": null,
+            "metadata": {}
+          }
+        ]
+      },
+      "web_linear_size_effect": {
+        "version": 1,
+        "field_id": "field-1",
+        "modifier_id": "size-1",
+        "bounds_mm": {
+          "min_x": 5.6,
+          "max_x": 54.4,
+          "min_y": 6.15,
+          "max_y": 53.85,
+          "width": 48.8,
+          "height": 47.7,
+          "units": "mm"
+        },
+        "mm_per_unit": 1,
+        "field_ids": {
+          "noise": "field-1"
+        },
+        "field_domains": {
+          "field-1": "fitted"
+        },
+        "source_mode": "owned",
+        "domain_mode": "fitted"
+      }
+    },
+    "fields": [
+      {
+        "id": "field-1",
+        "type": "noise",
+        "parameters": {
+          "scale": 14,
+          "strength": 1,
+          "seed": 27,
+          "offset_x": 0,
+          "offset_y": 0,
+          "octaves": 3,
+          "contrast": 1.5,
+          "invert": false
+        },
+        "enabled": true
+      }
+    ],
+    "modifiers": [
+      {
+        "id": "size-1",
+        "type": "size",
+        "field_id": "field-1",
+        "enabled": true,
+        "mapping": {
+          "min_output": 0.6,
+          "max_output": 1.12,
+          "strength": 1,
+          "falloff": 1,
+          "invert": false
+        }
+      }
+    ]
+  },
+  "assets": []
+}

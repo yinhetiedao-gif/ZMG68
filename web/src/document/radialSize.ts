@@ -4,7 +4,7 @@ import { asRecord, STACK_KEY } from './selectors'
 import { groupFor, validateParameter, type ParameterCatalog, type ParameterGroup } from './parameterSchema'
 const OWNER = 'web_radial_size_effect'
 export interface RadialSizeValues { center_x: number; center_y: number; radius: number; min_scale: number; max_scale: number; strength: number }
-export interface RadialSizeDraft { kind: 'radial'; sourceKey: string; source: PatternDocumentDTO; bounds: BoundsMM; values: RadialSizeValues }
+export interface RadialSizeDraft { kind: 'radial'; sourceKey: string; source: PatternDocumentDTO; bounds: BoundsMM; values: RadialSizeValues; presetId?: string; managedLayerId?: string | null }
 export function radialSizeDefaults(bounds: BoundsMM): RadialSizeValues {
   return { center_x: (bounds.min_x + bounds.max_x) / 2, center_y: (bounds.min_y + bounds.max_y) / 2,
     radius: Math.hypot(bounds.width, bounds.height) / 2, min_scale: 1.2, max_scale: .6, strength: 1 }
@@ -34,9 +34,12 @@ export function radialSizeGroup(catalog: ParameterCatalog | null, dto: PatternDo
   }
   return parameters.some(item => !item) ? null : { label: '径向尺寸渐变', parameters: parameters as ParameterGroup['parameters'] }
 }
-export function openRadialSize(dto: PatternDocumentDTO, bounds: BoundsMM): RadialSizeDraft {
-  const layer = radialSizeLayer(dto), p = asRecord(layer?.parameters), scale = millimetresPerUnit(dto.document) ?? 1
+export function openRadialSize(dto: PatternDocumentDTO, bounds: BoundsMM, managedLayerId?: string | null): RadialSizeDraft {
+  const layer = managedLayerId === undefined ? radialSizeLayer(dto) :
+    (asRecord(dto.document.metadata[STACK_KEY])?.modifiers as unknown[] | undefined)?.map(asRecord).find(item => item?.id === managedLayerId && item.type === 'size' && asRecord(item.parameters)?.mode === 'radial')
+  const p = asRecord(layer?.parameters), scale = millimetresPerUnit(dto.document) ?? 1
   return { kind: 'radial', source: dto, sourceKey: JSON.stringify(dto), bounds,
+    ...(managedLayerId !== undefined ? { managedLayerId } : {}),
     values: p ? { center_x: Number(p.center_x) * scale, center_y: Number(p.center_y) * scale,
       radius: Number(p.radius) * scale, min_scale: Number(p.min_scale), max_scale: Number(p.max_scale), strength: Number(p.strength) }
       : radialSizeDefaults(bounds) }
@@ -54,7 +57,8 @@ export function radialSizeCandidate(draft: RadialSizeDraft, catalog: ParameterCa
     ['min_scale', 'max_scale', 'strength'].includes(key) && value !== 1 || key === 'mode' && value !== 'constant')) ||
     (legacyRotation && (String(legacyRotation.mode ?? 'constant') !== 'constant' || Number(legacyRotation.angle ?? 0) !== 0))))
     throw new Error('当前旧兼容堆栈有生效效果，无法安全追加径向层；原作品保持不变。')
-  const existing = radialSizeLayer(dto), used = new Set(layers.map(item => asRecord(item)?.id))
+  const existing = draft.managedLayerId === undefined ? radialSizeLayer(dto) : layers.map(asRecord).find(item => item?.id === draft.managedLayerId && item?.type === 'size' && asRecord(item?.parameters)?.mode === 'radial')
+  const used = new Set(layers.map(item => asRecord(item)?.id))
   let index = 1; while (used.has(`radial-size-${index}`)) index++
   const id = existing?.id ?? `radial-size-${index}`
   const layer = { ...existing, id, type: 'size', enabled: true,
@@ -62,7 +66,7 @@ export function radialSizeCandidate(draft: RadialSizeDraft, catalog: ParameterCa
       center_y: draft.values.center_y / scale, radius: draft.values.radius / scale },
     scope: { mode: 'all', invert: false, selected_element_ids: [], center_x: 0, center_y: 0, radius: 50, width: 100, height: 100 } }
   return { ...dto, document: { ...dto.document, metadata: { ...dto.document.metadata,
-    [OWNER]: { version: 1, layer_id: id }, [STACK_KEY]: { version: 1, enabled: true, source_kind: 'imported_elements',
+    ...(draft.managedLayerId === undefined ? { [OWNER]: { version: 1, layer_id: id } } : {}), [STACK_KEY]: { version: 1, enabled: true, source_kind: 'imported_elements',
       source_elements: structuredClone(dto.document.elements), ...stack,
       modifiers: existing ? layers.map(item => asRecord(item)?.id === id ? layer : item) : [...layers, layer] },
   } } }

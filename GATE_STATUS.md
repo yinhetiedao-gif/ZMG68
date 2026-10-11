@@ -1,5 +1,14 @@
 # Gate 状态（2026-10-05）
 
+## P2 第二批三套图案预设（2026-10-11，本地未提交，限定样本验收）
+
+- 基线 `18b40d0e9b6167eb3df6e888f4394406e64ac012` / feature/pattern-library-reuse，复用P1同一配方、候选、正式文档、草稿/返回及历史机制；仅增加局部呼吸、珊瑚微粒、涟心扩散，未改算法/公共DTO/依赖/生产权限。具体参数、文件及失败日志见 `docs/PATTERN_PRESETS_P2_LOCAL_ACCEPTANCE.md`。
+- 局部Constant 1.30＋启用椭圆/停用曲线，最多3区/max权重/区域外本层中性；珊瑚11×11真实椭圆、Noise14mm/3层/contrast1.5/seed27、Size .60–1.12，创建有稳定随机而应用原作默认不动公共随机；径向使用原SizeFieldModifier，不是Ring/放射排列，中心/半径按首次实际Bounds保存，中心1.25/外围.65/半径外.65。专用字段共享引用隔离、径向独立受管层、随机仅管理主动声明的键；切换不叠加活动Size，不改用户场/Fabric/原轮廓/Layout。
+- 独立8804/Edge/当前dist与真实Python：每套默认＋两变体实际截图、SVG/透明PNG下载读回，Apply/Cancel/Undo/Redo/Reset候选/刷新恢复/返回原作、P1交叉切换。主批90请求全200/max evaluate1/pageerror0；带孔输出补批19请求全200，分批不合并称全量。控制柄12moves：椭圆中心1、曲线控制点2、径向中心1次evaluate，0commit/最终制造；椭圆/曲线单独命中、组合max、停用中性有数值对照。
+- 代表性非零原点/.5mm/60×40带孔**新建回归样本**真实局部权重0/0/0/1/0，孔轮廓85%、4外围完全不变；实际Standard/Fabric STL均10084bytes/200面/5有效组件、Z0/水密/正体积/绕序一致/零退化，XY/孔洞和逐元素高度与权威结果一致。不把仅图案多组件冒称融合整体，不替代所有默认/单元/基底制造矩阵。
+- 相关Web8文件51/51、Python4文件32/32；后续保护/标签补2文件19/19，毫米初始化框Reset边界补3文件22/22与tsc/vite，正式fixtures重新生成后P1/P2 Python17/17，批次重叠不累加。发现并记录显式mm映射变更后Reset旧中心，修复仅存储/换算现有配方metadata；最后局部重新编辑补断言1PASS证明旧初始化框机制已保护，不再改产品。缩略图由真实引擎及可移植fixtures生成。最终浏览器index-Blxfgr8n实际恢复/Reset中心(15,15)、半径18.102、revision0/Undo为空，evaluate全200/pageerror0。既有bundle/Starlette warnings保留。
+- 当前HEAD不含本批未提交成果，暂存区保持空，32个旧tools和忽略运行产物原地保留；未提交/新备份/push/deploy。数值确认后更新、未应用快捷/旧Undo刷新边界、一份返回上下文、稀疏原作局部区可能需手动定位、曲线128段及全部历史OPEN不变。本批公网/Linux/Render/切片/实物NOT TESTED，STOP等待用户试用。
+
 ## P1预设返回入口补充（2026-10-11，本地未提交，限定流程PASS）
 
 - 修前8803/index-RWHjP4JC真实复现：原作品→光谱渐隐→Stripe自定义Apply，身份移除使返回按钮1→0，原作上下文实际仍存在；Undo后正常返回又发现autosave把两个槽都写成原作、退出预设未留存。证据 `work/preset-return-20261011/`，不以代码推断代替复现。

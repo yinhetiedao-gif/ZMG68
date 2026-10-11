@@ -2,7 +2,11 @@ import { patternPresets, type PatternPresetId } from './patternPresets'
 import precision from './patternPresetThumbnails/precision-stagger.svg'
 import spectrum from './patternPresetThumbnails/spectrum-fade.svg'
 import tide from './patternPresetThumbnails/diagonal-tide.svg'
-const thumbnails = { 'precision-stagger': precision, 'spectrum-fade': spectrum, 'diagonal-tide': tide }
+import breath from './patternPresetThumbnails/local-breath.svg'
+import coral from './patternPresetThumbnails/coral-grains.svg'
+import ripple from './patternPresetThumbnails/ripple-center.svg'
+const thumbnails = { 'precision-stagger': precision, 'spectrum-fade': spectrum, 'diagonal-tide': tide,
+  'local-breath': breath, 'coral-grains': coral, 'ripple-center': ripple }
 
 export function PatternPresetPicker({ onCreate, onApply, onEdit, currentId, createDisabled, applyDisabled }: {
   onCreate: (id: PatternPresetId) => void; onApply: (id: PatternPresetId) => void

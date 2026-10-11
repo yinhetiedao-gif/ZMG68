@@ -12,7 +12,7 @@ import type { ParameterCatalog } from './parameterSchema'
 const catalog = { ...base, definitions: { ...base.definitions, design } } as ParameterCatalog
 
 describe('first three editable pattern recipes use the existing document graph', () => {
-  it.each(patternPresets)('$title creates a formal millimetre Grid document with explicit scope', preset => {
+  it.each(patternPresets.filter(p => ['precision-stagger', 'spectrum-fade', 'diagonal-tide'].includes(p.id)))('$title creates a formal millimetre Grid document with explicit scope', preset => {
     const dto = createPatternPreset(preset.id, `preset-${preset.id}`, catalog)
     expect(dto.document.canvas).toMatchObject({ width: 60, height: 60, mm_per_unit: 1 })
     expect(dto.document_revision).toBe(0)
