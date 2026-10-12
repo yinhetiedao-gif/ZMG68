@@ -195,7 +195,7 @@ export function InspectorControls({ dto, selected, onEdit, disabled, parameterCa
       })()}
     </InspectorSection>
 
-    <InspectorSection label="效果堆栈" title="效果层" hidden={context !== 'all' && context !== 'effects'}>
+    <InspectorSection label="效果堆栈" title="效果层" defaultExpanded={context === 'all'} hidden={context !== 'all' && context !== 'effects'}>
         <p className="inspector-readonly">效果层决定空间变化影响尺寸、旋转还是位置。</p>
         <div className="modifier-actions">
           <button type="button" disabled={!fields.length || !groupFor(parameterCatalog, 'modifier', 'size')}

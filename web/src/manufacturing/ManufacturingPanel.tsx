@@ -106,6 +106,8 @@ export function ManufacturingPanel(props: Props) {
   const summary = fabricPreviewSummary(props.document,
     props.fabricPreviewStatus === 'ready' ? props.fabricPreviewResult : null)
   const designWarnings = fabricDesignWarnings(props.document)
+  const [currentSection, setCurrentSection] = useState<'shape' | 'height' | 'output' | 'preview' | null>('shape')
+  const sectionProps = (key: 'shape' | 'height' | 'output' | 'preview') => ({ expanded: currentSection === key, onExpandedChange: (open: boolean) => setCurrentSection(open ? key : null) })
   const [presetId, setPresetId] = useState<string>(directionalFabricRecipe.id)
   const recipeId = (props.document?.document.metadata.web_fabric_recipe as { id?: string } | undefined)?.id
   useEffect(() => {
@@ -131,6 +133,9 @@ export function ManufacturingPanel(props: Props) {
     const timer = window.setInterval(() => setElapsedSeconds((performance.now() - started) / 1000), 100)
     return () => window.clearInterval(timer)
   }, [status])
+  useEffect(() => {
+    if (status === 'building' || status === 'error') setCurrentSection('preview')
+  }, [status])
   const geometry = result?.geometry_validation_summary
   const mesh = result?.mesh_validation_summary
   const conversion = result?.conversion_summary
@@ -147,58 +152,17 @@ export function ManufacturingPanel(props: Props) {
     <StlExportButton result={result} status={status} projectName={props.projectName} isCurrentResult={props.isCurrentResult} />
   </div>
   return <ParameterInteraction.Provider value={{ syncToken: props.heightSyncToken ?? '', onPending: props.onHeightPending }}>
-    <section className="manufacturing-panel" aria-label="制造检查">
+    <section className="manufacturing-panel" aria-label="制造检查" onClickCapture={event => {
+      const button = (event.target as Element).closest('button')
+      if (button && !button.disabled && /生成最终|检查并生成|检查可制造性|更新3D预览/.test(button.textContent ?? '')) setCurrentSection('preview')
+    }}>
     <div className="manufacturing-heading"><span className="eyebrow">{base ? 'FABRIC DESIGN PREVIEW' : 'FINAL MANUFACTURING MESH'}</span><h1>{base ? 'Fabric 设计预览' : '制造检查'}</h1>
-      <p>{base ? '快速查看基底与单元布点；此预览不是可打印制造模型。' : '从当前二维设计生成最终制造网格；此操作不会更改设计或撤销历史。'}</p>
+      <small>设计预览不代表最终制造通过。</small>
       <button type="button" className="workflow-back" onClick={props.onBackDesign}>返回设计</button></div>
     <section className="manufacturing-settings" aria-label="Fabric Base">
       <fieldset disabled={props.recipeSaving || props.parametersDisabled} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
-      {props.document && <InspectorSection title="效果预设" label="Fabric Preset">
-        <label htmlFor="fabric-preset">Fabric 预设</label>
-        <select id="fabric-preset" value={presetId} onChange={(event) => setPresetId(event.target.value)}>
-          <option value={directionalFabricRecipe.id}>{directionalFabricRecipe.label} · 完整效果配方</option>
-          <option value={waveFabricRecipe.id}>{waveFabricRecipe.label} · 完整效果配方</option>
-          <option value={centerFabricRecipe.id} disabled={!ringGroup}>{centerFabricRecipe.label} · 完整效果配方</option>
-          {fabricPresets.map((preset) => <option key={preset.id} value={preset.id}>{preset.label}</option>)}
-        </select>
-        <button type="button" className="ui-secondary" disabled={props.recipeSaving} onClick={() => props.onFabricPreset(presetId)}>
-          {props.recipeSaving ? '正在保护当前作品…' : '应用预设'}</button>
-        {recipeId === directionalFabricRecipe.id &&
-          <button type="button" className="ui-secondary" disabled={props.recipeSaving}
-            onClick={() => props.onFabricPreset(directionalFabricRecipe.id)}>恢复方向渐变配方</button>}
-        {recipeId === waveFabricRecipe.id &&
-          <button type="button" className="ui-secondary" disabled={props.recipeSaving}
-            onClick={() => props.onFabricPreset(waveFabricRecipe.id)}>恢复波浪起伏配方</button>}
-        {recipeId === centerFabricRecipe.id && <button type="button" className="ui-secondary" disabled={props.recipeSaving}
-          onClick={() => props.onFabricPreset(centerFabricRecipe.id)}>恢复中心隆起配方</button>}
-        {[directionalFabricRecipe.id, waveFabricRecipe.id, centerFabricRecipe.id].some(id => id === presetId) && <p>应用高度效果：保留当前原图／单元造型、大小、布点、输出和基底；仅设置专用高度场与 2–6mm 范围。恢复配方仅重置高度与该配方的场参数。</p>}
-        {fabricPresets.find(p => p.id === presetId) && <p>这是包含造型替换的完整预设：将改为 {unitCellChoices.find(c => c.type === fabricPresets.find(p => p.id === presetId)!.cell.type)?.label}，
-          并设置该预设的布点和基底参数；不只修改高度。</p>}
-      </InspectorSection>}
-      <InspectorSection title="输出方式" label="制造输出方式">
-      <label htmlFor="generation-method">生成方式</label>
-      <select id="generation-method" value={original ? 'contour' : 'cells'} onChange={(event) => {
-        const stored = (props.document?.document.metadata.fabric_config as { unit_cell?: { type: UnitCellType } } | undefined)?.unit_cell
-        props.onUnitCellType(event.target.value === 'contour' ? 'original' : stored?.type ?? 'original')
-      }}>
-        <option value="contour">按原图轮廓挤出</option><option value="cells">使用立体单元</option>
-      </select>
-      <p>生成方式与下方造型同步；要替换原图，请选择具体单元造型。</p>
-      {(base || original) && <><label htmlFor="fabric-output-mode">单元输出</label>
-        <select id="fabric-output-mode" value={outputMode} onChange={event => props.onOutputMode?.(event.target.value as FabricOutputMode)}>
-          <option value="cells_only">仅图案单元</option><option value="cells_with_base">单元＋基底</option>
-        </select>
-        {outputMode === 'cells_with_base' && base && <><label htmlFor="fabric-base-type">基底类型</label>
-          <select id="fabric-base-type" value={base.type} onChange={event => props.onFabricType(event.target.value as FabricBaseType)}>
-            <option value="solid">Solid 实心基底</option><option value="grid">Grid 网格基底</option>
-          </select></>}
-        <p>{outputMode === 'cells_only' ? '不生成实体基底；单元从 Z=0 开始，可包含多个独立封闭实体。布点仍使用设计范围。' : '基底使用最终二维外接范围；Solid 填满矩形，Grid 生成网孔。'}</p>
-        <details><summary>{outputMode === 'cells_only' ? '高级：布点范围边距与保留的基底配置' : '高级：基底参数'}</summary>
-          {fabricGroup && <ParameterPanel group={{ ...fabricGroup, parameters: fabricGroup.parameters.filter(p => outputMode !== 'cells_only' || p.id === 'margin_mm') }} values={{ ...base }} onCommit={props.onFabricParameter} />}
-        </details></>}
-      </InspectorSection>
       {(base || original) && <section aria-label="Fabric Unit Cell">
-        <InspectorSection title="单元类型、大小与高度" label="单元尺寸设置">
+        <InspectorSection title="形状与单元" label="单元尺寸设置" icon="shape" {...sectionProps('shape')}>
         <label htmlFor="fabric-cell-type">Unit Cell 类型</label>
         {parameterStatus === 'loading' && <p role="status">正在加载单元参数…</p>}
         {parameterStatus === 'error' && <div role="alert"><p>{props.parameterLoad?.error ?? '单元参数未加载成功。'}</p>
@@ -215,12 +179,9 @@ export function ManufacturingPanel(props: Props) {
           {unitCellChoices.map(item => <option key={item.type} value={item.type}
             disabled={!canSelectCell(item.type)}>{item.label} · {item.type}{canSelectCell(item.type) ? '' : '（参数不可用）'}</option>)}
         </select>
-        <div className="unit-cell-choices" aria-label="单元造型缩略图">{unitCellChoices.map(item => <button type="button"
-          key={item.type} title={item.label} aria-label={`选择${item.label}`} aria-pressed={cell?.type === item.type}
-          disabled={!canSelectCell(item.type)} onClick={() => selectCell(item.type)}><svg viewBox="0 0 32 32" aria-hidden="true"><path d={item.path} /></svg><span>{item.label}</span></button>)}</div>
-        {parameterStatus === 'ready' && props.onRetryParameters && <button type="button" onClick={props.onRetryParameters}>重新加载单元参数</button>}
+
         {!cell && !original && <p role="status">旧无单元数据已保留；请选择“保留原图形状”启用新的原图模式，或选择一种单元。不会生成空 STL。</p>}
-        {original && <><p>使用已应用的最终二维轮廓和孔洞，保留位置、相对大小与旋转；逐元素挤出，不铺满区域。</p>
+        {original && <>
           {!originalGroup && <p role="alert">后端尚未提供原图形状参数，请重试加载参数。</p>}
           {originalGroup && originalValues && <ParameterPanel group={{ ...originalGroup, parameters: originalGroup.parameters.map(p =>
             p.id === 'size_scale' ? { ...p, label: '图形大小', unit: '%', min: p.min == null ? p.min : p.min * 100, max: p.max == null ? p.max : p.max * 100,
@@ -230,7 +191,7 @@ export function ManufacturingPanel(props: Props) {
             onDraft={(key, value) => props.onUnitCellDraft?.(key === 'size_scale' ? 'original_size_scale' : key,
               typeof value === 'number' && key === 'size_scale' ? value / 100 : value)}
             onCommit={(key, value) => props.onOriginalShapeParameter?.(key, key === 'size_scale' ? Number(value) / 100 : value)} />}
-          <p>大小只围绕各元素锚点等比变化；不放大点距。高度效果启用时，固定高度仍保留但由所选高度范围驱动。</p>
+          <small>仅调整图形，不改变点距；高度效果可叠加。</small>
           {fabricFieldModifier(props.document, 'scale')?.enabled && <p>仍叠加已有 Fabric 比例场；百分比是本层轮廓倍率，不代表每个元素最终尺寸相同。</p>}
         </>}
         {cell && cellGroup && <><h2>单元大小与高度</h2><ParameterPanel
@@ -243,11 +204,37 @@ export function ManufacturingPanel(props: Props) {
           <details><summary>高级：精确宽深与尺寸继承</summary><ParameterPanel group={cellGroup}
           values={{ ...cell, size_mode: cell.size_mode ?? 'follow_pattern' }}
           onCommit={(key, value) => props.onUnitCellParameter('cell', key, value)} /></details>
-          <p>固定尺寸不继承二维大小；跟随图案按最终二维尺寸比例调整宽深。Fabric 比例场在两种模式下仍可叠加。</p>
+          <details className="parameter-help"><summary>尺寸继承说明</summary><p>固定尺寸不继承二维大小；跟随图案按最终二维尺寸比例调整宽深。Fabric 比例场在两种模式下仍可叠加。</p></details>
         </>}
+
+        <details className="parameter-extra"><summary>高级：造型、布点与尺寸说明</summary>
+        <div className="unit-cell-choices" aria-label="单元造型缩略图">{unitCellChoices.map(item => <button type="button"
+          key={item.type} title={item.label} aria-label={`选择${item.label}`} aria-pressed={cell?.type === item.type}
+          disabled={!canSelectCell(item.type)} onClick={() => selectCell(item.type)}><svg viewBox="0 0 32 32" aria-hidden="true"><path d={item.path} /></svg><span>{item.label}</span></button>)}</div>
+        {parameterStatus === 'ready' && props.onRetryParameters && <button type="button" onClick={props.onRetryParameters}>重新加载单元参数</button>}
+        {original && <p>使用已应用的最终二维轮廓和孔洞，保留位置、相对大小与旋转；逐元素挤出，不铺满区域。</p>}
+        <InspectorSection title="布点方式" label="单元布点设置" defaultExpanded={false}>
+        {original && <p>原图形状固定跟随最终二维元素分布。保留的全区域／Pattern Points 设置仅在替换单元模式使用，不会暗中重复轮廓。</p>}
+        {!cell && !original && <p role="status">请先选择形状；暂无可编辑的布点参数。</p>}
+        {cell && !placement && <p role="alert">当前作品缺少布点配置，布点暂不可编辑。</p>}
+        {cell && placement && <><label htmlFor="fabric-placement-mode">布点方式</label>
+          <select id="fabric-placement-mode" value={placement.mode ?? 'area_fill'}
+            onChange={(event) => props.onPlacementMode(event.target.value as 'area_fill' | 'pattern_points')}>
+            <option value="area_fill">全区域</option><option value="pattern_points">按图案元素</option>
+          </select></>}
+        {cell && placement && (placement.mode ?? 'area_fill') === 'area_fill' && placementGroup &&
+          <ParameterPanel group={placementGroup} values={{ ...placement }}
+            onCommit={(key, value) => props.onUnitCellParameter('placement', key, value)} />}
+        {cell && placement && (placement.mode ?? 'area_fill') === 'area_fill' && !placementGroup && <p role="status">
+          {parameterStatus === 'loading' ? '正在加载布点参数…' : parameterStatus === 'error'
+            ? `布点参数加载失败：${props.parameterLoad?.error ?? '请重试加载单元参数。'}`
+            : '后端未提供 regular 布点参数定义；已保留当前布点设置，请重试加载参数。'}</p>}
+        {cell && (placement?.mode ?? 'area_fill') === 'pattern_points' && <p>图案元素：{props.fabricPreviewResult?.element_count ?? '待更新'} · 单元实例：{props.fabricPreviewResult?.total_count ?? '待更新'}</p>}
         </InspectorSection>
-        {shapeReady && props.onHeightEffect && <InspectorSection title="高度效果" label="直接高度控制">
-          <label htmlFor="fabric-height-effect">高度变化</label>
+        </details>
+        </InspectorSection>
+        {props.document && <InspectorSection title="高度与变化" label="直接高度控制" icon="height" {...sectionProps('height')}>
+          {shapeReady && props.onHeightEffect && <><label htmlFor="fabric-height-effect">高度变化</label>
           <select id="fabric-height-effect" value={!height?.enabled ? 'uniform' : directional ? 'directional' : waving ? 'wave' : centered ? 'center' : 'advanced'}
             onChange={event => props.onHeightEffect?.(event.target.value as 'uniform' | 'directional' | 'wave' | 'center')}>
             <option value="uniform">均匀高度</option><option value="directional">沿方向变化</option>
@@ -296,26 +283,29 @@ export function ManufacturingPanel(props: Props) {
             <p>中心与影响半径使用世界毫米；中心高、向外线性降低，边界及范围外保持最低高度，不隐藏外围图案。
               按元素／实例位置采样，离散点阵不一定达到理论最高高度。滑杆松手／数值确认后自动更新预览，不执行最终制造。</p>
           </>}
-          <p>基础尺寸不等于最终尺寸：跟随二维大小及已启用的 Fabric 比例仍会叠加；均匀高度不会关闭这些效果。</p>
-        </InspectorSection>}
-        <InspectorSection title="布点方式" label="单元布点设置">
-        {original && <p>原图形状固定跟随最终二维元素分布。保留的全区域／Pattern Points 设置仅在替换单元模式使用，不会暗中重复轮廓。</p>}
-        {!cell && !original && <p role="status">请先选择形状；暂无可编辑的布点参数。</p>}
-        {cell && !placement && <p role="alert">当前作品缺少布点配置，布点暂不可编辑。</p>}
-        {cell && placement && <><label htmlFor="fabric-placement-mode">布点方式</label>
-          <select id="fabric-placement-mode" value={placement.mode ?? 'area_fill'}
-            onChange={(event) => props.onPlacementMode(event.target.value as 'area_fill' | 'pattern_points')}>
-            <option value="area_fill">全区域</option><option value="pattern_points">按图案元素</option>
-          </select></>}
-        {cell && placement && (placement.mode ?? 'area_fill') === 'area_fill' && placementGroup &&
-          <ParameterPanel group={placementGroup} values={{ ...placement }}
-            onCommit={(key, value) => props.onUnitCellParameter('placement', key, value)} />}
-        {cell && placement && (placement.mode ?? 'area_fill') === 'area_fill' && !placementGroup && <p role="status">
-          {parameterStatus === 'loading' ? '正在加载布点参数…' : parameterStatus === 'error'
-            ? `布点参数加载失败：${props.parameterLoad?.error ?? '请重试加载单元参数。'}`
-            : '后端未提供 regular 布点参数定义；已保留当前布点设置，请重试加载参数。'}</p>}
-        {cell && (placement?.mode ?? 'area_fill') === 'pattern_points' && <p>图案元素：{props.fabricPreviewResult?.element_count ?? '待更新'} · 单元实例：{props.fabricPreviewResult?.total_count ?? '待更新'}</p>}
-        </InspectorSection>
+          </>}<details className="parameter-help"><summary>高度与尺寸叠加说明</summary><p>基础尺寸不等于最终尺寸：跟随二维大小及已启用的 Fabric 比例仍会叠加；均匀高度不会关闭这些效果。</p></details>
+      {props.document && <InspectorSection title="效果预设" label="Fabric Preset" defaultExpanded={false}>
+        <label htmlFor="fabric-preset">Fabric 预设</label>
+        <select id="fabric-preset" value={presetId} onChange={(event) => setPresetId(event.target.value)}>
+          <option value={directionalFabricRecipe.id}>{directionalFabricRecipe.label} · 完整效果配方</option>
+          <option value={waveFabricRecipe.id}>{waveFabricRecipe.label} · 完整效果配方</option>
+          <option value={centerFabricRecipe.id} disabled={!ringGroup}>{centerFabricRecipe.label} · 完整效果配方</option>
+          {fabricPresets.map((preset) => <option key={preset.id} value={preset.id}>{preset.label}</option>)}
+        </select>
+        <button type="button" className="ui-secondary" disabled={props.recipeSaving} onClick={() => props.onFabricPreset(presetId)}>
+          {props.recipeSaving ? '正在保护当前作品…' : '应用预设'}</button>
+        {recipeId === directionalFabricRecipe.id &&
+          <button type="button" className="ui-secondary" disabled={props.recipeSaving}
+            onClick={() => props.onFabricPreset(directionalFabricRecipe.id)}>恢复方向渐变配方</button>}
+        {recipeId === waveFabricRecipe.id &&
+          <button type="button" className="ui-secondary" disabled={props.recipeSaving}
+            onClick={() => props.onFabricPreset(waveFabricRecipe.id)}>恢复波浪起伏配方</button>}
+        {recipeId === centerFabricRecipe.id && <button type="button" className="ui-secondary" disabled={props.recipeSaving}
+          onClick={() => props.onFabricPreset(centerFabricRecipe.id)}>恢复中心隆起配方</button>}
+        {[directionalFabricRecipe.id, waveFabricRecipe.id, centerFabricRecipe.id].some(id => id === presetId) && <p>应用高度效果：保留当前原图／单元造型、大小、布点、输出和基底；仅设置专用高度场与 2–6mm 范围。恢复配方仅重置高度与该配方的场参数。</p>}
+        {fabricPresets.find(p => p.id === presetId) && <p>这是包含造型替换的完整预设：将改为 {unitCellChoices.find(c => c.type === fabricPresets.find(p => p.id === presetId)!.cell.type)?.label}，
+          并设置该预设的布点和基底参数；不只修改高度。</p>}
+      </InspectorSection>}
         {shapeReady && <InspectorSection title="高级参数场绑定" label="Fabric Field Modifiers" defaultExpanded={false}>
           <p>高级绑定使用当前设计的 Shared Field 控制实例；预览与最终制造使用同一实例计划。</p>
           {!fabricFields.length && <p>请先在设计界面添加参数场。</p>}
@@ -343,15 +333,40 @@ export function ManufacturingPanel(props: Props) {
             </section>
           })}
         </InspectorSection>}
+
+        </InspectorSection>}
         {cell && <p>{FABRIC_PREVIEW_NOTICE} {fabricExportNotice(props.fabricStlTestExportEnabled)}</p>}
       </section>}
-      </fieldset>
-    </section>
-    {props.document && <InspectorSection title="高级：真实尺寸" label="制造真实尺寸">
+      <InspectorSection title="基底与输出模式" label="制造输出方式" icon="output" {...sectionProps('output')}>
+      <label htmlFor="generation-method">生成方式</label>
+      <select id="generation-method" value={original ? 'contour' : 'cells'} onChange={(event) => {
+        const stored = (props.document?.document.metadata.fabric_config as { unit_cell?: { type: UnitCellType } } | undefined)?.unit_cell
+        props.onUnitCellType(event.target.value === 'contour' ? 'original' : stored?.type ?? 'original')
+      }}>
+        <option value="contour">按原图轮廓挤出</option><option value="cells">使用立体单元</option>
+      </select>
+      <p>生成方式与下方造型同步；要替换原图，请选择具体单元造型。</p>
+      {(base || original) && <><label htmlFor="fabric-output-mode">单元输出</label>
+        <select id="fabric-output-mode" value={outputMode} onChange={event => props.onOutputMode?.(event.target.value as FabricOutputMode)}>
+          <option value="cells_only">仅图案单元</option><option value="cells_with_base">单元＋基底</option>
+        </select>
+        {outputMode === 'cells_with_base' && base && <><label htmlFor="fabric-base-type">基底类型</label>
+          <select id="fabric-base-type" value={base.type} onChange={event => props.onFabricType(event.target.value as FabricBaseType)}>
+            <option value="solid">Solid 实心基底</option><option value="grid">Grid 网格基底</option>
+          </select></>}
+        <p>{outputMode === 'cells_only' ? '不生成实体基底；单元从 Z=0 开始，可包含多个独立封闭实体。布点仍使用设计范围。' : '基底使用最终二维外接范围；Solid 填满矩形，Grid 生成网孔。'}</p>
+        <details><summary>{outputMode === 'cells_only' ? '高级：布点范围边距与保留的基底配置' : '高级：基底参数'}</summary>
+          {fabricGroup && <ParameterPanel group={{ ...fabricGroup, parameters: fabricGroup.parameters.filter(p => outputMode !== 'cells_only' || p.id === 'margin_mm') }} values={{ ...base }} onCommit={props.onFabricParameter} />}
+        </details></>}
+    {props.document && <InspectorSection title="高级：真实尺寸" label="制造真实尺寸" defaultExpanded={false}>
       <p>图案范围：{props.designBounds ? `${formatMm(props.designBounds.width)} × ${formatMm(props.designBounds.height)} mm` : '待求值'}</p>
       <details><summary>查看或调整真实尺寸</summary><RealSizePanel document={props.document} bounds={props.designBounds ?? null}
         disabled={!props.canEditSize} onConfirm={(width, height) => props.onConfirmRealSize?.(width, height)} /></details>
     </InspectorSection>}
+      </InspectorSection>
+      </fieldset>
+    </section>
+    <InspectorSection title="预览与最终制造" label="预览与最终制造" icon="manufacture" {...sectionProps('preview')}>
     <div className="manufacturing-settings">
       {!base && <><label htmlFor="manufacturing-height">厚度 <span>mm</span></label>
         <input id="manufacturing-height" type="number" min="0.01" step="0.1" value={props.heightText}
@@ -430,6 +445,7 @@ export function ManufacturingPanel(props: Props) {
       {!base && !props.actionHost && <StlExportButton result={result} status={status} projectName={props.projectName}
           isCurrentResult={props.isCurrentResult} />}
     </div>
+    </InspectorSection>
     {!base && props.actionHost && createPortal(standardActions, props.actionHost)}
   </section></ParameterInteraction.Provider>
 }

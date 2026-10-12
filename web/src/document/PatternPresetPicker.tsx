@@ -17,10 +17,10 @@ export function PatternPresetPicker({ onCreate, onApply, onEdit, currentId, crea
 }) {
   return <section className="pattern-preset-picker" aria-label="图案预设">
     <h3>图案预设</h3>
-    <p className="inspector-readonly">创建新图案会先保存当前作品，并保留返回入口。应用效果只修改说明中的受管参数；仍可继续编辑。</p>
+    <details className="parameter-help"><summary>创建与应用说明</summary><p className="inspector-readonly">创建新图案会先保存当前作品，并保留返回入口。应用效果只修改说明中的受管参数；仍可继续编辑。</p></details>
     {patternPresets.map(preset => <article key={preset.id} className="pattern-preset-card">
       <img src={thumbnails[preset.id]} alt={`${preset.title}默认求值结果`} width="120" height="120" />
-      <div><h4>{preset.title}</h4><p>{preset.description}</p><small>{preset.scope}</small>
+      <div><h4>{preset.title}</h4><p>{preset.description}</p><details className="parameter-help"><summary>作用范围</summary><small>{preset.scope}</small></details>
         <div className="pattern-preset-actions">
           <button type="button" disabled={createDisabled} onClick={() => onCreate(preset.id)}>创建{preset.title}</button>
           {preset.supportsCurrent && <button type="button" disabled={applyDisabled} onClick={() => onApply(preset.id)}>应用{preset.title}效果</button>}

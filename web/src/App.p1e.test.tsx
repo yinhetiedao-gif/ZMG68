@@ -90,7 +90,7 @@ describe('P1-E continuous parameter editing', () => {
     fireEvent.click(layoutToggle)
     fireEvent.click(screen.getByRole('button', { name: '放大' }))
     const view = canvas.querySelector('g')!.getAttribute('transform')
-    const inspector = screen.getByLabelText('右侧检查器')
+    const inspector = screen.getByLabelText('功能与参数面板').querySelector('.function-panel-scroll')!
     inspector.scrollTop = 150
     const slider = screen.getByRole('slider', { name: '波长滑杆' })
     fireEvent.change(slider, { target: { value: '50' } })

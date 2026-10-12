@@ -41,9 +41,9 @@ export function InfluenceControls({ areas, selected, zoom, onDown }: { areas: In
     const p = a.parameters, h = areaHandles(a), active = a.id === (selected ?? areas[0]?.id)
     return <g key={a.id} opacity={a.enabled ? active ? 1 : .5 : .25} data-influence-id={a.id}>
       {a.type === 'ellipse' ? <ellipse cx={p.x} cy={p.y} rx={p.length / 2} ry={p.width / 2} transform={`rotate(${p.angle} ${p.x} ${p.y})`}
-        fill="#00a2b518" vectorEffect="non-scaling-stroke" pointerEvents="none" />
+        fill="var(--influence-fill)" vectorEffect="non-scaling-stroke" pointerEvents="none" />
         : <path d={a.type === 'curve' ? `M ${p.x0} ${p.y0} Q ${p.x1} ${p.y1} ${p.x2} ${p.y2}` : `M ${h.start.x} ${h.start.y} L ${h.end.x} ${h.end.y}`}
-          fill="none" stroke="#00a2b5" strokeWidth={p.width} strokeLinecap="round" style={{ stroke: '#00a2b530', strokeWidth: p.width }} pointerEvents="none" />}
+          fill="none" stroke="var(--brand)" strokeWidth={p.width} strokeLinecap="round" style={{ stroke: 'var(--influence-stroke)', strokeWidth: p.width }} pointerEvents="none" />}
       {a.type === 'curve' && <path d={`M ${p.x0} ${p.y0} L ${p.x1} ${p.y1} L ${p.x2} ${p.y2}`} fill="none" strokeDasharray="3 3" vectorEffect="non-scaling-stroke" pointerEvents="none" />}
       {Object.entries(h).map(([key, point]) => <circle key={key} aria-label={`拖动${a.id} ${key}`} data-area-handle={key} data-area-id={a.id}
         cx={point.x} cy={point.y} r={7 / zoom} vectorEffect="non-scaling-stroke" onPointerDown={e => onDown(e, a, key)} />)}

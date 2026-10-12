@@ -16,7 +16,7 @@ function onlineFetch() {
 }
 
 describe('WM4 application shell', () => {
-  it('renders the three-column shell and marks unfinished tools unavailable', async () => {
+  it('renders the unified two-column shell and marks unfinished tools unavailable', async () => {
     onlineFetch()
     render(<App />)
     expect(screen.getByText('Xiaomang Pattern Lab')).toBeInTheDocument()
@@ -26,7 +26,8 @@ describe('WM4 application shell', () => {
     expect(libraryLink).toHaveAttribute('rel', 'noopener noreferrer')
     expect(screen.getByLabelText('左侧工具栏')).toBeInTheDocument()
     expect(screen.getByLabelText('中央工作区')).toBeInTheDocument()
-    expect(screen.getByLabelText('右侧检查器')).toBeInTheDocument()
+    expect(screen.getByLabelText('功能与参数面板')).toContainElement(screen.getByLabelText('当前功能参数'))
+    expect(screen.queryByLabelText('右侧检查器')).not.toBeInTheDocument()
     expect(screen.getByText('导入图片开始设计')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '＋ 添加圆形' })).toBeDisabled()
     expect(screen.queryByRole('button', { name: '打开项目' })).not.toBeInTheDocument()

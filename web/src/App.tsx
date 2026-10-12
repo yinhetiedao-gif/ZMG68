@@ -56,6 +56,7 @@ import { clearDraft, loadBeforeExampleDraft, loadDraft, saveBeforeExampleDraft, 
 import { createExampleDocument, exampleIdFromDocument, examples, type BuiltInExample, type ExampleId } from './examples/catalog'
 import { confirmUniformRealSize } from './document/realSize'
 import { ReleaseDiagnostics } from './ReleaseDiagnostics'
+import { PanelIcon } from './ui/PanelIcon'
 
 type ConnectionState =
   | { kind: 'checking'; message: string }
@@ -114,6 +115,22 @@ export function App() {
   const [releaseHealth, setReleaseHealth] = useState<import('./api/client').HealthResponse | null>(null)
   const [retry, setRetry] = useState(0)
   const [browser, setBrowser] = useState(() => ({ ...initialBrowserState, activeMode: workspaceModeFromLocation() }))
+  // Display-only state. Hiding the panel keeps its controls and drafts mounted.
+  const [panelOpen, setPanelOpen] = useState(() => window.innerWidth > 900)
+  const parameterDetailsRef = useRef<HTMLDetailsElement>(null)
+  useEffect(() => {
+    let narrow = window.innerWidth <= 900
+    const resize = () => {
+      const next = window.innerWidth <= 900
+      if (next !== narrow) { narrow = next; setPanelOpen(!next) }
+    }
+    const escape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && window.innerWidth <= 900) setPanelOpen(false)
+    }
+    window.addEventListener('resize', resize)
+    window.addEventListener('keydown', escape)
+    return () => { window.removeEventListener('resize', resize); window.removeEventListener('keydown', escape) }
+  }, [])
   const [designContext, publishDesignContext] = useState<'layout' | 'element' | 'effects' | 'reference' | 'linear' | 'presets' | null>(null)
   const [linearDraft, setLinearDraft] = useState<LinearSizeDraft | RadialSizeDraft | null>(null)
   const [presetAdvanced, setPresetAdvanced] = useState(false)
@@ -997,27 +1014,31 @@ export function App() {
       </div>
     </header>
 
-    <div className={`work-area ${browser.activeMode !== 'design' ? 'manufacture-layout' : ''}`}>
-      <aside className="sidebar" aria-label="左侧工具栏">
-        <div className="sidebar-intro"><span className="eyebrow">WORKSPACE / 工作台</span><p>导入图片，设计可直接编辑的二维图案。</p></div>
-        <section className="side-group" aria-label="素材来源">
-          <div className="group-heading"><span>01</span><h2>素材来源</h2></div>
-          <div className="side-items">
-            <button className="side-item" type="button" disabled={importing || !connected}
-              onClick={() => imageInputRef.current?.click()}><span className="side-item-mark">▧</span>导入 PNG / JPG</button>
-            <button className="side-item" type="button" disabled={importing || !connected}
-              onClick={() => svgInputRef.current?.click()}><span className="side-item-mark">◇</span>导入 SVG</button>
-          </div>
-        </section>
-        {project.currentDocument && <section className="side-group" aria-label="内置示例">
-          <div className="group-heading"><span>EX</span><h2>内置示例</h2></div>
-          <button className="side-item" type="button" aria-expanded={exampleChooserOpen}
-            onClick={() => setExampleChooserOpen((open) => !open)}><span className="side-item-mark">◉</span>试用示例</button>
-          {exampleChooserOpen && <div className="sidebar-examples">{examples.map((example) => <ExampleCard
-            key={example.id} example={example} onOpen={(id) => void openExample(id)} disabled={!connected || importing} />)}</div>}
-        </section>}
-        <section className="side-group" aria-label="图案逻辑">
-          <div className="group-heading"><span>02</span><h2>图案逻辑</h2></div>
+    <div className={`work-area unified-layout ${panelOpen ? '' : 'panel-closed'} ${browser.activeMode !== 'design' ? 'manufacture-layout' : ''}`}>
+      <button className="panel-backdrop" type="button" hidden={!panelOpen} aria-label="关闭功能面板遮罩" onClick={() => setPanelOpen(false)} />
+      <aside className="function-panel" id="function-panel" aria-label="功能与参数面板" hidden={!panelOpen}>
+        <header className="function-panel-heading">
+          <div className="panel-heading-copy"><PanelIcon name={browser.activeMode === 'design' ? 'vector' : 'manufacture'} /><div>
+            <strong>{browser.activeMode === 'design' ? '设计' : '检查制造'}</strong><small>功能与参数</small>
+          </div></div>
+          <button type="button" aria-label="收起功能面板" onClick={() => setPanelOpen(false)}><PanelIcon name="chevron" className="panel-collapse-icon" /></button>
+        </header>
+        <div className="function-panel-scroll">
+          <p className="panel-section-label" hidden={browser.activeMode !== 'design'}>功能导航</p>
+          <nav className="sidebar function-menu" aria-label="左侧工具栏" hidden={browser.activeMode !== 'design'} onClick={(event) => {
+            if ((event.target as Element).closest('button:not(:disabled)')) {
+              if (parameterDetailsRef.current) parameterDetailsRef.current.open = true
+              const group = (event.target as Element).closest('details.function-group') as HTMLDetailsElement | null
+              if (group && !(event.target as Element).closest('button[aria-expanded]')) group.open = false
+              requestAnimationFrame(() => {
+                const details = parameterDetailsRef.current
+                const scroll = details?.closest<HTMLElement>('.function-panel-scroll')
+                if (details && scroll) scroll.scrollTo?.({ top: scroll.scrollTop + details.getBoundingClientRect().top - scroll.getBoundingClientRect().top, behavior: 'smooth' })
+              })
+            }
+          }}>
+            <details className={`function-group ${designContext === 'layout' || designContext === 'element' ? 'selected' : ''}`}><summary><PanelIcon name="layout" /><span>布局与基础图形</span></summary><section className="side-group" aria-label="图案逻辑">
+          <div className="group-heading"><h2>图案逻辑</h2></div>
           <p className="pattern-analysis-status">当前结构：{patternItems.find((item) => item.id === committedFamily)?.label}</p>
           <div className="side-items">{patternItems.map((item) => {
             const available = Boolean(project.currentDocument && connected && !applyingPattern
@@ -1026,172 +1047,60 @@ export function App() {
               type="button" disabled={!available} aria-pressed={selectedFamily === item.id}
               title={available ? '仅选择候选结构，不改变元素位置。' : '请先导入有效的二维图案。'}
               onClick={() => void selectLayout(item.id)}>
-              <span className="side-item-mark" aria-hidden="true">{item.mark}</span>
+              <PanelIcon name={item.id === 'grid' ? 'layout' : item.id === 'radial' ? 'radial' : item.id === 'along_curve' ? 'curve' : 'free'} />
               <span>{item.label}</span>
               {!available && <span className="soon-dot" aria-hidden="true" />}
             </button>
           })}</div>
-          {selectedFamily && <p className="pattern-analysis-status">已选：{patternItems.find((item) => item.id === selectedFamily)?.label}。在右侧调整并应用。</p>}
-        </section>
-        <section className="side-group" aria-label="基础图形">
-          <div className="group-heading"><span>03</span><h2>基础图形</h2></div>
+          {selectedFamily && <p className="pattern-analysis-status">已选：{patternItems.find((item) => item.id === selectedFamily)?.label}。在本面板调整并应用。</p>}
+        </section><section className="side-group" aria-label="基础图形">
+          <div className="group-heading"><h2>基础图形</h2></div>
           <div className="side-items">{([['circle', '圆形'], ['ellipse', '椭圆'], ['rect', '矩形']] as const).map(([type, label]) =>
             <button className="side-item" key={type} type="button" disabled={!connected || importing || parameterPending}
               onClick={() => addPrimitive(type)}>＋ 添加{label}</button>)}</div>
           <small>添加一个独立图形，不替换当前图案。</small>
-        </section>
-        <section className="side-group" aria-label="参考底图">
-          <div className="group-heading"><span>04</span><h2>添加底图</h2></div>
+        </section></details>
+            <button className={`side-item ${designContext === 'presets' ? 'selected' : ''}`} aria-pressed={designContext === 'presets'} type="button" onClick={() => {
+            if (setDesignContext('presets')) setBrowser(current => ({ ...current, activeMode: 'design' }))
+          }}><PanelIcon name="presets" /><span>图案预设 · {patternPresets.length}套</span><PanelIcon name="chevron" className="disclosure-chevron" /></button>
+            <button className={`side-item ${designContext === 'effects' ? 'selected' : ''}`} aria-pressed={designContext === 'effects'} type="button" disabled={!project.currentDocument}
+            onClick={() => { setDesignContext('effects'); setBrowser(current => ({ ...current, activeMode: 'design' })) }}><PanelIcon name="fields" /><span>参数场与效果</span><PanelIcon name="chevron" className="disclosure-chevron" /></button>
+
+          <button type="button" className={`side-item ${linearActive && linearDraft?.kind === 'linear' && linearDraft.controlsOnly ? 'selected' : ''}`} aria-pressed={Boolean(linearActive && linearDraft?.kind === 'linear' && linearDraft.controlsOnly)} disabled={!canEditDocument || !project.bounds || !groupFor(parameterCatalog, 'design', 'shape')}
+            onClick={() => selectLinearSize('linear', true)} aria-label="图案控制 · 排列/形状/随机/画板" title="排列、形状、随机与画板设置"><PanelIcon name="controls" /><span>图案控制</span><PanelIcon name="chevron" className="disclosure-chevron" /></button>
+          <button type="button" className={`side-item ${linearActive && linearDraft?.kind === 'linear' && !linearDraft.controlsOnly ? 'selected' : ''}`}
+            aria-pressed={Boolean(linearActive && linearDraft?.kind === 'linear' && !linearDraft.controlsOnly)}
+            disabled={!canEditDocument || !project.bounds || !linearSizeGroup(parameterCatalog)}
+            title="尺寸变化：线性、波浪、条纹及其他参数场共用此入口" onClick={() => selectLinearSize()}><PanelIcon name="size" /><span>尺寸变化</span><PanelIcon name="chevron" className="disclosure-chevron" /></button>
+          <button type="button" className={`side-item ${linearActive && linearDraft?.kind === 'radial' ? 'selected' : ''}`}
+            aria-pressed={Boolean(linearActive && linearDraft?.kind === 'radial')}
+            disabled={!canEditDocument || !project.bounds || !project.currentDocument || !radialSizeGroup(parameterCatalog, project.currentDocument)}
+            onClick={() => selectLinearSize('radial')}><PanelIcon name="radial" /><span>径向尺寸渐变</span><PanelIcon name="chevron" className="disclosure-chevron" /></button>
+            <details className={`function-group ${designContext === 'reference' ? 'selected' : ''}`}><summary><PanelIcon name="assets" /><span>素材、示例与底图</span></summary><section className="side-group" aria-label="素材来源">
+          <div className="group-heading"><h2>素材来源</h2></div>
+          <div className="side-items">
+            <button className="side-item" type="button" disabled={importing || !connected}
+              onClick={() => imageInputRef.current?.click()}><PanelIcon name="assets" />导入 PNG / JPG</button>
+            <button className="side-item" type="button" disabled={importing || !connected}
+              onClick={() => svgInputRef.current?.click()}><PanelIcon name="vector" />导入 SVG</button>
+          </div>
+        </section>{project.currentDocument && <section className="side-group" aria-label="内置示例">
+          <div className="group-heading"><h2>内置示例</h2></div>
+          <button className="side-item" type="button" aria-expanded={exampleChooserOpen}
+            onClick={() => setExampleChooserOpen((open) => !open)}><PanelIcon name="presets" /><span>试用示例</span><PanelIcon name="chevron" className="disclosure-chevron" /></button>
+          {exampleChooserOpen && <div className="sidebar-examples">{examples.map((example) => <ExampleCard
+            key={example.id} example={example} onOpen={(id) => void openExample(id)} disabled={!connected || importing} />)}</div>}
+        </section>}<section className="side-group" aria-label="参考底图">
+          <div className="group-heading"><h2>添加底图</h2></div>
           <button className="side-item" type="button" disabled={!connected || importing || parameterPending}
             onClick={() => referenceInputRef.current?.click()}>{referenceLayer ? '更换参考底图' : '添加参考底图'}</button>
           {referenceLayer && <button className="side-item" type="button" onClick={() => setDesignContext('reference')}>底图属性</button>}
           <small>仅二维参考，不生成图案，不进入 STL。</small>
-        </section>
-        <section className="side-group" aria-label="参数场与效果">
-          <button className="side-item" type="button" onClick={() => {
-            if (setDesignContext('presets')) setBrowser(current => ({ ...current, activeMode: 'design' }))
-          }}>图案预设 · {patternPresets.length}套</button>
-          <button className="side-item" type="button" disabled={!project.currentDocument}
-            onClick={() => { setDesignContext('effects'); setBrowser(current => ({ ...current, activeMode: 'design' })) }}>参数场与效果</button>
-          <span className="eyebrow">尺寸变化效果</span>
-          <button type="button" className="side-item" disabled={!canEditDocument || !project.bounds || !groupFor(parameterCatalog, 'design', 'shape')}
-            onClick={() => selectLinearSize('linear', true)}>图案控制 · 排列/形状/随机/画板</button>
-          <button type="button" className={`side-item ${linearActive && linearDraft?.kind === 'linear' ? 'selected' : ''}`}
-            disabled={!canEditDocument || !project.bounds || !linearSizeGroup(parameterCatalog)}
-            title="尺寸变化：线性、波浪、条纹及其他参数场共用此入口" onClick={() => selectLinearSize()}>尺寸变化</button>
-          <small className="inspector-readonly">支持切换波浪、条纹、棋盘、噪声、图片等驱动。</small>
-          <button type="button" className={`side-item ${linearActive && linearDraft?.kind === 'radial' ? 'selected' : ''}`}
-            disabled={!canEditDocument || !project.bounds || !project.currentDocument || !radialSizeGroup(parameterCatalog, project.currentDocument)}
-            onClick={() => selectLinearSize('radial')}>径向尺寸渐变</button>
-        </section>
-        <div className="sidebar-footnote"><span className="footnote-icon">i</span><p>也可将 PNG、JPG 或 SVG 拖入画布。</p></div>
-      </aside>
+        </section><div className="sidebar-footnote"><span className="footnote-icon">i</span><p>也可将 PNG、JPG 或 SVG 拖入画布。</p></div></details>
+          </nav>
+          <details className={`function-details ${browser.activeMode !== 'design' ? 'manufacturing-details' : ''}`} ref={parameterDetailsRef} open><summary>当前功能参数</summary>
+      <section className={`inspector ${browser.activeMode !== 'design' ? 'manufacture-inspector' : ''}`} aria-label="当前功能参数">
 
-      <main className="workspace" aria-label="中央工作区">
-        {restorableDraft && !project.currentDocument && <div className="draft-restore" role="region" aria-label="恢复上次编辑">
-          <span>发现上次编辑：{restorableDraft.file_name ?? '未命名设计'} · {new Date(restorableDraft.saved_at).toLocaleString()}</span>
-          <button type="button" onClick={restoreLocalDraft}>恢复上次编辑</button>
-          <button type="button" onClick={() => void startFresh()}>新建项目</button>
-        </div>}
-        {draftNotice && <div className="draft-notice" role="alert">{draftNotice}</div>}
-        {restoreNotice && <div className="draft-restore-notice" role="status">{restoreNotice}</div>}
-        <div className="workspace-toolbar">
-          <div className="breadcrumb"><span>工作区</span><span className="crumb-divider">/</span><strong>{modeName}</strong></div>
-          <div className="workspace-scale">{project.currentDocument ? `CANVAS · ${project.finalGeometry.length} ELEMENTS · mm` : 'CANVAS · 暂无文档'}</div>
-          <div className="history-actions"><button type="button" onClick={undo} title="Ctrl+Z" disabled={!historyCount.past || !canEditDocument}>撤销</button>
-            <button type="button" onClick={redo} title="Ctrl+Y / Ctrl+Shift+Z" disabled={!historyCount.future || !canEditDocument}>重做</button>
-            {exampleIdFromDocument(project.currentDocument) && <span className="example-session-label">正在试用示例：{project.fileName}</span>}
-            {patternPresetId(project.currentDocument) && <span className="example-session-label">当前图案预设：{patternPreset(patternPresetId(project.currentDocument)!).title}</span>}
-            {exampleIdFromDocument(project.currentDocument) && <button type="button" onClick={resetExample}
-              disabled={!canEditDocument}>恢复示例初始状态</button>}
-            {canReturnBeforeProject && <button type="button"
-              onClick={() => void restorePreExampleDraft()} disabled={!canEditDocument}>← 返回之前作品</button>}</div>
-        </div>
-        <div className="canvas-stage" onDragOver={(event) => event.preventDefault()} onDrop={onDrop}>
-          {browser.activeMode === 'design' && project.currentDocument && project.evaluateStatus !== 'idle' ? (
-            <Workspace2D geometry={(linearActive && linearCurrent ? stagedLinear.displayResult?.geometry ?? project.finalGeometry : stagedLayout.result?.geometry ?? project.finalGeometry).map(item => designContext === 'element' && item.id === selectedId && sourceCanDrag(item)
-              ? { ...item, ...elementDraft } : item)} bounds={(linearActive && linearCurrent ? stagedLinear.displayResult?.bounds_mm : null) ?? stagedLayout.result?.bounds_mm ?? project.bounds ?? (referenceLayer ? {
-                min_x: referenceLayer.x_mm - referenceLayer.width_mm / 2, min_y: referenceLayer.y_mm - referenceLayer.height_mm / 2,
-                max_x: referenceLayer.x_mm + referenceLayer.width_mm / 2, max_y: referenceLayer.y_mm + referenceLayer.height_mm / 2,
-                width: referenceLayer.width_mm, height: referenceLayer.height_mm, units: 'mm',
-              } : null)} mmPerUnit={scale}
-              referenceLayer={referenceLayer && referenceUrl ? { ...(referenceDraft ?? referenceLayer), url: referenceUrl } : null}
-              onSelectReference={() => { setDesignContext('reference'); setBrowser(current => ({ ...current, selectedElementIds: [] })) }}
-              view={browser.viewTransform}
-              onViewChange={(viewTransform) => setBrowser((current) => ({ ...current, viewTransform }))}
-              selectedId={selectedId}
-              onSelect={(id) => { if (linearActive && !id) return; setBrowser((current) => ({ ...current, selectedElementIds: id ? [id] : [] })); setDesignContext(id ? 'element' : null) }}
-              artboard={project.currentDocument ? { x: (project.currentDocument.document.canvas.origin_x ?? 0) * (millimetresPerUnit(project.currentDocument.document) ?? 1), y: (project.currentDocument.document.canvas.origin_y ?? 0) * (millimetresPerUnit(project.currentDocument.document) ?? 1),
-                width: (linearDraft?.kind === 'linear' && linearDraft.artboard ? linearDraft.artboard.width : project.currentDocument.document.canvas.width * (millimetresPerUnit(project.currentDocument.document) ?? 1)),
-                height: (linearDraft?.kind === 'linear' && linearDraft.artboard ? linearDraft.artboard.height : project.currentDocument.document.canvas.height * (millimetresPerUnit(project.currentDocument.document) ?? 1)), grid: designDisplay.grid } : undefined}
-              influenceAreas={linearActive && linearCurrent && canEditDocument && linearDraft?.kind === 'linear' && linearDraft.values.scope_mode === 'areas' ? linearDraft.influenceAreas : undefined}
-              selectedArea={linearDraft?.kind === 'linear' ? linearDraft.selectedArea : undefined}
-              onAreaChange={(id, parameters) => setLinearDraft(draft => draft?.kind === 'linear' ? { ...draft, selectedArea: id,
-                influenceAreas: draft.influenceAreas?.map(a => a.id === id ? { ...a, parameters: { ...a.parameters, ...parameters } } : a) } : draft)}
-              gradientControl={linearActive && linearCurrent && canEditDocument && linearDraft && !(linearDraft.kind === 'linear' && (linearDraft.controlsOnly || linearDraft.values.scope_mode === 'areas')) ? linearDraft.kind === 'radial' ? linearDraft
-                : (!linearDraft.fieldType || linearDraft.fieldType === 'linear') && !linearDraft.existingFieldId && !linearDraft.explicitLinear ? linearDraft
-                : linearDraft.values.scope_mode === 'local' ? { ...linearDraft, kind: 'region', values: { ...linearDraft.values, angle: linearDraft.values.scope_angle ?? 0 } } : null : null}
-              onGradientChange={values => {
-                if (!linearCurrent || !canEditDocument || !sizeGroup) return
-                const changes = linearDraft?.kind === 'linear' && (linearDraft.fieldType && linearDraft.fieldType !== 'linear' || linearDraft.existingFieldId || linearDraft.explicitLinear) && 'angle' in values
-                  ? { ...values, scope_angle: values.angle } : values
-                if (changes !== values) delete (changes as Record<string, number>).angle
-                const valid = Object.entries(changes).every(([key, value]) => {
-                  const definition = sizeGroup.parameters.find(item => item.id === key)
-                  return definition && validateParameter(definition, value)
-                })
-                if (valid) setLinearDraft(current => !current ? null : current.kind === 'radial'
-                  ? { ...current, values: { ...current.values, ...changes } } : { ...current, values: { ...current.values, ...changes } })
-              }}
-              canDrag={item => !linearActive && !pendingLayoutFor(project.currentDocument!, layoutDraft) && sourceCanDrag(item)} onDragCommit={commitDrag} pendingPreview={pendingPreview} fitToken={fitToken}
-              onEditingChange={setCanvasEditing} />
-          ) : browser.activeMode === 'design' ? (
-            <section className="empty-state" aria-label="空白设计工作区">
-              <div className="orbit-art" aria-hidden="true"><div className="orbit-ring ring-one" /><div className="orbit-ring ring-two" /><div className="orbit-ring ring-three" /><span className="orbit-core" /><i className="orbit-dot dot-one" /><i className="orbit-dot dot-two" /><i className="orbit-dot dot-three" /></div>
-              <span className="empty-kicker">A NEW CANVAS AWAITS</span>
-              <h1>导入图片开始设计</h1>
-              <p>导入自己的图案，或打开可编辑示例体验参数化设计。</p>
-              <div className="empty-actions"><button type="button" className="primary-action ui-primary" disabled={!connected || importing}
-                onClick={() => imageInputRef.current?.click()}>导入自己的图案</button>
-              </div>
-              <div className="empty-examples">{examples.map((example) => <ExampleCard
-                key={example.id} example={example} onOpen={(id) => void openExample(id)} disabled={!connected || importing} />)}</div>
-            </section>
-          ) : fabricBase(project.currentDocument) || isOriginalShape(project.currentDocument) ? null : <PreviewPanel hideExport result={manufacturing.result} status={manufacturing.status}
-            projectName={project.fileName} isCurrentResult={safeCurrentResult}
-            document={project.currentDocument} fabricPreview={fabricPreview.result}
-            fabricStlTestExportEnabled={fabricStlTestExportEnabled}
-            onGoManufacture={() => setBrowser((current) => ({ ...current, activeMode: 'manufacture' }))} />}
-          {(fabricBase(project.currentDocument) || isOriginalShape(project.currentDocument)) && <section className="fabric-live-stage" hidden={browser.activeMode === 'design'} aria-label="中央 Fabric 设计预览">
-            <header className="fabric-live-heading"><strong>3D 设计预览</strong><small>设计预览不代表最终制造已通过</small>
-              <span role="status">{noOriginalGeometry ? '请先导入图案或在设计中添加图形' : !hasPreviewShape ? '旧作品未选择形状，请在右侧启用保留原图或选择造型' : parameterPending ? Object.keys(cellDraft).length && fabricDisplayPlan !== fabricPreview.displayResult
-                ? '临时显示 · 松手提交后校准' : '有未提交参数 · 松手后自动更新'
-                : fabricPreview.status === 'building' ? '正在更新 · 保留上次有效画面' : fabricPreview.status === 'stale' ? '设计已变化 · 等待更新' : fabricPreview.error ?? ''}</span></header>
-            {fabricDisplayPlan ? <FabricThreePreview key={project.currentDocument?.document_id} plan={fabricDisplayPlan}
-              stale={fabricPreview.status !== 'ready'} />
-              : <div className="preview-empty"><p>{noOriginalGeometry ? '当前没有可挤出的原图。请导入图案或在设计中添加图形。' : !hasPreviewShape ? '在右侧选择单元类型，即可查看设计预览。' : fabricPreview.error ?? '正在准备原图或单元设计预览，请稍候。'}</p></div>}
-          </section>}
-          {project.evaluateStatus === 'loading' && <div className="viewer-notice" role="status">Python 正在计算最终二维几何…</div>}
-          {linearActive && <div className="viewer-notice" role="status">未应用的尺寸渐变预览 · {!linearCurrent ? '正式设计已变化，请重新打开效果' :
-            linearProposal.error ?? stagedLinear.error ?? (stagedLinear.pending ? '正在计算最新输入 · 保留上次有效画面' : '点击右侧应用，或取消恢复')}</div>}
-          {browser.activeMode === 'design' && project.currentDocument && pendingLayoutFor(project.currentDocument, layoutDraft) &&
-            <div className="viewer-notice" role="status">未应用的布局预览 · {stagedLayout.pending ? '正在计算最新输入' : stagedLayout.error ?? '点击右侧应用，或取消恢复'} </div>}
-          {importing && <div className="viewer-notice" role="status">Python 正在转换图片为可编辑元素…</div>}
-          {project.evaluateError && <div className="viewer-error" role="alert">{project.evaluateError}</div>}
-          {projectError && <div className="viewer-error" role="alert">{projectError}</div>}
-          {browser.activeMode === 'design' && project.warnings.length > 0 &&
-            <div className="viewer-warning" role="note">{project.warnings.join(' ')}</div>}
-          {mapping && <div className="mapping-overlay" role="dialog" aria-label="设置毫米映射">
-            <div className="mapping-card">
-              <h2>项目缺少毫米映射</h2>
-              <p>旧项目使用 SVG 单位。请提供真实比例；软件不会猜测打印尺寸。</p>
-              <label>1 SVG 单位对应多少 mm
-                <input type="number" min="0.000001" step="any" value={mappingValue}
-                  onChange={(event) => setMappingValue(event.target.value)} />
-              </label>
-              <div><button type="button" onClick={() => setMapping(null)}>取消</button>
-                <button type="button" onClick={confirmMapping}>按此比例打开</button></div>
-            </div>
-          </div>}
-        </div>
-        <nav className="mode-bar" aria-label="工作模式">
-          <div className="mode-label">模式</div>
-          {modes.map((mode) =>
-            <button key={mode.id} type="button" className={`mode-button ${browser.activeMode === mode.id ? 'selected' : ''}`}
-              data-step-state={browser.activeMode === mode.id ? 'current' : mode.id === 'design' && project.currentDocument
-                || mode.id === 'manufacture' && manufacturing.result && manufacturing.isCurrentResult(manufacturing.result.manufacturing_result_id)
-                ? 'complete' : 'not-ready'}
-              aria-label={`${mode.id === 'manufacture' ? '制造' : '设计'} ${mode.secondary}`}
-              aria-current={browser.activeMode === mode.id ? 'page' : undefined}
-              onClick={() => setBrowser((current) => ({ ...current, activeMode: mode.id }))}>
-              <span>{mode.label}</span><small>{mode.secondary}</small>
-            </button>)}
-          <span className="mode-bar-spacer" /><span className="interaction-status" role="status" aria-label="编辑状态">{interactionStatus}</span>
-        </nav>
-      </main>
-
-      <aside className={`inspector ${browser.activeMode !== 'design' ? 'manufacture-inspector' : ''}`} aria-label="右侧检查器">
-        <div className="inspector-title"><div><span className="eyebrow">PROPERTIES</span><h2>检查器</h2></div><span className="inspector-dots" aria-hidden="true">•••</span></div>
         <div className="inspector-content">
         {browser.activeMode === 'design' && designContext === 'presets' && <PatternPresetPicker
           currentId={patternPresetId(project.currentDocument)}
@@ -1227,7 +1136,7 @@ export function App() {
             <h3>{linearDraft.presetId ? patternPreset(linearDraft.presetId).title : linearDraft.kind === 'radial' ? '径向尺寸渐变' : linearDraft.controlsOnly ? '完整图案控制' : '参数场驱动的尺寸变化'}</h3>
             <p className="layout-pending" role="status">{sizeFormPending ? '有未应用修改' : '公共参数未改变 · 显示设置无需应用到几何'}</p>
             {linearDraft.presetId && <>
-              <p className="inspector-readonly">{patternPreset(linearDraft.presetId).scope} 恢复默认只重置此范围，仍需应用。</p>
+              <details className="parameter-help"><summary>方案作用范围</summary><p className="inspector-readonly">{patternPreset(linearDraft.presetId).scope} 恢复默认只重置此范围，仍需应用。</p></details>
               {linearDraft.presetId === 'digital-weave' && <p className="inspector-readonly">若棋格采样全部相同，请调整格子尺寸或高级偏移；不会自动重排原图。</p>}
               {linearDraft.presetId === 'vortex-scales' && <p className="inspector-readonly">螺旋密度使用源图案范围归一化。默认椭圆在0°/180°相位边界外形连续；不对称轮廓不具备此对称性，可在高级旋转中选择钟形映射。中心附近仍以各元素的真实采样位置为准。</p>}
               <button type="button" className="ui-secondary" onClick={() => setPresetAdvanced(v => !v)}>{presetAdvanced ? '返回关键参数' : '高级参数与影响区'}</button>
@@ -1241,28 +1150,15 @@ export function App() {
                 </fieldset>
               </ParameterInteraction.Provider>}
             </>}
-            {linearDraft.kind === 'linear' && (!linearDraft.presetId || presetAdvanced) && <ParameterInteraction.Provider value={{ syncToken: String(linearSync), onPending: onParameterPending }}>
-              <fieldset disabled={!linearCurrent || !canEditDocument} style={{ border: 0, padding: 0, minWidth: 0 }}>
-                <DesignPanelControls draft={linearDraft} catalog={parameterCatalog} onChange={setLinearDraft} display={designDisplay} onDisplay={setDesignDisplay} />
-              </fieldset>
-            </ParameterInteraction.Provider>}
             {linearDraft.kind === 'linear' && !linearDraft.controlsOnly && (!linearDraft.presetId || presetAdvanced) && <>
-              <div className="field-picker"><label htmlFor="size-field-source">驱动来源</label>
-                <select id="size-field-source" disabled={!linearCurrent || !canEditDocument || parameterPending}
-                  value={linearDraft.existingFieldId ? 'existing' : 'owned'} onChange={event => {
-                    if (event.target.value === 'owned') setLinearDraft(selectPatternPresetDriver(linearDraft, linearDraft.fieldType ?? 'linear', parameterCatalog))
-                    else { const field = project.currentDocument?.document.fields.find(f => f.enabled !== false && sizeFieldTypes(parameterCatalog).some(([id]) => f.type === id))
-                      if (field) setLinearDraft(selectPatternPresetDriver(linearDraft, String(field.type), parameterCatalog, String(field.id)))
-                      else setProjectError('没有可绑定的已启用参数场。请先在高级面板创建，或使用本效果专用场。') }
-                    setLinearSync(v => v + 1)
-                  }}><option value="owned">快捷：本效果专用场</option><option value="existing">高级：绑定已有场</option></select>
-              </div>
+
               <div className="field-picker"><label htmlFor="size-field-type">变化方式</label>
                 <select id="size-field-type" disabled={!linearCurrent || !canEditDocument || parameterPending}
                   value={linearDraft.fieldType ?? 'linear'} onChange={event => {
                     setLinearDraft(selectPatternPresetDriver(linearDraft, event.target.value, parameterCatalog)); setLinearSync(v => v + 1)
                   }}>{sizeFieldTypes(parameterCatalog).map(([id, group]) => <option key={id} value={id}>{group.label}</option>)}</select>
               </div>
+
               {linearDraft.existingFieldId && <div className="field-picker"><label htmlFor="size-existing-field">已有场</label>
                 <select id="size-existing-field" value={linearDraft.existingFieldId} disabled={!linearCurrent || !canEditDocument || parameterPending}
                   onChange={event => { const field = project.currentDocument!.document.fields.find(f => f.id === event.target.value)!
@@ -1278,7 +1174,7 @@ export function App() {
               </div>}
               {sizeDriverGroup && sizeDriverGroup.parameters.length > 0 && <ParameterInteraction.Provider value={{ syncToken: String(linearSync), onPending: onParameterPending }}>
                 <fieldset disabled={!linearCurrent || !canEditDocument} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
-                  <h4>场参数 · {sizeDriverGroup.label}</h4>
+
                   <ParameterPanel group={sizeDriverGroup} values={{ ...linearDraft.values, ...sizeFieldValues(linearDraft, parameterCatalog) }} onCommit={(key, value) => {
                     if (key === 'angle') { updateSizeDraftValue(key, value); return }
                     try { setLinearDraft(current => current?.kind === 'linear' ? changeSizeFieldParameter(current, parameterCatalog, key, value) : current) }
@@ -1286,8 +1182,51 @@ export function App() {
                   }} />
                 </fieldset>
               </ParameterInteraction.Provider>}
+
             </>}
-            <p className="inspector-readonly">{linearDraft.kind === 'radial'
+            {!(linearDraft.presetId && !presetAdvanced || linearDraft.kind === 'linear' && linearDraft.controlsOnly) && <ParameterInteraction.Provider value={{ syncToken: String(linearSync), onPending: onParameterPending }}>
+              <fieldset disabled={!linearCurrent || !canEditDocument} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
+                {linearDraft.kind === 'radial' ? <ParameterPanel group={sizeGroup} values={{ ...linearDraft.values }} onCommit={updateSizeDraftValue} /> : <>
+
+                  <ParameterPanel group={{ ...sizeGroup, parameters: sizeGroup.parameters.filter(p => ['min_output', 'max_output'].includes(p.id)) }}
+                    values={{ ...linearDraft.values }} onCommit={updateSizeDraftValue} />
+                  <div className="field-picker"><label htmlFor="linear-scope-mode">作用范围</label><select id="linear-scope-mode" value={linearDraft.values.scope_mode ?? 'global'}
+                    onChange={event => {
+                      const mode = event.target.value as 'global' | 'local' | 'areas'
+                      setLinearDraft(current => current?.kind === 'linear' ? { ...current, values: { ...linearRegionDefaults(current.bounds), ...current.values, scope_mode: mode } } : current)
+                    }}><option value="global">全图</option><option value="local">局部区域</option><option value="areas">多影响区（最多3个）</option></select></div>
+                  {linearDraft.values.scope_mode === 'areas' && <DesignPanelControls areaOnly draft={linearDraft} catalog={parameterCatalog} onChange={setLinearDraft} display={designDisplay} onDisplay={setDesignDisplay} />}
+                  <ParameterPanel group={{ ...sizeGroup, parameters: sizeGroup.parameters.filter(p => !['angle', 'min_output', 'max_output', 'strength'].includes(p.id)) }}
+                    values={{ ...linearDraft.values }} onCommit={updateSizeDraftValue} />
+                  <details className="parameter-extra"><summary>高级：反转与作用强度</summary><label><input type="checkbox" checked={linearDraft.values.invert ?? false} onChange={e => setLinearDraft({ ...linearDraft, values: { ...linearDraft.values, invert: e.target.checked } })} />反转渐变（仅本层）</label>
+                  <ParameterPanel group={{ ...sizeGroup, parameters: sizeGroup.parameters.filter(p => p.id === 'strength') }} values={{ ...linearDraft.values }} onCommit={updateSizeDraftValue} /></details>
+                </>}
+              </fieldset>
+            </ParameterInteraction.Provider>}
+            {linearDraft.kind === 'linear' && !linearDraft.controlsOnly && (!linearDraft.presetId || presetAdvanced) && <>
+              <details className="parameter-extra"><summary>高级：驱动来源</summary><div className="field-picker"><label htmlFor="size-field-source">驱动来源</label>
+                <select id="size-field-source" disabled={!linearCurrent || !canEditDocument || parameterPending}
+                  value={linearDraft.existingFieldId ? 'existing' : 'owned'} onChange={event => {
+                    if (event.target.value === 'owned') setLinearDraft(selectPatternPresetDriver(linearDraft, linearDraft.fieldType ?? 'linear', parameterCatalog))
+                    else { const field = project.currentDocument?.document.fields.find(f => f.enabled !== false && sizeFieldTypes(parameterCatalog).some(([id]) => f.type === id))
+                      if (field) setLinearDraft(selectPatternPresetDriver(linearDraft, String(field.type), parameterCatalog, String(field.id)))
+                      else setProjectError('没有可绑定的已启用参数场。请先在高级面板创建，或使用本效果专用场。') }
+                    setLinearSync(v => v + 1)
+                  }}><option value="owned">快捷：本效果专用场</option><option value="existing">高级：绑定已有场</option></select>
+              </div></details>
+            </>}
+            {linearDraft.kind === 'linear' && (!linearDraft.presetId || presetAdvanced) && <details className="parameter-extra" open={linearDraft.controlsOnly}><summary>排列、形状、随机与画板</summary><ParameterInteraction.Provider value={{ syncToken: String(linearSync), onPending: onParameterPending }}>
+              <fieldset disabled={!linearCurrent || !canEditDocument} style={{ border: 0, padding: 0, minWidth: 0 }}>
+                <DesignPanelControls draft={linearDraft} catalog={parameterCatalog} onChange={setLinearDraft} display={designDisplay} onDisplay={setDesignDisplay} />
+              </fieldset>
+            </ParameterInteraction.Provider></details>}
+            {linearDraft.kind === 'linear' && linearDraft.presetRotation && presetAdvanced && <ParameterInteraction.Provider value={{ syncToken: String(linearSync), onPending: onParameterPending }}>
+              <h4>预设旋转 · 全图作用</h4>
+              <ParameterPanel group={dualRotationGroup(parameterCatalog)}
+                values={Object.fromEntries(Object.entries(linearDraft.presetRotation).map(([key, value]) => [`preset_rotation_${key}`, value]))}
+                onCommit={(key, value) => setLinearDraft(current => current?.kind === 'linear' ? changePatternPresetParameter(current, parameterCatalog, key, value) : current)} />
+            </ParameterInteraction.Provider>}
+            <details className="parameter-help"><summary>作用说明与图案范围</summary><p className="inspector-readonly">{linearDraft.kind === 'radial'
               ? '作用于全部有效图案元素，保留原中心与布局。按到中心的直线距离变化；半径处及范围外保持外围比例。线性及其他尺寸效果仍按原顺序叠加。'
               : linearDraft.controlsOnly ? '公共参数只控制二维结构源，之后沿用现有场与效果顺序；不会创建尺寸场或改变制造输出模式。'
               : linearDraft.values.scope_mode === 'areas' ? '只在启用影响区内施加本层尺寸变化；重叠取最大权重，外部保留之前效果。'
@@ -1297,52 +1236,10 @@ export function App() {
               : '参数场输出 0–1 标量，再映射为尺寸比例。只改变各元素大小，保留中心、旋转与原布局；实际变化取决于各元素中心的采样值。'}</p>
             <p className="inspector-readonly">图案参考范围：X {linearDraft.bounds.min_x.toFixed(2)}–{linearDraft.bounds.max_x.toFixed(2)} mm，Y {linearDraft.bounds.min_y.toFixed(2)}–{linearDraft.bounds.max_y.toFixed(2)} mm。{linearDraft.kind === 'linear' && linearDraft.values.scope_mode === 'local' ? '局部区域由下方中心、方向、长度和宽度独立确定。' : ''}</p>
             {project.currentDocument.document.modifiers.some(item => item.type === 'size' && item.enabled !== false && item.id !== linearSizeOwner(project.currentDocument!)?.modifier.id) &&
-              <p className="inspector-readonly">其他尺寸效果仍按现有顺序叠加；本效果不会关闭它们。</p>}
-            {!(linearDraft.presetId && !presetAdvanced || linearDraft.kind === 'linear' && linearDraft.controlsOnly) && <ParameterInteraction.Provider value={{ syncToken: String(linearSync), onPending: onParameterPending }}>
-              <fieldset disabled={!linearCurrent || !canEditDocument} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
-                {linearDraft.kind === 'radial' ? <ParameterPanel group={sizeGroup} values={{ ...linearDraft.values }} onCommit={updateSizeDraftValue} /> : <>
-                  <h4>尺寸映射</h4>
-                  <small>作用强度即本尺寸层的逻辑强度；0保留之前尺寸，1应用完整映射。不会改变共享场或其他消费者。</small>
-                  <label><input type="checkbox" checked={linearDraft.values.invert ?? false} onChange={e => setLinearDraft({ ...linearDraft, values: { ...linearDraft.values, invert: e.target.checked } })} />反转渐变（仅本层）</label>
-                  <ParameterPanel group={{ ...sizeGroup, parameters: sizeGroup.parameters.filter(p => ['min_output', 'max_output', 'strength'].includes(p.id)) }}
-                    values={{ ...linearDraft.values }} onCommit={updateSizeDraftValue} />
-                  <h4>作用范围</h4>
-                  <div className="field-picker"><label htmlFor="linear-scope-mode">作用范围</label><select id="linear-scope-mode" value={linearDraft.values.scope_mode ?? 'global'}
-                    onChange={event => {
-                      const mode = event.target.value as 'global' | 'local' | 'areas'
-                      setLinearDraft(current => current?.kind === 'linear' ? { ...current, values: { ...linearRegionDefaults(current.bounds), ...current.values, scope_mode: mode } } : current)
-                    }}><option value="global">全图</option><option value="local">局部区域</option><option value="areas">多影响区（最多3个）</option></select></div>
-                  {linearDraft.values.scope_mode === 'areas' && <DesignPanelControls areaOnly draft={linearDraft} catalog={parameterCatalog} onChange={setLinearDraft} display={designDisplay} onDisplay={setDesignDisplay} />}
-                  <ParameterPanel group={{ ...sizeGroup, parameters: sizeGroup.parameters.filter(p => !['angle', 'min_output', 'max_output', 'strength'].includes(p.id)) }}
-                    values={{ ...linearDraft.values }} onCommit={updateSizeDraftValue} />
-                </>}
-              </fieldset>
-            </ParameterInteraction.Provider>}
-            {linearDraft.kind === 'linear' && linearDraft.presetRotation && presetAdvanced && <ParameterInteraction.Provider value={{ syncToken: String(linearSync), onPending: onParameterPending }}>
-              <h4>预设旋转 · 全图作用</h4>
-              <ParameterPanel group={dualRotationGroup(parameterCatalog)}
-                values={Object.fromEntries(Object.entries(linearDraft.presetRotation).map(([key, value]) => [`preset_rotation_${key}`, value]))}
-                onCommit={(key, value) => setLinearDraft(current => current?.kind === 'linear' ? changePatternPresetParameter(current, parameterCatalog, key, value) : current)} />
-            </ParameterInteraction.Provider>}
-            <p className="inspector-readonly">画布控制点拖动中限频自动预览；数值控件松手或确认后自动预览。控制点松手仍未应用，点击应用才提交。未应用输入不会保存；刷新或切换上下文将丢弃它们。</p>
-            <div className="layout-inspector-actions">
-              <button type="button" onClick={() => { setLinearDraft(current => current ? current.presetId
-                ? openPatternPreset(current.source, current.bounds, patternPreset(current.presetId).id, parameterCatalog, true) : current.kind === 'radial'
-                ? { ...current, values: radialSizeDefaults(current.bounds) }
-                : resetLinearSizeDraft(current, parameterCatalog) : null); setLinearSync(value => value + 1) }}>恢复默认</button>
-              <button type="button" onClick={() => { setLinearDraft(null); publishDesignContext('effects') }}>取消效果</button>
-              <button type="button" className="ui-primary" disabled={!canEditDocument || !linearCurrent || canvasEditing || parameterPending || !stagedLinear.result || !linearProposal.dto}
-                onClick={applyLinearSize}>应用效果</button>
-            </div>
+              <p className="inspector-readonly">其他尺寸效果仍按现有顺序叠加；本效果不会关闭它们。</p>}</details>
+            <details className="parameter-help"><summary>预览与保存边界</summary><p className="inspector-readonly">画布控制点拖动中限频自动预览；数值控件松手或确认后自动预览。控制点松手仍未应用，点击应用才提交。未应用输入不会保存；刷新或切换上下文将丢弃它们。作用强度0保留之前尺寸，1应用完整映射，不改变其他消费者。</p></details>
+
           </section>}
-          <section aria-label="当前设计导出">
-            <h3>导出当前设计</h3>
-            <p className="inspector-readonly">{geometryInputsPending ? '请先应用或取消待确认配置，再导出当前设计。' : '按画板边界导出已应用结果；不含底图、网格及辅助标记。'}</p>
-            <div className="layout-inspector-actions">
-            <button type="button" className="ui-secondary" disabled={geometryInputsPending || project.evaluateStatus !== 'ready' || designExportBusy || !project.finalGeometry.length} onClick={() => void exportDesign('svg')}>下载设计SVG</button>
-            <button type="button" className="ui-secondary" disabled={geometryInputsPending || project.evaluateStatus !== 'ready' || designExportBusy || !project.finalGeometry.length} onClick={() => void exportDesign('png')}>下载透明PNG</button>
-            </div>
-          </section>
           {designContext === 'reference' && referenceLayer && <ReferenceLayerPanel layer={referenceLayer}
             onCommit={(key, value) => {
               try { setReferenceLayer(updateReferenceLayer(referenceLayer, key, value)); setReferenceDraft(null) }
@@ -1473,23 +1370,170 @@ export function App() {
               onBackDesign={() => setBrowser((current) => ({ ...current, activeMode: 'design' }))}
               onPreview={() => setBrowser((current) => ({ ...current, activeMode: 'manufacture' }))} />
         </div>
-        <div className={`connection-card ${connection.kind}`}>
-          <div className="connection-card-head"><span>连接状态</span><span className="connection-state-text">{connected ? '已连接' : connection.kind === 'checking' ? '检查中' : connection.kind === 'offline' ? '离线' : '协议不兼容'}</span></div>
-          {!connected && <p>{connection.message}</p>}
-          {!connected && connection.kind !== 'checking' && <button type="button" onClick={reconnect}>重新检测连接</button>}
-          {connected && project.evaluateStatus === 'error' && project.currentDocument &&
-            <button type="button" onClick={() => runEvaluate(project.currentDocument!)}>重试二维求值</button>}
-          <details className="diagnostic-details"><summary>诊断详情</summary>
-            <p>Python Engine · Contract <strong>v{EXPECTED_SCHEMA_VERSION}</strong> · mm</p>
-            <ReleaseDiagnostics health={releaseHealth} />
-            {!connected && <p>待验证</p>}
-            {project.currentDocument && <p>文档修订：{project.documentRevision}<span className="visually-hidden">revision {project.documentRevision}</span></p>}
-            <p>{connection.message}</p>
+        </div>
+
+      </section>
           </details>
+          {browser.activeMode === 'design' && project.currentDocument && <section className="design-export-card" aria-label="当前设计导出">
+            <h3>导出当前设计</h3>
+            {geometryInputsPending && <p className="parameter-pending">请先应用或取消待确认配置，再导出当前设计。</p>}
+            <div className="layout-inspector-actions">
+              <button type="button" className="ui-secondary" disabled={geometryInputsPending || project.evaluateStatus !== 'ready' || designExportBusy || !project.finalGeometry.length} onClick={() => void exportDesign('svg')}>下载设计SVG</button>
+              <button type="button" className="ui-secondary" disabled={geometryInputsPending || project.evaluateStatus !== 'ready' || designExportBusy || !project.finalGeometry.length} onClick={() => void exportDesign('png')}>下载透明PNG</button>
+            </div>
+            <details className="parameter-help"><summary>导出说明</summary><p className="inspector-readonly">按画板边界导出已应用结果；不含底图、网格及辅助标记。</p></details>
+          </section>}
+          <div className={`connection-card ${connection.kind}`}>
+            <div className="connection-card-head"><span>连接状态</span><span className="connection-state-text">{connected ? '已连接' : connection.kind === 'checking' ? '检查中' : connection.kind === 'offline' ? '离线' : '协议不兼容'}</span></div>
+            {!connected && <p>{connection.message}</p>}
+            {!connected && connection.kind !== 'checking' && <button type="button" onClick={reconnect}>重新检测连接</button>}
+            {connected && project.evaluateStatus === 'error' && project.currentDocument &&
+              <button type="button" onClick={() => runEvaluate(project.currentDocument!)}>重试二维求值</button>}
+            <details className="diagnostic-details"><summary>诊断详情</summary>
+              <p>Python Engine · Contract <strong>v{EXPECTED_SCHEMA_VERSION}</strong> · mm</p>
+              <ReleaseDiagnostics health={releaseHealth} />
+              {!connected && <p>待验证</p>}
+              {project.currentDocument && <p>文档修订：{project.documentRevision}<span className="visually-hidden">revision {project.documentRevision}</span></p>}
+              <p>{connection.message}</p>
+            </details>
+          </div>
         </div>
-        </div>
+        {browser.activeMode === 'design' && linearActive && linearDraft && sizeGroup && <footer className="design-action-dock" aria-label="待应用效果操作">
+            <div className="layout-inspector-actions">
+              <button type="button" onClick={() => { setLinearDraft(current => current ? current.presetId
+                ? openPatternPreset(current.source, current.bounds, patternPreset(current.presetId).id, parameterCatalog, true) : current.kind === 'radial'
+                ? { ...current, values: radialSizeDefaults(current.bounds) }
+                : resetLinearSizeDraft(current, parameterCatalog) : null); setLinearSync(value => value + 1) }}>恢复默认</button>
+              <button type="button" onClick={() => { setLinearDraft(null); publishDesignContext('effects') }}>取消效果</button>
+              <button type="button" className="ui-primary" disabled={!canEditDocument || !linearCurrent || canvasEditing || parameterPending || !stagedLinear.result || !linearProposal.dto}
+                onClick={applyLinearSize}>应用效果</button>
+            </div>
+        </footer>}
         <div className="manufacturing-action-dock" hidden={browser.activeMode === 'design'} ref={setManufacturingActionHost} />
       </aside>
+      <main className="workspace" aria-label="中央工作区">
+        {restorableDraft && !project.currentDocument && <div className="draft-restore" role="region" aria-label="恢复上次编辑">
+          <span>发现上次编辑：{restorableDraft.file_name ?? '未命名设计'} · {new Date(restorableDraft.saved_at).toLocaleString()}</span>
+          <button type="button" onClick={restoreLocalDraft}>恢复上次编辑</button>
+          <button type="button" onClick={() => void startFresh()}>新建项目</button>
+        </div>}
+        {draftNotice && <div className="draft-notice" role="alert">{draftNotice}</div>}
+        {restoreNotice && <div className="draft-restore-notice" role="status">{restoreNotice}</div>}
+        <div className="workspace-toolbar">
+          <button className="panel-toggle" type="button" aria-controls="function-panel" aria-expanded={panelOpen} onClick={() => setPanelOpen(open => !open)}>功能与参数</button>
+          <div className="breadcrumb"><span>工作区</span><span className="crumb-divider">/</span><strong>{modeName}</strong></div>
+          <div className="workspace-scale">{project.currentDocument ? `CANVAS · ${project.finalGeometry.length} ELEMENTS · mm` : 'CANVAS · 暂无文档'}</div>
+          <div className="history-actions"><button type="button" onClick={undo} title="Ctrl+Z" disabled={!historyCount.past || !canEditDocument}>撤销</button>
+            <button type="button" onClick={redo} title="Ctrl+Y / Ctrl+Shift+Z" disabled={!historyCount.future || !canEditDocument}>重做</button>
+            {exampleIdFromDocument(project.currentDocument) && <span className="example-session-label">正在试用示例：{project.fileName}</span>}
+            {patternPresetId(project.currentDocument) && <span className="example-session-label">当前图案预设：{patternPreset(patternPresetId(project.currentDocument)!).title}</span>}
+            {exampleIdFromDocument(project.currentDocument) && <button type="button" onClick={resetExample}
+              disabled={!canEditDocument}>恢复示例初始状态</button>}
+            {canReturnBeforeProject && <button type="button"
+              onClick={() => void restorePreExampleDraft()} disabled={!canEditDocument}>← 返回之前作品</button>}</div>
+        </div>
+        <div className="canvas-stage" onDragOver={(event) => event.preventDefault()} onDrop={onDrop}>
+          {browser.activeMode === 'design' && project.currentDocument && project.evaluateStatus !== 'idle' ? (
+            <Workspace2D geometry={(linearActive && linearCurrent ? stagedLinear.displayResult?.geometry ?? project.finalGeometry : stagedLayout.result?.geometry ?? project.finalGeometry).map(item => designContext === 'element' && item.id === selectedId && sourceCanDrag(item)
+              ? { ...item, ...elementDraft } : item)} bounds={(linearActive && linearCurrent ? stagedLinear.displayResult?.bounds_mm : null) ?? stagedLayout.result?.bounds_mm ?? project.bounds ?? (referenceLayer ? {
+                min_x: referenceLayer.x_mm - referenceLayer.width_mm / 2, min_y: referenceLayer.y_mm - referenceLayer.height_mm / 2,
+                max_x: referenceLayer.x_mm + referenceLayer.width_mm / 2, max_y: referenceLayer.y_mm + referenceLayer.height_mm / 2,
+                width: referenceLayer.width_mm, height: referenceLayer.height_mm, units: 'mm',
+              } : null)} mmPerUnit={scale}
+              referenceLayer={referenceLayer && referenceUrl ? { ...(referenceDraft ?? referenceLayer), url: referenceUrl } : null}
+              onSelectReference={() => { setDesignContext('reference'); setBrowser(current => ({ ...current, selectedElementIds: [] })) }}
+              view={browser.viewTransform}
+              onViewChange={(viewTransform) => setBrowser((current) => ({ ...current, viewTransform }))}
+              selectedId={selectedId}
+              onSelect={(id) => { if (linearActive && !id) return; setBrowser((current) => ({ ...current, selectedElementIds: id ? [id] : [] })); setDesignContext(id ? 'element' : null) }}
+              artboard={project.currentDocument ? { x: (project.currentDocument.document.canvas.origin_x ?? 0) * (millimetresPerUnit(project.currentDocument.document) ?? 1), y: (project.currentDocument.document.canvas.origin_y ?? 0) * (millimetresPerUnit(project.currentDocument.document) ?? 1),
+                width: (linearDraft?.kind === 'linear' && linearDraft.artboard ? linearDraft.artboard.width : project.currentDocument.document.canvas.width * (millimetresPerUnit(project.currentDocument.document) ?? 1)),
+                height: (linearDraft?.kind === 'linear' && linearDraft.artboard ? linearDraft.artboard.height : project.currentDocument.document.canvas.height * (millimetresPerUnit(project.currentDocument.document) ?? 1)), grid: designDisplay.grid } : undefined}
+              influenceAreas={linearActive && linearCurrent && canEditDocument && linearDraft?.kind === 'linear' && linearDraft.values.scope_mode === 'areas' ? linearDraft.influenceAreas : undefined}
+              selectedArea={linearDraft?.kind === 'linear' ? linearDraft.selectedArea : undefined}
+              onAreaChange={(id, parameters) => setLinearDraft(draft => draft?.kind === 'linear' ? { ...draft, selectedArea: id,
+                influenceAreas: draft.influenceAreas?.map(a => a.id === id ? { ...a, parameters: { ...a.parameters, ...parameters } } : a) } : draft)}
+              gradientControl={linearActive && linearCurrent && canEditDocument && linearDraft && !(linearDraft.kind === 'linear' && (linearDraft.controlsOnly || linearDraft.values.scope_mode === 'areas')) ? linearDraft.kind === 'radial' ? linearDraft
+                : (!linearDraft.fieldType || linearDraft.fieldType === 'linear') && !linearDraft.existingFieldId && !linearDraft.explicitLinear ? linearDraft
+                : linearDraft.values.scope_mode === 'local' ? { ...linearDraft, kind: 'region', values: { ...linearDraft.values, angle: linearDraft.values.scope_angle ?? 0 } } : null : null}
+              onGradientChange={values => {
+                if (!linearCurrent || !canEditDocument || !sizeGroup) return
+                const changes = linearDraft?.kind === 'linear' && (linearDraft.fieldType && linearDraft.fieldType !== 'linear' || linearDraft.existingFieldId || linearDraft.explicitLinear) && 'angle' in values
+                  ? { ...values, scope_angle: values.angle } : values
+                if (changes !== values) delete (changes as Record<string, number>).angle
+                const valid = Object.entries(changes).every(([key, value]) => {
+                  const definition = sizeGroup.parameters.find(item => item.id === key)
+                  return definition && validateParameter(definition, value)
+                })
+                if (valid) setLinearDraft(current => !current ? null : current.kind === 'radial'
+                  ? { ...current, values: { ...current.values, ...changes } } : { ...current, values: { ...current.values, ...changes } })
+              }}
+              canDrag={item => !linearActive && !pendingLayoutFor(project.currentDocument!, layoutDraft) && sourceCanDrag(item)} onDragCommit={commitDrag} pendingPreview={pendingPreview} fitToken={fitToken}
+              onEditingChange={setCanvasEditing} />
+          ) : browser.activeMode === 'design' ? (
+            <section className="empty-state" aria-label="空白设计工作区">
+              <div className="orbit-art" aria-hidden="true"><div className="orbit-ring ring-one" /><div className="orbit-ring ring-two" /><div className="orbit-ring ring-three" /><span className="orbit-core" /><i className="orbit-dot dot-one" /><i className="orbit-dot dot-two" /><i className="orbit-dot dot-three" /></div>
+              <span className="empty-kicker">A NEW CANVAS AWAITS</span>
+              <h1>导入图片开始设计</h1>
+              <p>导入自己的图案，或打开可编辑示例体验参数化设计。</p>
+              <div className="empty-actions"><button type="button" className="primary-action ui-primary" disabled={!connected || importing}
+                onClick={() => imageInputRef.current?.click()}>导入自己的图案</button>
+              </div>
+              <div className="empty-examples">{examples.map((example) => <ExampleCard
+                key={example.id} example={example} onOpen={(id) => void openExample(id)} disabled={!connected || importing} />)}</div>
+            </section>
+          ) : fabricBase(project.currentDocument) || isOriginalShape(project.currentDocument) ? null : <PreviewPanel hideExport result={manufacturing.result} status={manufacturing.status}
+            projectName={project.fileName} isCurrentResult={safeCurrentResult}
+            document={project.currentDocument} fabricPreview={fabricPreview.result}
+            fabricStlTestExportEnabled={fabricStlTestExportEnabled}
+            onGoManufacture={() => setBrowser((current) => ({ ...current, activeMode: 'manufacture' }))} />}
+          {(fabricBase(project.currentDocument) || isOriginalShape(project.currentDocument)) && <section className="fabric-live-stage" hidden={browser.activeMode === 'design'} aria-label="中央 Fabric 设计预览">
+            <header className="fabric-live-heading"><strong>3D 设计预览</strong><small>设计预览不代表最终制造已通过</small>
+              <span role="status">{noOriginalGeometry ? '请先导入图案或在设计中添加图形' : !hasPreviewShape ? '旧作品未选择形状，请在左侧启用保留原图或选择造型' : parameterPending ? Object.keys(cellDraft).length && fabricDisplayPlan !== fabricPreview.displayResult
+                ? '临时显示 · 松手提交后校准' : '有未提交参数 · 松手后自动更新'
+                : fabricPreview.status === 'building' ? '正在更新 · 保留上次有效画面' : fabricPreview.status === 'stale' ? '设计已变化 · 等待更新' : fabricPreview.error ?? ''}</span></header>
+            {fabricDisplayPlan ? <FabricThreePreview key={project.currentDocument?.document_id} plan={fabricDisplayPlan}
+              stale={fabricPreview.status !== 'ready'} />
+              : <div className="preview-empty"><p>{noOriginalGeometry ? '当前没有可挤出的原图。请导入图案或在设计中添加图形。' : !hasPreviewShape ? '在左侧选择单元类型，即可查看设计预览。' : fabricPreview.error ?? '正在准备原图或单元设计预览，请稍候。'}</p></div>}
+          </section>}
+          {project.evaluateStatus === 'loading' && <div className="viewer-notice" role="status">Python 正在计算最终二维几何…</div>}
+          {linearActive && <div className="viewer-notice" role="status">未应用的尺寸渐变预览 · {!linearCurrent ? '正式设计已变化，请重新打开效果' :
+            linearProposal.error ?? stagedLinear.error ?? (stagedLinear.pending ? '正在计算最新输入 · 保留上次有效画面' : '点击左侧应用，或取消恢复')}</div>}
+          {browser.activeMode === 'design' && project.currentDocument && pendingLayoutFor(project.currentDocument, layoutDraft) &&
+            <div className="viewer-notice" role="status">未应用的布局预览 · {stagedLayout.pending ? '正在计算最新输入' : stagedLayout.error ?? '点击左侧应用，或取消恢复'} </div>}
+          {importing && <div className="viewer-notice" role="status">Python 正在转换图片为可编辑元素…</div>}
+          {project.evaluateError && <div className="viewer-error" role="alert">{project.evaluateError}</div>}
+          {projectError && <div className="viewer-error" role="alert">{projectError}</div>}
+          {browser.activeMode === 'design' && project.warnings.length > 0 &&
+            <div className="viewer-warning" role="note">{project.warnings.join(' ')}</div>}
+          {mapping && <div className="mapping-overlay" role="dialog" aria-label="设置毫米映射">
+            <div className="mapping-card">
+              <h2>项目缺少毫米映射</h2>
+              <p>旧项目使用 SVG 单位。请提供真实比例；软件不会猜测打印尺寸。</p>
+              <label>1 SVG 单位对应多少 mm
+                <input type="number" min="0.000001" step="any" value={mappingValue}
+                  onChange={(event) => setMappingValue(event.target.value)} />
+              </label>
+              <div><button type="button" onClick={() => setMapping(null)}>取消</button>
+                <button type="button" onClick={confirmMapping}>按此比例打开</button></div>
+            </div>
+          </div>}
+        </div>
+        <nav className="mode-bar" aria-label="工作模式">
+          <div className="mode-label">模式</div>
+          {modes.map((mode) =>
+            <button key={mode.id} type="button" className={`mode-button ${browser.activeMode === mode.id ? 'selected' : ''}`}
+              data-step-state={browser.activeMode === mode.id ? 'current' : mode.id === 'design' && project.currentDocument
+                || mode.id === 'manufacture' && manufacturing.result && manufacturing.isCurrentResult(manufacturing.result.manufacturing_result_id)
+                ? 'complete' : 'not-ready'}
+              aria-label={`${mode.id === 'manufacture' ? '制造' : '设计'} ${mode.secondary}`}
+              aria-current={browser.activeMode === mode.id ? 'page' : undefined}
+              onClick={() => setBrowser((current) => ({ ...current, activeMode: mode.id }))}>
+              <span>{mode.label}</span><small>{mode.secondary}</small>
+            </button>)}
+          <span className="mode-bar-spacer" /><span className="interaction-status" role="status" aria-label="编辑状态">{interactionStatus}</span>
+        </nav>
+      </main>
     </div>
     {/* Test fixture loader only; absent from development/production UI and accessibility tree. */}
     {import.meta.env.MODE === 'test' && <input ref={inputRef} type="file" accept=".json,application/json" className="visually-hidden"

@@ -38,7 +38,7 @@ export function DesignPanelControls({ draft, catalog, onChange, display, onDispl
           {groupFor(catalog, 'design', 'stagger') && <ParameterPanel group={groupFor(catalog, 'design', 'stagger')!} values={values} onCommit={setValue} />}
         </> : <p>当前保留导入图案的位置。需要规则排列时，先在左侧选择Grid并应用。</p>}
       </details>
-      <details open><summary>形状</summary>
+      <details><summary>形状</summary>
         <p className="inspector-readonly">100%相对结构源的单元尺寸；宽扁比例保持面积，围绕原中心改变自身长宽。基础旋转为可撤销的附加角度；其他效果继续叠加。</p>
         {groupFor(catalog, 'design', 'shape') ? <ParameterPanel group={groupFor(catalog, 'design', 'shape')!} values={values} onCommit={setValue} /> : <p role="alert">后端图案控制Schema尚未加载。</p>}
       </details>

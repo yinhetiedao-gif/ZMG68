@@ -71,14 +71,46 @@ async function open(dto = phase1aDocument()) {
   await screen.findByRole('img', { name: '最终二维几何，单位毫米' })
   return ui
 }
+function expandSection(name: string) {
+  const button = screen.getByRole('button', { name })
+  if (button.getAttribute('aria-expanded') !== 'true') fireEvent.click(button)
+}
+function heightSettings(recipe = false) {
+  expandSection('高度与变化')
+  if (recipe) expandSection('效果预设')
+}
 const manufacture = () => fireEvent.click(screen.getByRole('button', { name: /制造 Manufacture/ }))
 
 describe('Phase 1A real editor connections', () => {
+  it('B2 manufacture groups switch only display state, retain one form, and leave requests/history unchanged', async () => {
+    const backend = startBackend(); const view = await open(); manufacture()
+    await screen.findByLabelText('测试共享 Fabric 画面')
+    const input = screen.getByRole('slider', { name: '单元大小滑杆' })
+    const picture = screen.getByLabelText('测试共享 Fabric 画面')
+    const count = backend.fetcher.mock.calls.length
+    const official = backend.evaluated.at(-1)!
+    for (const title of ['高度与变化', '基底与输出模式', '预览与最终制造', '形状与单元']) {
+      expandSection(title)
+      expect(screen.getByRole('button', { name: title })).toHaveAttribute('aria-expanded', 'true')
+      expect(view.container.querySelectorAll('.manufacturing-panel')).toHaveLength(1)
+    }
+    expect(screen.getByRole('slider', { name: '单元大小滑杆' })).toBe(input)
+    expect(screen.getByLabelText('测试共享 Fabric 画面')).toBe(picture)
+    expect(backend.fetcher.mock.calls).toHaveLength(count)
+    expect(backend.evaluated.at(-1)).toBe(official)
+    expect(screen.getByRole('button', { name: '撤销' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: '高度与变化' })).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.getByRole('button', { name: '基底与输出模式' })).toHaveAttribute('aria-expanded', 'false')
+    const actions = view.container.querySelector<HTMLElement>('.manufacturing-action-dock')!
+    expect(actions).toContainElement(screen.getByRole('button', { name: '生成最终模型' }))
+    expect(view.container.querySelector('.function-panel-scroll')).not.toContainElement(actions)
+  })
   it('center recipe protects a failed save, commits once, and Reset/Undo preserve the original shape', async () => {
     const backend = startBackend(), dto = phase1aDocument()
     delete dto.document.metadata.fabric_config
     await open(dto); manufacture(); await screen.findByLabelText('测试共享 Fabric 画面')
     const before = backend.evaluated.at(-1)!
+    heightSettings(true)
     fireEvent.change(screen.getByLabelText('Fabric 预设'), { target: { value: 'center-height' } })
     drafts.save.mockRejectedValueOnce(new Error('disk unavailable'))
     fireEvent.click(screen.getByRole('button', { name: '应用预设' }))
@@ -113,6 +145,7 @@ describe('Phase 1A real editor connections', () => {
     dto.document.fields=[{id:'existing-user-field',type:'linear',parameters:{angle:0,start:10,end:70}}]
     await open(dto);manufacture();await screen.findByLabelText('测试共享 Fabric 画面')
     const before=backend.evaluated.at(-1)!
+    heightSettings()
     fireEvent.click(screen.getByText('高级参数场绑定',{exact:true}))
     fireEvent.click(within(screen.getByRole('region',{name:'Fabric 测试'})).getByRole('checkbox'))
     await waitFor(()=>expect(backend.evaluated.at(-1)!.document_revision).toBe(before.document_revision+1))
@@ -139,6 +172,7 @@ describe('Phase 1A real editor connections', () => {
     expect(screen.getByRole('button',{name:'撤销'})).toBeDisabled()
     expect(screen.getByLabelText('Unit Cell 类型')).toHaveValue('original')
     const before=backend.evaluated.at(-1)!
+    heightSettings()
     fireEvent.change(screen.getByLabelText('高度变化'),{target:{value:'wave'}})
     await waitFor(()=>expect(backend.evaluated.at(-1)!.document_revision).toBe(before.document_revision+1))
     expect(backend.evaluated.at(-1)!.document.metadata.fabric_config).toMatchObject({shape_source:'original',original_shape:{height_mm:2}})
@@ -156,6 +190,7 @@ describe('Phase 1A real editor connections', () => {
     fireEvent.change(minimum, { target: { value: '.8' } }); fireEvent.blur(minimum)
     await waitFor(() => expect(screen.getByRole('button', { name: '应用效果' })).toBeEnabled())
     manufacture()
+    heightSettings(true)
     fireEvent.change(screen.getByLabelText('Fabric 预设'), { target: { value: 'wave-height' } })
     const count = backend.evaluated.length
     fireEvent.click(screen.getByRole('button', { name: '应用预设' }))
@@ -170,6 +205,7 @@ describe('Phase 1A real editor connections', () => {
   it('wave recipe protects draft, commits once, waits for slider release and resets with Undo/Redo', async () => {
     const backend = startBackend(); await open(); manufacture()
     expect(backend.evaluated.at(-1)!.document.fields).toHaveLength(0)
+    heightSettings(true)
     fireEvent.change(screen.getByLabelText('Fabric 预设'), { target: { value: 'wave-height' } })
     expect(backend.evaluated.at(-1)!.document.fields).toHaveLength(0)
     drafts.save.mockRejectedValueOnce(new Error('disk unavailable'))
@@ -220,7 +256,7 @@ describe('Phase 1A real editor connections', () => {
     const backend = startBackend(); await open(); manufacture()
     const picture = await screen.findByLabelText('测试共享 Fabric 画面')
     expect(within(screen.getByRole('main')).queryByRole('region', { name: '制造检查' })).toBeNull()
-    expect(within(screen.getByRole('complementary', { name: '右侧检查器' })).getAllByRole('region', { name: '制造检查' })).toHaveLength(1)
+    expect(within(screen.getByRole('complementary', { name: '功能与参数面板' })).getAllByRole('region', { name: '制造检查' })).toHaveLength(1)
     const original = backend.evaluated.at(-1)!
     const calls = () => backend.fetcher.mock.calls.filter(([url]) => String(url).endsWith('/fabric/preview')).length
     const before = calls(), evaluations = backend.evaluated.length
@@ -229,6 +265,12 @@ describe('Phase 1A real editor connections', () => {
     expect(picture).toHaveTextContent('5 / 3')
     expect(calls()).toBe(before); expect(backend.evaluated).toHaveLength(evaluations)
     expect(screen.getByRole('button', { name: '生成最终模型' })).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: '收起功能面板' }))
+    fireEvent.click(screen.getByRole('button', { name: '功能与参数' }))
+    expect(screen.getByRole('slider', { name: '单元大小滑杆' })).toBe(size)
+    expect(screen.getByLabelText('测试共享 Fabric 画面')).toBe(picture)
+    expect(picture).toHaveTextContent('5 / 3')
+    expect(calls()).toBe(before); expect(backend.evaluated).toHaveLength(evaluations)
     fireEvent.pointerUp(size)
     await waitFor(() => expect(calls()).toBe(before + 1))
     expect(backend.evaluated).toHaveLength(evaluations + 1)
@@ -244,6 +286,7 @@ describe('Phase 1A real editor connections', () => {
     const backend = startBackend(); await open(); manufacture()
     expect(screen.getByLabelText('高度变化')).toHaveValue('uniform')
     expect(backend.evaluated.at(-1)!.document.fields).toHaveLength(0)
+    heightSettings()
     fireEvent.change(screen.getByLabelText('高度变化'), { target: { value: 'directional' } })
     await waitFor(() => expect(backend.evaluated).toHaveLength(2))
     const first = backend.evaluated.at(-1)!
@@ -252,6 +295,7 @@ describe('Phase 1A real editor connections', () => {
     await waitFor(() => expect(backend.evaluated.at(-1)!.document.fields).toHaveLength(0))
     fireEvent.click(screen.getByRole('button', { name: '重做' }))
     await waitFor(() => expect(backend.evaluated.at(-1)!.document.fields).toHaveLength(1))
+    heightSettings(true)
     fireEvent.change(screen.getByLabelText('Fabric 预设'), { target: { value: 'direction-gradient' } })
     drafts.save.mockRejectedValueOnce(new Error('disk unavailable'))
     const before = backend.evaluated.at(-1)!
@@ -270,7 +314,7 @@ describe('Phase 1A real editor connections', () => {
     expect(backend.evaluated).toHaveLength(requestCount)
     fireEvent.pointerUp(slider)
     await waitFor(() => expect(backend.evaluated).toHaveLength(requestCount + 1))
-    const minHeight = controls.getByLabelText('min_height_mm')
+    const minHeight = controls.getByRole('spinbutton', { name: 'min_height_mm' })
     fireEvent.change(minHeight, { target: { value: '100' } }); fireEvent.blur(minHeight)
     await screen.findByText('最低高度不能大于最高高度。')
     expect(minHeight).toHaveValue(2)
@@ -288,11 +332,13 @@ describe('Phase 1A real editor connections', () => {
     act(() => { button.click(); button.click() })
     expect(backend.fetcher.mock.calls.filter(([url]) => String(url).endsWith('/fusion'))).toHaveLength(1)
     expect(screen.getByRole('button', { name: '检查可制造性' })).toBeDisabled()
+    heightSettings()
     fireEvent.change(screen.getByLabelText('高度变化'), { target: { value: 'directional' } })
     await waitFor(() => expect(backend.evaluated).toHaveLength(2))
     fireEvent.click(screen.getByRole('button', { name: /设计 Design/ }))
     manufacture()
     expect(screen.getByRole('button', { name: '生成最终模型' })).toBeDisabled()
+    expandSection('预览与最终制造')
     expect(screen.getByRole('button', { name: '更新3D预览' })).toBeDisabled()
     await act(async () => backend.finish(reply({ code: 'staging_busy', message: 'another user is computing' }, 429)))
     expect(screen.getByRole('button', { name: '生成最终模型' })).toBeEnabled()
@@ -306,6 +352,7 @@ describe('Phase 1A real editor connections', () => {
     const rows = screen.getByLabelText('行数')
     fireEvent.change(rows, { target: { value: '5' } }); fireEvent.blur(rows)
     manufacture()
+    heightSettings(true)
     fireEvent.change(screen.getByLabelText('Fabric 预设'), { target: { value: preset } })
     fireEvent.click(screen.getByRole('button', { name: '应用预设' }))
     await screen.findByRole('button', { name: preset === 'wave-height' ? '恢复波浪起伏配方' : preset === 'center-height' ? '恢复中心隆起配方' : '恢复方向渐变配方' })
