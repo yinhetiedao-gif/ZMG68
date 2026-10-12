@@ -1,5 +1,19 @@
 # Gate 状态（2026-10-05）
 
+## P3收口前审核（2026-10-12，仅审核，用户本地试用PASS）
+
+- 用户明确确认数字织格、旋涡鳞纹本地操作正常，两套用户手动试用PASS；未取得的独立浏览器Reset/刷新/返回/完整跨预设等证据不因此改为PASS，前述超时/BLOCKED保留为历史。本批公网/Linux/切片/实物未验收，历史OPEN不变。
+- HEAD仍`1a8d28de800471074c47bc773fc942876cd2d56a`/feature/pattern-library-reuse，index空；8tracked修改＋8正式新增为准确16文件候选白名单，另32个历史tools排除。具体逐项白名单、排除路径、双绑定/共享引用/切换/Reset核查及证据见`PATTERN_PRESETS_P3_LOCAL_ACCEPTANCE.md`审核节，无新依赖、制造核心/Validator或公共DTO改动。
+- 两份fixture完整匹配既有制造输入，100rect/144ellipse真实缩略与保存的权威几何按既有8位格式吻合，四份STL哈希未变；未重做制造/测试/build。旋涡服务端执行正式Web输出适配器的SVG/透明PNG文件及逐元素读回限定PASS已补齐，不冒充浏览器下载；原native验收环境失败文件保留，未改产品。
+- 本轮仅补用户确认/审核记录，无产品修复或Git写操作；`backup/web-pattern-presets-p3-local-validated`当前不存在，仅检查，未创建。旧引用和全部未跟踪/忽略运行资产原地保留，等待用户批准16文件本地提交与备份；不push、不deploy、不进入新功能。
+
+## P3 旋涡鳞纹（2026-10-12，本地未提交，完整浏览器验收BLOCKED）
+
+- HEAD仍`1a8d28de800471074c47bc773fc942876cd2d56a`/feature/pattern-library-reuse；保留数字织格全部旧成果和制造限定PASS。现有Spiral/双绑定/专用场/同一候选、草稿和历史接旋涡12×12真椭圆，4.6mm间距、3.4×1.6mm、turns3/phase.15/direction1、Size .74–1.04 bell、Rotation0–180 linear。中心按首次真实Bounds及毫米映射保存；未改引擎/公共DTO/依赖/生产开关，源码保护`work/vortex-scales-20261012/source-before.zip`。
+- 核心3文件28/28；App2文件12/12；最后主相位滑杆与双绑定说明小修后2文件12/12；Python6/6及最终tsc/vite/diff check PASS，批次重叠不累加。真实fixture/144椭圆缩略SVG；默认/1.6与.45宽疏实际浏览器截图、Cancel逐项恢复及未提交revision0/Undo为空、首次刷新草稿恢复。7Evaluate全200/max计算1/0最终制造，8个静态304是正常缓存，不伪称全部200。
+- 独立8805当前生产构建`index-B0XFdbRS.js`；第二次编辑浏览器输入与状态读取超时后停止UI自动控制。第三反向变体截图、完整实际Apply/Undo/Reset/变体刷新/返回/跨7套，以及本批主编辑器SVG/透明PNG下载读回仍BLOCKED/NOT TESTED，不用核心测试或缩略图替代。中心/顺逆/密度数值通过；椭圆相位连续不推广到不对称轮廓，已有高级bell旋转数值可缓和接缝，任意作品视觉仍待验收。
+- 两份新正式后端STL真实保存/独立读回PASS：Standard与原轮廓cells_only均144组件/8128面/406484bytes、约53.322025×54.129196×2mm、Z0、水密/正体积/绕序一致/0退化，逐元素XY、宽深、旋转长轴和轮廓匹配，最大顶点误差.00000265mm。仅图案不强制单组件，无Repair/Validator变更；不冒称浏览器下载、公网/Linux/切片/实物。详见`PATTERN_PRESETS_P3_LOCAL_ACCEPTANCE.md`和本批work证据。无提交/新稳定引用/push/deploy，历史OPEN保持，STOP。
+
 ## P2 第二批三套图案预设（2026-10-11，本地未提交，限定样本验收）
 
 - 基线 `18b40d0e9b6167eb3df6e888f4394406e64ac012` / feature/pattern-library-reuse，复用P1同一配方、候选、正式文档、草稿/返回及历史机制；仅增加局部呼吸、珊瑚微粒、涟心扩散，未改算法/公共DTO/依赖/生产权限。具体参数、文件及失败日志见 `docs/PATTERN_PRESETS_P2_LOCAL_ACCEPTANCE.md`。

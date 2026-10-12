@@ -11,7 +11,7 @@ export class DocumentEditError extends Error {}
 /** Same conservative ownership scan used by Fabric shortcuts, including disabled
  * consumers and nested Composite/legacy metadata. Ownership is not a consumer. */
 export function fieldReferencedOutside(dto: PatternDocumentDTO, id: string, own: {
-  metadataKeys: string[]; modifierId?: string; fabricConsumer?: string
+  metadataKeys: string[]; modifierId?: string; modifierIds?: string[]; fabricConsumer?: string
 }): boolean {
   const contains = (value: unknown): boolean => value === id || (Array.isArray(value)
     ? value.some(contains) : !!value && typeof value === 'object' && Object.values(value).some(contains))
@@ -25,7 +25,8 @@ export function fieldReferencedOutside(dto: PatternDocumentDTO, id: string, own:
       metadata.fabric_config = { ...config, field_modifiers: modifiers }
     }
   }
-  return contains(dto.document.modifiers.filter(modifier => !own.modifierId || modifier.id !== own.modifierId)) ||
+  const owned = new Set([own.modifierId, ...(own.modifierIds ?? [])])
+  return contains(dto.document.modifiers.filter(modifier => !owned.has(String(modifier.id)))) ||
     contains(metadata) || dto.document.fields.some(field => field.id !== id && contains(field))
 }
 

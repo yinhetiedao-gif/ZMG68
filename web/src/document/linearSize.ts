@@ -25,6 +25,9 @@ export interface LinearSizeDraft {
   artboard?: { width: number; height: number }
   influenceAreas?: InfluenceArea[]
   selectedArea?: string
+  presetRotation?: { min_output: number; max_output: number; strength: number; remap_curve: 'linear' | 'bell' }
+  ownedFieldConsumers?: { modifierIds: string[]; metadataKeys: string[] }
+  presetAnchorNative?: { x: number; y: number }
 }
 export function linearSizeOwner(dto: PatternDocumentDTO) {
   const owner = asRecord(dto.document.metadata[OWNER])
@@ -183,7 +186,8 @@ export function linearSizeCandidate(draft: LinearSizeDraft, catalog: ParameterCa
   let working = dto, fieldId = externalUnchanged ? String(existing!.id)
     : String((current?.field.type === fieldType && current.owner.source_mode !== 'existing' ? current?.field.id : ids[fieldType]) ?? '')
   if (!fieldId || !dto.document.fields.some(f => f.id === fieldId && f.type === fieldType) || (!externalUnchanged &&
-      fieldReferencedOutside(dto, fieldId, { metadataKeys: [OWNER], modifierId: current?.modifier.id as string }))) {
+      fieldReferencedOutside(dto, fieldId, { metadataKeys: [OWNER, ...(draft.ownedFieldConsumers?.metadataKeys ?? [])],
+        modifierId: current?.modifier.id as string, modifierIds: draft.ownedFieldConsumers?.modifierIds }))) {
     const created = addField(working, fieldType, catalog); working = created.dto; fieldId = created.id
   }
   let modifierId = (current?.modifier.id ?? (recorded?.version === 1
@@ -216,6 +220,7 @@ export function linearSizeCandidate(draft: LinearSizeDraft, catalog: ParameterCa
           enabled: true, mapping: { ...asRecord(modifier.mapping),
           min_output: draft.values.min_output, max_output: draft.values.max_output, strength: draft.values.strength, invert: draft.values.invert ?? false } } : modifier),
       metadata: { ...working.document.metadata, [OWNER]: { version: 1, field_id: fieldId, modifier_id: modifierId, bounds_mm: box, mm_per_unit: scale,
+        ...(recorded?.rotation_modifier_id ? { rotation_modifier_id: recorded.rotation_modifier_id } : {}),
         field_ids: ids, field_domains: domains, source_mode: externalUnchanged ? 'existing' : 'owned', domain_mode: draft.existingFieldId || draft.explicitLinear ? 'explicit' : 'fitted' } },
     } }
 }

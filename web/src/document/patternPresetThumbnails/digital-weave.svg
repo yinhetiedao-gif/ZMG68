@@ -1,0 +1,103 @@
+<?xml version='1.0' encoding='utf-8'?>
+<svg xmlns="http://www.w3.org/2000/svg" width="60" height="60" viewBox="0 0 60 60" version="1.1">
+  <rect id="grid:r0:c0" fill="#000000" stroke="none" x="4.586" y="5.805" width="4.028" height="1.59" transform="rotate(90 6.6 6.6)" />
+  <rect id="grid:r0:c1" fill="#000000" stroke="none" x="10.166" y="5.955" width="3.268" height="1.29" />
+  <rect id="grid:r0:c2" fill="#000000" stroke="none" x="14.986" y="5.805" width="4.028" height="1.59" transform="rotate(90 17 6.6)" />
+  <rect id="grid:r0:c3" fill="#000000" stroke="none" x="20.566" y="5.955" width="3.268" height="1.29" />
+  <rect id="grid:r0:c4" fill="#000000" stroke="none" x="25.386" y="5.805" width="4.028" height="1.59" transform="rotate(90 27.4 6.6)" />
+  <rect id="grid:r0:c5" fill="#000000" stroke="none" x="30.966" y="5.955" width="3.268" height="1.29" />
+  <rect id="grid:r0:c6" fill="#000000" stroke="none" x="35.786" y="5.805" width="4.028" height="1.59" transform="rotate(90 37.8 6.6)" />
+  <rect id="grid:r0:c7" fill="#000000" stroke="none" x="41.366" y="5.955" width="3.268" height="1.29" />
+  <rect id="grid:r0:c8" fill="#000000" stroke="none" x="46.186" y="5.805" width="4.028" height="1.59" transform="rotate(90 48.2 6.6)" />
+  <rect id="grid:r0:c9" fill="#000000" stroke="none" x="51.766" y="5.955" width="3.268" height="1.29" />
+  <rect id="grid:r1:c0" fill="#000000" stroke="none" x="4.966" y="11.155" width="3.268" height="1.29" />
+  <rect id="grid:r1:c1" fill="#000000" stroke="none" x="9.786" y="11.005" width="4.028" height="1.59" transform="rotate(90 11.8 11.8)" />
+  <rect id="grid:r1:c2" fill="#000000" stroke="none" x="15.366" y="11.155" width="3.268" height="1.29" />
+  <rect id="grid:r1:c3" fill="#000000" stroke="none" x="20.186" y="11.005" width="4.028" height="1.59" transform="rotate(90 22.2 11.8)" />
+  <rect id="grid:r1:c4" fill="#000000" stroke="none" x="25.766" y="11.155" width="3.268" height="1.29" />
+  <rect id="grid:r1:c5" fill="#000000" stroke="none" x="30.586" y="11.005" width="4.028" height="1.59" transform="rotate(90 32.6 11.8)" />
+  <rect id="grid:r1:c6" fill="#000000" stroke="none" x="36.166" y="11.155" width="3.268" height="1.29" />
+  <rect id="grid:r1:c7" fill="#000000" stroke="none" x="40.986" y="11.005" width="4.028" height="1.59" transform="rotate(90 43 11.8)" />
+  <rect id="grid:r1:c8" fill="#000000" stroke="none" x="46.566" y="11.155" width="3.268" height="1.29" />
+  <rect id="grid:r1:c9" fill="#000000" stroke="none" x="51.386" y="11.005" width="4.028" height="1.59" transform="rotate(90 53.4 11.8)" />
+  <rect id="grid:r2:c0" fill="#000000" stroke="none" x="4.586" y="16.205" width="4.028" height="1.59" transform="rotate(90 6.6 17)" />
+  <rect id="grid:r2:c1" fill="#000000" stroke="none" x="10.166" y="16.355" width="3.268" height="1.29" />
+  <rect id="grid:r2:c2" fill="#000000" stroke="none" x="14.986" y="16.205" width="4.028" height="1.59" transform="rotate(90 17 17)" />
+  <rect id="grid:r2:c3" fill="#000000" stroke="none" x="20.566" y="16.355" width="3.268" height="1.29" />
+  <rect id="grid:r2:c4" fill="#000000" stroke="none" x="25.386" y="16.205" width="4.028" height="1.59" transform="rotate(90 27.4 17)" />
+  <rect id="grid:r2:c5" fill="#000000" stroke="none" x="30.966" y="16.355" width="3.268" height="1.29" />
+  <rect id="grid:r2:c6" fill="#000000" stroke="none" x="35.786" y="16.205" width="4.028" height="1.59" transform="rotate(90 37.8 17)" />
+  <rect id="grid:r2:c7" fill="#000000" stroke="none" x="41.366" y="16.355" width="3.268" height="1.29" />
+  <rect id="grid:r2:c8" fill="#000000" stroke="none" x="46.186" y="16.205" width="4.028" height="1.59" transform="rotate(90 48.2 17)" />
+  <rect id="grid:r2:c9" fill="#000000" stroke="none" x="51.766" y="16.355" width="3.268" height="1.29" />
+  <rect id="grid:r3:c0" fill="#000000" stroke="none" x="4.966" y="21.555" width="3.268" height="1.29" />
+  <rect id="grid:r3:c1" fill="#000000" stroke="none" x="9.786" y="21.405" width="4.028" height="1.59" transform="rotate(90 11.8 22.2)" />
+  <rect id="grid:r3:c2" fill="#000000" stroke="none" x="15.366" y="21.555" width="3.268" height="1.29" />
+  <rect id="grid:r3:c3" fill="#000000" stroke="none" x="20.186" y="21.405" width="4.028" height="1.59" transform="rotate(90 22.2 22.2)" />
+  <rect id="grid:r3:c4" fill="#000000" stroke="none" x="25.766" y="21.555" width="3.268" height="1.29" />
+  <rect id="grid:r3:c5" fill="#000000" stroke="none" x="30.586" y="21.405" width="4.028" height="1.59" transform="rotate(90 32.6 22.2)" />
+  <rect id="grid:r3:c6" fill="#000000" stroke="none" x="36.166" y="21.555" width="3.268" height="1.29" />
+  <rect id="grid:r3:c7" fill="#000000" stroke="none" x="40.986" y="21.405" width="4.028" height="1.59" transform="rotate(90 43 22.2)" />
+  <rect id="grid:r3:c8" fill="#000000" stroke="none" x="46.566" y="21.555" width="3.268" height="1.29" />
+  <rect id="grid:r3:c9" fill="#000000" stroke="none" x="51.386" y="21.405" width="4.028" height="1.59" transform="rotate(90 53.4 22.2)" />
+  <rect id="grid:r4:c0" fill="#000000" stroke="none" x="4.586" y="26.605" width="4.028" height="1.59" transform="rotate(90 6.6 27.4)" />
+  <rect id="grid:r4:c1" fill="#000000" stroke="none" x="10.166" y="26.755" width="3.268" height="1.29" />
+  <rect id="grid:r4:c2" fill="#000000" stroke="none" x="14.986" y="26.605" width="4.028" height="1.59" transform="rotate(90 17 27.4)" />
+  <rect id="grid:r4:c3" fill="#000000" stroke="none" x="20.566" y="26.755" width="3.268" height="1.29" />
+  <rect id="grid:r4:c4" fill="#000000" stroke="none" x="25.386" y="26.605" width="4.028" height="1.59" transform="rotate(90 27.4 27.4)" />
+  <rect id="grid:r4:c5" fill="#000000" stroke="none" x="30.966" y="26.755" width="3.268" height="1.29" />
+  <rect id="grid:r4:c6" fill="#000000" stroke="none" x="35.786" y="26.605" width="4.028" height="1.59" transform="rotate(90 37.8 27.4)" />
+  <rect id="grid:r4:c7" fill="#000000" stroke="none" x="41.366" y="26.755" width="3.268" height="1.29" />
+  <rect id="grid:r4:c8" fill="#000000" stroke="none" x="46.186" y="26.605" width="4.028" height="1.59" transform="rotate(90 48.2 27.4)" />
+  <rect id="grid:r4:c9" fill="#000000" stroke="none" x="51.766" y="26.755" width="3.268" height="1.29" />
+  <rect id="grid:r5:c0" fill="#000000" stroke="none" x="4.966" y="31.955" width="3.268" height="1.29" />
+  <rect id="grid:r5:c1" fill="#000000" stroke="none" x="9.786" y="31.805" width="4.028" height="1.59" transform="rotate(90 11.8 32.6)" />
+  <rect id="grid:r5:c2" fill="#000000" stroke="none" x="15.366" y="31.955" width="3.268" height="1.29" />
+  <rect id="grid:r5:c3" fill="#000000" stroke="none" x="20.186" y="31.805" width="4.028" height="1.59" transform="rotate(90 22.2 32.6)" />
+  <rect id="grid:r5:c4" fill="#000000" stroke="none" x="25.766" y="31.955" width="3.268" height="1.29" />
+  <rect id="grid:r5:c5" fill="#000000" stroke="none" x="30.586" y="31.805" width="4.028" height="1.59" transform="rotate(90 32.6 32.6)" />
+  <rect id="grid:r5:c6" fill="#000000" stroke="none" x="36.166" y="31.955" width="3.268" height="1.29" />
+  <rect id="grid:r5:c7" fill="#000000" stroke="none" x="40.986" y="31.805" width="4.028" height="1.59" transform="rotate(90 43 32.6)" />
+  <rect id="grid:r5:c8" fill="#000000" stroke="none" x="46.566" y="31.955" width="3.268" height="1.29" />
+  <rect id="grid:r5:c9" fill="#000000" stroke="none" x="51.386" y="31.805" width="4.028" height="1.59" transform="rotate(90 53.4 32.6)" />
+  <rect id="grid:r6:c0" fill="#000000" stroke="none" x="4.586" y="37.005" width="4.028" height="1.59" transform="rotate(90 6.6 37.8)" />
+  <rect id="grid:r6:c1" fill="#000000" stroke="none" x="10.166" y="37.155" width="3.268" height="1.29" />
+  <rect id="grid:r6:c2" fill="#000000" stroke="none" x="14.986" y="37.005" width="4.028" height="1.59" transform="rotate(90 17 37.8)" />
+  <rect id="grid:r6:c3" fill="#000000" stroke="none" x="20.566" y="37.155" width="3.268" height="1.29" />
+  <rect id="grid:r6:c4" fill="#000000" stroke="none" x="25.386" y="37.005" width="4.028" height="1.59" transform="rotate(90 27.4 37.8)" />
+  <rect id="grid:r6:c5" fill="#000000" stroke="none" x="30.966" y="37.155" width="3.268" height="1.29" />
+  <rect id="grid:r6:c6" fill="#000000" stroke="none" x="35.786" y="37.005" width="4.028" height="1.59" transform="rotate(90 37.8 37.8)" />
+  <rect id="grid:r6:c7" fill="#000000" stroke="none" x="41.366" y="37.155" width="3.268" height="1.29" />
+  <rect id="grid:r6:c8" fill="#000000" stroke="none" x="46.186" y="37.005" width="4.028" height="1.59" transform="rotate(90 48.2 37.8)" />
+  <rect id="grid:r6:c9" fill="#000000" stroke="none" x="51.766" y="37.155" width="3.268" height="1.29" />
+  <rect id="grid:r7:c0" fill="#000000" stroke="none" x="4.966" y="42.355" width="3.268" height="1.29" />
+  <rect id="grid:r7:c1" fill="#000000" stroke="none" x="9.786" y="42.205" width="4.028" height="1.59" transform="rotate(90 11.8 43)" />
+  <rect id="grid:r7:c2" fill="#000000" stroke="none" x="15.366" y="42.355" width="3.268" height="1.29" />
+  <rect id="grid:r7:c3" fill="#000000" stroke="none" x="20.186" y="42.205" width="4.028" height="1.59" transform="rotate(90 22.2 43)" />
+  <rect id="grid:r7:c4" fill="#000000" stroke="none" x="25.766" y="42.355" width="3.268" height="1.29" />
+  <rect id="grid:r7:c5" fill="#000000" stroke="none" x="30.586" y="42.205" width="4.028" height="1.59" transform="rotate(90 32.6 43)" />
+  <rect id="grid:r7:c6" fill="#000000" stroke="none" x="36.166" y="42.355" width="3.268" height="1.29" />
+  <rect id="grid:r7:c7" fill="#000000" stroke="none" x="40.986" y="42.205" width="4.028" height="1.59" transform="rotate(90 43 43)" />
+  <rect id="grid:r7:c8" fill="#000000" stroke="none" x="46.566" y="42.355" width="3.268" height="1.29" />
+  <rect id="grid:r7:c9" fill="#000000" stroke="none" x="51.386" y="42.205" width="4.028" height="1.59" transform="rotate(90 53.4 43)" />
+  <rect id="grid:r8:c0" fill="#000000" stroke="none" x="4.586" y="47.405" width="4.028" height="1.59" transform="rotate(90 6.6 48.2)" />
+  <rect id="grid:r8:c1" fill="#000000" stroke="none" x="10.166" y="47.555" width="3.268" height="1.29" />
+  <rect id="grid:r8:c2" fill="#000000" stroke="none" x="14.986" y="47.405" width="4.028" height="1.59" transform="rotate(90 17 48.2)" />
+  <rect id="grid:r8:c3" fill="#000000" stroke="none" x="20.566" y="47.555" width="3.268" height="1.29" />
+  <rect id="grid:r8:c4" fill="#000000" stroke="none" x="25.386" y="47.405" width="4.028" height="1.59" transform="rotate(90 27.4 48.2)" />
+  <rect id="grid:r8:c5" fill="#000000" stroke="none" x="30.966" y="47.555" width="3.268" height="1.29" />
+  <rect id="grid:r8:c6" fill="#000000" stroke="none" x="35.786" y="47.405" width="4.028" height="1.59" transform="rotate(90 37.8 48.2)" />
+  <rect id="grid:r8:c7" fill="#000000" stroke="none" x="41.366" y="47.555" width="3.268" height="1.29" />
+  <rect id="grid:r8:c8" fill="#000000" stroke="none" x="46.186" y="47.405" width="4.028" height="1.59" transform="rotate(90 48.2 48.2)" />
+  <rect id="grid:r8:c9" fill="#000000" stroke="none" x="51.766" y="47.555" width="3.268" height="1.29" />
+  <rect id="grid:r9:c0" fill="#000000" stroke="none" x="4.966" y="52.755" width="3.268" height="1.29" />
+  <rect id="grid:r9:c1" fill="#000000" stroke="none" x="9.786" y="52.605" width="4.028" height="1.59" transform="rotate(90 11.8 53.4)" />
+  <rect id="grid:r9:c2" fill="#000000" stroke="none" x="15.366" y="52.755" width="3.268" height="1.29" />
+  <rect id="grid:r9:c3" fill="#000000" stroke="none" x="20.186" y="52.605" width="4.028" height="1.59" transform="rotate(90 22.2 53.4)" />
+  <rect id="grid:r9:c4" fill="#000000" stroke="none" x="25.766" y="52.755" width="3.268" height="1.29" />
+  <rect id="grid:r9:c5" fill="#000000" stroke="none" x="30.586" y="52.605" width="4.028" height="1.59" transform="rotate(90 32.6 53.4)" />
+  <rect id="grid:r9:c6" fill="#000000" stroke="none" x="36.166" y="52.755" width="3.268" height="1.29" />
+  <rect id="grid:r9:c7" fill="#000000" stroke="none" x="40.986" y="52.605" width="4.028" height="1.59" transform="rotate(90 43 53.4)" />
+  <rect id="grid:r9:c8" fill="#000000" stroke="none" x="46.566" y="52.755" width="3.268" height="1.29" />
+  <rect id="grid:r9:c9" fill="#000000" stroke="none" x="51.386" y="52.605" width="4.028" height="1.59" transform="rotate(90 53.4 53.4)" />
+</svg>

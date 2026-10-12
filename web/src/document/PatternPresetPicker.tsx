@@ -5,8 +5,10 @@ import tide from './patternPresetThumbnails/diagonal-tide.svg'
 import breath from './patternPresetThumbnails/local-breath.svg'
 import coral from './patternPresetThumbnails/coral-grains.svg'
 import ripple from './patternPresetThumbnails/ripple-center.svg'
+import weave from './patternPresetThumbnails/digital-weave.svg'
+import vortex from './patternPresetThumbnails/vortex-scales.svg'
 const thumbnails = { 'precision-stagger': precision, 'spectrum-fade': spectrum, 'diagonal-tide': tide,
-  'local-breath': breath, 'coral-grains': coral, 'ripple-center': ripple }
+  'local-breath': breath, 'coral-grains': coral, 'ripple-center': ripple, 'digital-weave': weave, 'vortex-scales': vortex }
 
 export function PatternPresetPicker({ onCreate, onApply, onEdit, currentId, createDisabled, applyDisabled }: {
   onCreate: (id: PatternPresetId) => void; onApply: (id: PatternPresetId) => void

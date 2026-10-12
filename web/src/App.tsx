@@ -10,7 +10,7 @@ import { Workspace2D } from './geometry/Workspace2D'
 import { DesignPanelControls, defaultDesignDisplay } from './document/DesignPanelControls'
 import { designCandidate } from './document/designControls'
 import { PatternPresetPicker } from './document/PatternPresetPicker'
-import { createPatternPreset, openPatternPreset, patternPreset, patternPresetId, patternPresetCandidate,
+import { createPatternPreset, openPatternPreset, patternPreset, patternPresets, patternPresetId, patternPresetCandidate,
   patternPresetControls, changePatternPresetParameter, selectPatternPresetDriver, type PatternPresetId } from './document/patternPresets'
 import { designSvg, designPng, deliverDesign } from './geometry/designExport'
 import { InspectorControls, type EditAction } from './document/InspectorControls'
@@ -35,6 +35,7 @@ import { openLinearSize, linearSizeGroup, linearRegionDefaults, linearSizeOwner,
   sizeFieldTypes, sizeFieldGroup, sizeFieldValues, changeSizeFieldParameter, resetLinearSizeDraft, type LinearSizeDraft } from './document/linearSize'
 import { openRadialSize, radialSizeGroup, radialSizeDefaults, type RadialSizeDraft } from './document/radialSize'
 import { ParameterPanel } from './document/ParameterPanel'
+import { isDualPreset, dualRotationGroup } from './document/presetDualBinding'
 import { ParameterInteraction } from './document/ParameterInteraction'
 import { initialDocumentState } from './state/documentState'
 import { ManufacturingPanel } from './manufacturing/ManufacturingPanel'
@@ -712,7 +713,8 @@ export function App() {
     if (id !== 'precision-stagger' && (previous !== id) && (previous || linearSizeOwner(dto)) &&
         !window.confirm(`${patternPreset(id).title}将替换旧预设受管尺寸层/范围及其声明的随机配置；用户独立效果、原图、布局与Fabric保持不变。继续？`)) return
     try {
-      setLinearDraft(openPatternPreset(dto, project.bounds, id, parameterCatalog))
+      if (isDualPreset(id) && !window.confirm('本预设会改变原图朝向：专用场同时驱动尺寸和全图旋转，尺寸局部区不会限制旋转。保留原轮廓、孔洞、布局和Fabric。继续？')) return
+      setLinearDraft(openPatternPreset(dto, project.bounds, id, parameterCatalog, false, project.finalGeometry[0]))
       setPresetAdvanced(false); setLinearSync(v => v + 1)
       publishDesignContext('linear'); setBrowser(current => ({ ...current, activeMode: 'design' })); setProjectError(null)
     } catch (error) { setProjectError(error instanceof Error ? error.message : '无法打开预设效果。') }
@@ -1048,7 +1050,7 @@ export function App() {
         <section className="side-group" aria-label="参数场与效果">
           <button className="side-item" type="button" onClick={() => {
             if (setDesignContext('presets')) setBrowser(current => ({ ...current, activeMode: 'design' }))
-          }}>图案预设 · 6套</button>
+          }}>图案预设 · {patternPresets.length}套</button>
           <button className="side-item" type="button" disabled={!project.currentDocument}
             onClick={() => { setDesignContext('effects'); setBrowser(current => ({ ...current, activeMode: 'design' })) }}>参数场与效果</button>
           <span className="eyebrow">尺寸变化效果</span>
@@ -1226,6 +1228,8 @@ export function App() {
             <p className="layout-pending" role="status">{sizeFormPending ? '有未应用修改' : '公共参数未改变 · 显示设置无需应用到几何'}</p>
             {linearDraft.presetId && <>
               <p className="inspector-readonly">{patternPreset(linearDraft.presetId).scope} 恢复默认只重置此范围，仍需应用。</p>
+              {linearDraft.presetId === 'digital-weave' && <p className="inspector-readonly">若棋格采样全部相同，请调整格子尺寸或高级偏移；不会自动重排原图。</p>}
+              {linearDraft.presetId === 'vortex-scales' && <p className="inspector-readonly">螺旋密度使用源图案范围归一化。默认椭圆在0°/180°相位边界外形连续；不对称轮廓不具备此对称性，可在高级旋转中选择钟形映射。中心附近仍以各元素的真实采样位置为准。</p>}
               <button type="button" className="ui-secondary" onClick={() => setPresetAdvanced(v => !v)}>{presetAdvanced ? '返回关键参数' : '高级参数与影响区'}</button>
               {!presetAdvanced && <ParameterInteraction.Provider value={{ syncToken: String(linearSync), onPending: onParameterPending }}>
                 <fieldset disabled={!linearCurrent || !canEditDocument} style={{ border: 0, padding: 0, minWidth: 0 }}>
@@ -1289,6 +1293,7 @@ export function App() {
               : linearDraft.values.scope_mode === 'areas' ? '只在启用影响区内施加本层尺寸变化；重叠取最大权重，外部保留之前效果。'
               : linearDraft.values.scope_mode === 'local' ? '只按进入本效果时的元素中心判断矩形范围；区域外完整保留之前效果。过渡只混合本层尺寸变化，不切割轮廓，不移动中心。'
               : !linearDraft.fieldType || linearDraft.fieldType === 'linear' ? `作用于全部有效图案元素，保留原中心与布局。${linearDraft.values.invert ? '已反转：方向起点为最大比例，终点为最小比例' : '方向起点为最小比例，终点为最大比例'}；范围外保持端点值。`
+              : isDualPreset(linearDraft.presetId) ? '同一参数场输出0–1标量，分别映射尺寸比例和旋转角度；保留元素中心与原布局，实际变化取决于各元素中心的采样值。'
               : '参数场输出 0–1 标量，再映射为尺寸比例。只改变各元素大小，保留中心、旋转与原布局；实际变化取决于各元素中心的采样值。'}</p>
             <p className="inspector-readonly">图案参考范围：X {linearDraft.bounds.min_x.toFixed(2)}–{linearDraft.bounds.max_x.toFixed(2)} mm，Y {linearDraft.bounds.min_y.toFixed(2)}–{linearDraft.bounds.max_y.toFixed(2)} mm。{linearDraft.kind === 'linear' && linearDraft.values.scope_mode === 'local' ? '局部区域由下方中心、方向、长度和宽度独立确定。' : ''}</p>
             {project.currentDocument.document.modifiers.some(item => item.type === 'size' && item.enabled !== false && item.id !== linearSizeOwner(project.currentDocument!)?.modifier.id) &&
@@ -1312,6 +1317,12 @@ export function App() {
                     values={{ ...linearDraft.values }} onCommit={updateSizeDraftValue} />
                 </>}
               </fieldset>
+            </ParameterInteraction.Provider>}
+            {linearDraft.kind === 'linear' && linearDraft.presetRotation && presetAdvanced && <ParameterInteraction.Provider value={{ syncToken: String(linearSync), onPending: onParameterPending }}>
+              <h4>预设旋转 · 全图作用</h4>
+              <ParameterPanel group={dualRotationGroup(parameterCatalog)}
+                values={Object.fromEntries(Object.entries(linearDraft.presetRotation).map(([key, value]) => [`preset_rotation_${key}`, value]))}
+                onCommit={(key, value) => setLinearDraft(current => current?.kind === 'linear' ? changePatternPresetParameter(current, parameterCatalog, key, value) : current)} />
             </ParameterInteraction.Provider>}
             <p className="inspector-readonly">画布控制点拖动中限频自动预览；数值控件松手或确认后自动预览。控制点松手仍未应用，点击应用才提交。未应用输入不会保存；刷新或切换上下文将丢弃它们。</p>
             <div className="layout-inspector-actions">

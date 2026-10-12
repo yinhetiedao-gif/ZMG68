@@ -7,10 +7,11 @@ import { openRadialSize, radialSizeCandidate, radialSizeGroup, radialSizeDefault
 import { designCandidate, designValues, gridValues, physicalGroup } from './designControls'
 import { openLinearSize, selectSizeField, linearSizeCandidate, sizeFieldGroup, sizeFieldValues,
   linearSizeGroup, linearSizeOwner, changeSizeFieldParameter, type LinearSizeDraft } from './linearSize'
-import { groupFor, type ParameterCatalog, type ParameterGroup, type ParameterValue } from './parameterSchema'
+import { groupFor, validateParameter, type ParameterCatalog, type ParameterGroup, type ParameterValue } from './parameterSchema'
+import { isDualPreset, dualOwner, assertDualSafe, applyDualBinding, dualRotationGroup } from './presetDualBinding'
 
 export const PATTERN_PRESET_KEY = 'web_pattern_preset'
-export type PatternPresetId = 'precision-stagger' | 'spectrum-fade' | 'diagonal-tide' | 'local-breath' | 'coral-grains' | 'ripple-center'
+export type PatternPresetId = 'precision-stagger' | 'spectrum-fade' | 'diagonal-tide' | 'local-breath' | 'coral-grains' | 'ripple-center' | 'digital-weave' | 'vortex-scales'
 export type PatternPresetDraft = LinearSizeDraft | RadialSizeDraft
 export const patternPresets = [
   { id: 'precision-stagger', title: '精密错列', description: '均匀圆点交错排列，调整大小与双轴间距。',
@@ -31,6 +32,12 @@ export const patternPresets = [
   { id: 'ripple-center', title: '涟心扩散', description: '中心突出、外围缩小，保持原图形中心和排列。',
     supportsCurrent: true, field: null, diameter: 3.2, spacingY: 6,
     scope: '仅管理预设专用径向尺寸层；半径之外保持外围倍率，不是放射布局或环带。' },
+  { id: 'digital-weave', title: '数字织格', description: '同一棋盘场驱动矩形大小和交替朝向，元素位置不变。',
+    supportsCurrent: true, field: 'checker', diameter: 3.8, spacingY: 5.2,
+    scope: '受管尺寸与全图旋转；原轮廓、孔洞、布局及Fabric保留。局部尺寸范围不限制旋转。' },
+  { id: 'vortex-scales', title: '旋涡鳞纹', description: '螺旋场同时改变椭圆大小与朝向，形成旋转鳞纹，位置不变。',
+    supportsCurrent: true, field: 'spiral', diameter: 3.4, spacingY: 4.6,
+    scope: '受管尺寸与全图旋转；保留原轮廓、孔洞、布局和Fabric。不对称轮廓可在高级旋转中选择钟形映射以缓和相位接缝。' },
 ] as const
 export function patternPreset(id: string) {
   const preset = patternPresets.find(p => p.id === id)
@@ -46,10 +53,10 @@ export function patternPresetId(dto: PatternDocumentDTO | null): PatternPresetId
  * A different recipe resets only its declared scope. Same-recipe editing reads
  * the stored graph, including changes made in the advanced editor. */
 export function openPatternPreset(dto: PatternDocumentDTO, bounds: BoundsMM, id: 'ripple-center', catalog: ParameterCatalog | null, reset?: boolean): RadialSizeDraft
-export function openPatternPreset(dto: PatternDocumentDTO, bounds: BoundsMM, id: Exclude<PatternPresetId, 'ripple-center'>, catalog: ParameterCatalog | null, reset?: boolean): LinearSizeDraft
-export function openPatternPreset(dto: PatternDocumentDTO, bounds: BoundsMM, id: PatternPresetId, catalog: ParameterCatalog | null, reset?: boolean): PatternPresetDraft
+export function openPatternPreset(dto: PatternDocumentDTO, bounds: BoundsMM, id: Exclude<PatternPresetId, 'ripple-center'>, catalog: ParameterCatalog | null, reset?: boolean, firstCenter?: { x: number; y: number }): LinearSizeDraft
+export function openPatternPreset(dto: PatternDocumentDTO, bounds: BoundsMM, id: PatternPresetId, catalog: ParameterCatalog | null, reset?: boolean, firstCenter?: { x: number; y: number }): PatternPresetDraft
 export function openPatternPreset(dto: PatternDocumentDTO, bounds: BoundsMM, id: PatternPresetId,
-  catalog: ParameterCatalog | null, reset = false): PatternPresetDraft {
+  catalog: ParameterCatalog | null, reset = false, firstCenter?: { x: number; y: number }): PatternPresetDraft {
   const preset = patternPreset(id), same = patternPresetId(dto) === id
   const record = asRecord(dto.document.metadata[PATTERN_PRESET_KEY])
   const saved = same ? asRecord(record?.bounds_mm) : null
@@ -63,6 +70,29 @@ export function openPatternPreset(dto: PatternDocumentDTO, bounds: BoundsMM, id:
     return { ...radial, presetId: id, values: same && !reset ? radial.values : { ...radialSizeDefaults(box), min_scale: 1.25, max_scale: .65 } }
   }
   const opened = openLinearSize(dto, bounds)
+  if (isDualPreset(id)) {
+    assertDualSafe(dto)
+    const vortex = id === 'vortex-scales', fieldType = vortex ? 'spiral' : 'checker'
+    const own = dualOwner(dto), savedAnchor = same ? asRecord(record?.anchor_native) : null
+    const point = savedAnchor ? { x: Number(savedAnchor.x), y: Number(savedAnchor.y) }
+      : vortex ? { x: (box.min_x + box.max_x) / (2 * mm), y: (box.min_y + box.max_y) / (2 * mm) }
+      : firstCenter ? { x: firstCenter.x / mm, y: firstCenter.y / mm }
+      : dto.document.elements[0] ? { x: dto.document.elements[0].x, y: dto.document.elements[0].y }
+      : { x: (box.min_x + box.max_x) / (2 * mm), y: (box.min_y + box.max_y) / (2 * mm) }
+    const draft = same && !reset ? opened : selectSizeField(opened, fieldType, catalog)
+    const rotationDefaults = { min_output: 0, max_output: vortex ? 180 : 90, strength: 1, remap_curve: 'linear' as const }
+    return { ...draft, bounds: box, presetId: id, presetAnchorNative: point,
+      ownedFieldConsumers: { metadataKeys: [PATTERN_PRESET_KEY], modifierIds: own ? [String(own.size.id), String(own.rotation.id)] : [] },
+      presetRotation: same && !reset && own ? { ...rotationDefaults, ...asRecord(own.rotation.mapping) } : rotationDefaults,
+      ...same && !reset ? {} : { fieldType, existingFieldId: undefined, explicitLinear: false,
+        fieldParameters: vortex
+          ? { center_x: point.x, center_y: point.y, turns: 3, phase: .15, direction: 1, falloff: 1, invert: false }
+          : { cell_width: 5.2 / mm, cell_height: 5.2 / mm, angle: 0,
+              offset_x: point.x - 2.6 / mm, offset_y: point.y - 2.6 / mm, invert: false },
+        values: { ...draft.values, min_output: vortex ? .74 : .86, max_output: vortex ? 1.04 : 1.06, strength: 1, invert: false, scope_mode: 'global' },
+        influenceAreas: undefined, designValues: undefined, gridValues: undefined, controlsOnly: false },
+    }
+  }
   if (!preset.supportsCurrent && (patternPresetId(dto) !== id || !gridValues(dto)))
     throw new Error('精密错列只可编辑由此预设创建的 Grid 图案，不会重排当前导入作品。')
   if (same && !reset) return { ...opened, presetId: id,
@@ -127,6 +157,9 @@ function preparePresetSwitch(dto: PatternDocumentDTO, next?: string): PatternDoc
   if (!next || !old || old === next) return dto
   const record = asRecord(dto.document.metadata[PATTERN_PRESET_KEY])!, stack = asRecord(dto.document.metadata[STACK_KEY])
   let metadata = { ...dto.document.metadata }, modifiers = dto.document.modifiers
+  const dual = dualOwner(dto)
+  if (dual) modifiers = modifiers.map(m => m.id === dual.rotation.id ? { ...m, enabled: false }
+    : m.id === dual.size.id ? { ...m, mapping: { ...asRecord(m.mapping), remap_curve: 'linear' } } : m)
   if (old === 'ripple-center' && Array.isArray(stack?.modifiers)) metadata[STACK_KEY] = { ...stack,
     modifiers: stack.modifiers.map(item => asRecord(item)?.id === record.radial_layer_id ? { ...item, enabled: false } : item) }
   if (next === 'ripple-center' && patternPreset(old).field) {
@@ -146,7 +179,7 @@ function preparePresetSwitch(dto: PatternDocumentDTO, next?: string): PatternDoc
 }
 export function patternPresetCandidate(draft: PatternPresetDraft, catalog: ParameterCatalog | null): PatternDocumentDTO {
   const source = preparePresetSwitch(draft.source, draft.presetId)
-  const result = draft.kind === 'radial' ? radialSizeCandidate({ ...draft, source }, catalog) : linearSizeCandidate({ ...draft, source }, catalog)
+  let result = draft.kind === 'radial' ? radialSizeCandidate({ ...draft, source }, catalog) : linearSizeCandidate({ ...draft, source }, catalog)
   if (draft.presetId === '') {
     const metadata = { ...result.document.metadata }; delete metadata[PATTERN_PRESET_KEY]
     return { ...result, document: { ...result.document, metadata } }
@@ -168,10 +201,11 @@ export function patternPresetCandidate(draft: PatternPresetDraft, catalog: Param
     }
     random = { random_before: ownedBefore, random_after: ownedAfter }
   }
-  return { ...result, document: { ...result.document, metadata: { ...result.document.metadata,
+  result = { ...result, document: { ...result.document, metadata: { ...result.document.metadata,
     [PATTERN_PRESET_KEY]: { version: 1, id: preset.id, scope: preset.id === 'ripple-center' ? 'owned_radial_size' : preset.field ? 'owned_size_effect' : 'grid_spacing_stagger_size',
-      units: 'mm', ...['local-breath', 'coral-grains', 'ripple-center'].includes(preset.id) ? { bounds_mm: draft.bounds, mm_per_unit: millimetresPerUnit(result.document) } : {},
+      units: 'mm', ...['local-breath', 'coral-grains', 'ripple-center', 'digital-weave', 'vortex-scales'].includes(preset.id) ? { bounds_mm: draft.bounds, mm_per_unit: millimetresPerUnit(result.document) } : {},
       ...(radialId ? { radial_layer_id: radialId } : {}), ...random } } } }
+  return draft.kind === 'linear' && isDualPreset(draft.presetId) ? applyDualBinding(result, draft, catalog) : result
 }
 
 /** Explicit advanced driver changes become a custom effect, not a mislabeled
@@ -185,6 +219,22 @@ export function selectPatternPresetDriver(draft: LinearSizeDraft, type: string, 
 /** Reuse the formal Grid fixture. Python generates all cells; no JS array math. */
 export function createPatternPreset(id: PatternPresetId, documentId: string, catalog: ParameterCatalog | null): PatternDocumentDTO {
   const preset = patternPreset(id), dto = prepareProject(JSON.stringify(basicGrid), documentId).dto
+  if (isDualPreset(id)) {
+    const vortex = id === 'vortex-scales', count = vortex ? 12 : 10, pitch = vortex ? 4.6 : 5.2
+    const width = vortex ? 3.4 : 3.8, height = vortex ? 1.6 : 1.5
+    const state = structuredClone(asRecord(dto.document.metadata['xiaomang_pattern_lab.parametric'])!)
+    state.grid = { ...asRecord(state.grid), prototype: { kind: vortex ? 'ellipse' : 'rect' }, lock_aspect: false }
+    let working: PatternDocumentDTO = { ...dto, document: { ...dto.document, metadata: { ...dto.document.metadata, 'xiaomang_pattern_lab.parametric': state } } }
+    for (const [key, value] of Object.entries({ rows: count, columns: count, spacing_x: pitch, spacing_y: pitch,
+      element_width: width, element_height: height, offset_x: 30, offset_y: 30 })) working = updateGrid(working, key, value, catalog)
+    const metadata = { ...working.document.metadata }; delete metadata['xiaomang_pattern_lab.example_id']
+    working = { ...working, document_revision: 0, document: { ...working.document, metadata } }
+    const extent = (count - 1) * pitch / 2
+    const bounds: BoundsMM = { min_x: 30 - extent - width / 2, min_y: 30 - extent - height / 2,
+      max_x: 30 + extent + width / 2, max_y: 30 + extent + height / 2,
+      width: extent * 2 + width, height: extent * 2 + height, units: 'mm' }
+    return patternPresetCandidate(openPatternPreset(working, bounds, id, catalog, true, { x: 30 - extent, y: 30 - extent }), catalog)
+  }
   let working = dto
   const coral = id === 'coral-grains', spacing = coral ? 4.6 : 6
   for (const [key, value] of Object.entries({ rows: coral ? 11 : 9, columns: coral ? 11 : 9, spacing_x: spacing, spacing_y: preset.spacingY,
@@ -222,6 +272,24 @@ export function patternPresetControls(draft: PatternPresetDraft, catalog: Parame
   group: ParameterGroup; values: Record<string, ParameterValue>
 } {
   const preset = patternPreset(draft.presetId!), mm = millimetresPerUnit(draft.source.document) ?? 1
+  if (draft.kind === 'linear' && draft.presetId === 'vortex-scales') {
+    const field = sizeFieldGroup(catalog, draft)!, mapping = linearSizeGroup(catalog, draft)!
+    return { group: { label: '旋涡鳞纹关键参数', parameters: [
+      ...field.parameters.filter(p => ['field_turns', 'field_phase'].includes(p.id))
+        .map(p => ({ ...p, label: p.id === 'field_turns' ? '螺旋密度' : '相位',
+          ...p.id === 'field_phase' ? { step: .01, slider_min: 0, slider_max: 1, slider_step: .01 } : {} })),
+      ...mapping.parameters.filter(p => ['min_output', 'max_output'].includes(p.id)),
+    ] }, values: { ...draft.values, ...sizeFieldValues(draft, catalog) } }
+  }
+  if (draft.kind === 'linear' && isDualPreset(draft.presetId)) {
+    const cell = sizeFieldGroup(catalog, draft)!.parameters.find(p => p.id === 'field_cell_width')!
+    const angle = dualRotationGroup(catalog).parameters.find(p => p.id === 'preset_rotation_max_output')!
+    const contrast = linearSizeGroup(catalog, draft)!.parameters.find(p => p.id === 'max_output')!
+    return { group: { label: '数字织格关键参数', parameters: [{ ...cell, id: 'preset_cell_size', label: '格子尺寸' },
+      { ...angle, label: '交替角度' }, { ...contrast, id: 'preset_contrast', label: '尺寸对比', min: 0, max: 1.8, default: .2, step: .01 }] },
+      values: { preset_cell_size: Number(draft.fieldParameters?.cell_width) * mm,
+        preset_rotation_max_output: draft.presetRotation!.max_output, preset_contrast: draft.values.max_output - draft.values.min_output } }
+  }
   if (draft.kind === 'radial') {
     const group = radialSizeGroup(catalog, draft.source, draft.bounds)
     if (!group) throw new Error('缺少径向尺寸预设参数定义。')
@@ -264,6 +332,17 @@ export function changePatternPresetParameter(draft: PatternPresetDraft, catalog:
 export function changePatternPresetParameter(draft: PatternPresetDraft, catalog: ParameterCatalog | null,
   key: string, value: ParameterValue): PatternPresetDraft {
   if (draft.kind === 'radial') return typeof value === 'number' ? { ...draft, values: { ...draft.values, [key]: value } } : draft
+  if (key.startsWith('preset_rotation_')) {
+    const p = dualRotationGroup(catalog).parameters.find(p => p.id === key)
+    if (!p || !validateParameter(p, value)) throw new Error('旋转参数超出合法范围。')
+    return { ...draft, presetRotation: { ...draft.presetRotation!, [key.slice(16)]: value } }
+  }
+  if (key === 'preset_cell_size' && typeof value === 'number') {
+    const next = changeSizeFieldParameter(draft, catalog, 'field_cell_width', value)
+    return changeSizeFieldParameter(next, catalog, 'field_cell_height', value)
+  }
+  if (key === 'preset_contrast' && typeof value === 'number' && value >= 0 && value <= 1.8)
+    return { ...draft, values: { ...draft.values, min_output: .96 - value / 2, max_output: .96 + value / 2 } }
   if (key === 'preset_ratio' && typeof value === 'number') return { ...draft, values: { ...draft.values, min_output: value, max_output: value } }
   if (key.startsWith('preset_area_') && typeof value === 'number') {
     const id = draft.selectedArea ?? draft.influenceAreas?.[0]?.id

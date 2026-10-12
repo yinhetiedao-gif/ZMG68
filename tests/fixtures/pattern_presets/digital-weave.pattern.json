@@ -1,0 +1,333 @@
+{
+  "schema_version": "1.0",
+  "document_id": "preset-digital-weave",
+  "document_revision": 0,
+  "document": {
+    "schema_version": 1,
+    "canvas": {
+      "width": 60,
+      "height": 60,
+      "unit": "mm",
+      "mm_per_unit": 1,
+      "origin_x": 0,
+      "origin_y": 0
+    },
+    "reference": {
+      "source_path": "",
+      "visible": false,
+      "preprocessing": {},
+      "metadata": {}
+    },
+    "elements": [
+      {
+        "id": "grid:r0:c0",
+        "type": "circle",
+        "x": 14,
+        "y": 14,
+        "width": 8,
+        "height": 8,
+        "rotation": 0,
+        "visible": true,
+        "style": {},
+        "group_id": null,
+        "metadata": {}
+      },
+      {
+        "id": "grid:r0:c1",
+        "type": "circle",
+        "x": 30,
+        "y": 14,
+        "width": 8,
+        "height": 8,
+        "rotation": 0,
+        "visible": true,
+        "style": {},
+        "group_id": null,
+        "metadata": {}
+      },
+      {
+        "id": "grid:r0:c2",
+        "type": "circle",
+        "x": 46,
+        "y": 14,
+        "width": 8,
+        "height": 8,
+        "rotation": 0,
+        "visible": true,
+        "style": {},
+        "group_id": null,
+        "metadata": {}
+      },
+      {
+        "id": "grid:r1:c0",
+        "type": "circle",
+        "x": 14,
+        "y": 30,
+        "width": 8,
+        "height": 8,
+        "rotation": 0,
+        "visible": true,
+        "style": {},
+        "group_id": null,
+        "metadata": {}
+      },
+      {
+        "id": "grid:r1:c1",
+        "type": "circle",
+        "x": 30,
+        "y": 30,
+        "width": 8,
+        "height": 8,
+        "rotation": 0,
+        "visible": true,
+        "style": {},
+        "group_id": null,
+        "metadata": {}
+      },
+      {
+        "id": "grid:r1:c2",
+        "type": "circle",
+        "x": 46,
+        "y": 30,
+        "width": 8,
+        "height": 8,
+        "rotation": 0,
+        "visible": true,
+        "style": {},
+        "group_id": null,
+        "metadata": {}
+      },
+      {
+        "id": "grid:r2:c0",
+        "type": "circle",
+        "x": 14,
+        "y": 46,
+        "width": 8,
+        "height": 8,
+        "rotation": 0,
+        "visible": true,
+        "style": {},
+        "group_id": null,
+        "metadata": {}
+      },
+      {
+        "id": "grid:r2:c1",
+        "type": "circle",
+        "x": 30,
+        "y": 46,
+        "width": 8,
+        "height": 8,
+        "rotation": 0,
+        "visible": true,
+        "style": {},
+        "group_id": null,
+        "metadata": {}
+      },
+      {
+        "id": "grid:r2:c2",
+        "type": "circle",
+        "x": 46,
+        "y": 46,
+        "width": 8,
+        "height": 8,
+        "rotation": 0,
+        "visible": true,
+        "style": {},
+        "group_id": null,
+        "metadata": {}
+      }
+    ],
+    "groups": [],
+    "transforms": {
+      "grid:r0:c0": {
+        "element_id": "grid:r0:c0",
+        "x": 14,
+        "y": 14,
+        "rotation": 0,
+        "scale_x": 1,
+        "scale_y": 1
+      },
+      "grid:r0:c1": {
+        "element_id": "grid:r0:c1",
+        "x": 30,
+        "y": 14,
+        "rotation": 0,
+        "scale_x": 1,
+        "scale_y": 1
+      },
+      "grid:r0:c2": {
+        "element_id": "grid:r0:c2",
+        "x": 46,
+        "y": 14,
+        "rotation": 0,
+        "scale_x": 1,
+        "scale_y": 1
+      },
+      "grid:r1:c0": {
+        "element_id": "grid:r1:c0",
+        "x": 14,
+        "y": 30,
+        "rotation": 0,
+        "scale_x": 1,
+        "scale_y": 1
+      },
+      "grid:r1:c1": {
+        "element_id": "grid:r1:c1",
+        "x": 30,
+        "y": 30,
+        "rotation": 0,
+        "scale_x": 1,
+        "scale_y": 1
+      },
+      "grid:r1:c2": {
+        "element_id": "grid:r1:c2",
+        "x": 46,
+        "y": 30,
+        "rotation": 0,
+        "scale_x": 1,
+        "scale_y": 1
+      },
+      "grid:r2:c0": {
+        "element_id": "grid:r2:c0",
+        "x": 14,
+        "y": 46,
+        "rotation": 0,
+        "scale_x": 1,
+        "scale_y": 1
+      },
+      "grid:r2:c1": {
+        "element_id": "grid:r2:c1",
+        "x": 30,
+        "y": 46,
+        "rotation": 0,
+        "scale_x": 1,
+        "scale_y": 1
+      },
+      "grid:r2:c2": {
+        "element_id": "grid:r2:c2",
+        "x": 46,
+        "y": 46,
+        "rotation": 0,
+        "scale_x": 1,
+        "scale_y": 1
+      }
+    },
+    "metadata": {
+      "xiaomang_pattern_lab.parametric": {
+        "mode": "grid",
+        "grid": {
+          "rows": 10,
+          "columns": 10,
+          "spacing_x": 5.2,
+          "spacing_y": 5.2,
+          "element_width": 3.8,
+          "element_height": 1.5,
+          "rotation": 0,
+          "offset_x": 30,
+          "offset_y": 30,
+          "lock_aspect": false,
+          "prototype": {
+            "kind": "rect"
+          }
+        },
+        "source_elements": []
+      },
+      "web_linear_size_effect": {
+        "version": 1,
+        "field_id": "field-1",
+        "modifier_id": "size-1",
+        "bounds_mm": {
+          "min_x": 4.7,
+          "min_y": 5.85,
+          "max_x": 55.3,
+          "max_y": 54.15,
+          "width": 50.6,
+          "height": 48.3,
+          "units": "mm"
+        },
+        "mm_per_unit": 1,
+        "field_ids": {
+          "checker": "field-1"
+        },
+        "field_domains": {
+          "field-1": "fitted"
+        },
+        "source_mode": "owned",
+        "domain_mode": "fitted",
+        "rotation_modifier_id": "rotation-1"
+      },
+      "web_pattern_preset": {
+        "version": 1,
+        "id": "digital-weave",
+        "scope": "owned_size_effect",
+        "units": "mm",
+        "bounds_mm": {
+          "min_x": 4.7,
+          "min_y": 5.85,
+          "max_x": 55.3,
+          "max_y": 54.15,
+          "width": 50.6,
+          "height": 48.3,
+          "units": "mm"
+        },
+        "mm_per_unit": 1,
+        "dual_binding": {
+          "field_id": "field-1",
+          "size_modifier_id": "size-1",
+          "rotation_modifier_id": "rotation-1"
+        },
+        "anchor_native": {
+          "x": 6.6,
+          "y": 6.6
+        }
+      }
+    },
+    "fields": [
+      {
+        "id": "field-1",
+        "type": "checker",
+        "parameters": {
+          "cell_width": 5.2,
+          "cell_height": 5.2,
+          "angle": 0,
+          "offset_x": 3.9999999999999996,
+          "offset_y": 3.9999999999999996,
+          "invert": false
+        },
+        "enabled": true
+      }
+    ],
+    "modifiers": [
+      {
+        "id": "size-1",
+        "type": "size",
+        "field_id": "field-1",
+        "enabled": true,
+        "mapping": {
+          "min_output": 0.86,
+          "max_output": 1.06,
+          "strength": 1,
+          "falloff": 1,
+          "invert": false,
+          "remap_curve": "linear"
+        }
+      },
+      {
+        "id": "rotation-1",
+        "type": "rotation",
+        "field_id": "field-1",
+        "enabled": true,
+        "mapping": {
+          "min_output": 0,
+          "max_output": 90,
+          "strength": 1,
+          "remap_curve": "linear",
+          "invert": false,
+          "falloff": 1,
+          "clamp": true
+        }
+      }
+    ]
+  },
+  "assets": []
+}
