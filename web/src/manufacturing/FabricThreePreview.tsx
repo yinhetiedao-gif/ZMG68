@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { AmbientLight, Box3, BoxGeometry, BufferGeometry, Color, DirectionalLight,
   DoubleSide, Float32BufferAttribute, Group, InstancedMesh, MeshPhongMaterial,
   Object3D, PerspectiveCamera, Scene, Vector3, WebGLRenderer } from 'three'
@@ -29,13 +30,16 @@ export function setFabricInstanceTransform(dummy: Object3D, instance: FabricPrev
   dummy.updateMatrix()
 }
 
-export function FabricThreePreview({ plan, stale = false }: { plan: FabricDesignPreview; stale?: boolean }) {
+export function FabricThreePreview({ plan, stale = false, diagnosticsHost }: {
+  plan: FabricDesignPreview; stale?: boolean; diagnosticsHost?: HTMLElement | null
+}) {
   const hostRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const fitRef = useRef<(() => void) | null>(null)
   const resetRef = useRef<(() => void) | null>(null)
   const [status, setStatus] = useState('正在准备 Fabric 设计预览…')
   const [bounds, setBounds] = useState<string | null>(null)
+  const [updateMs, setUpdateMs] = useState<string | null>(null)
   const [style, setStyle] = useState<FabricPreviewStyle>('default')
   const latest = useRef({ plan, style }); latest.current = { plan, style }
   const updateRef = useRef<(() => void) | null>(null)
@@ -185,7 +189,8 @@ export function FabricThreePreview({ plan, stale = false }: { plan: FabricDesign
         fitRef.current = () => fit(false)
         resetRef.current = () => fit(true)
         if (!initialized && active.length) { fit(true); initialized = true }
-        setStatus(`Fabric 设计预览已就绪 · ${plan.active_count} 个${plan.shape_source === 'original' ? '原图元素' : '可见共享原型实例'} · 浏览器实例更新 ${(performance.now() - started).toFixed(1)} ms`)
+        setStatus(`Fabric 设计预览已就绪 · ${plan.active_count} 个${plan.shape_source === 'original' ? '原图元素' : '可见共享原型实例'}`)
+        setUpdateMs((performance.now() - started).toFixed(1))
       }
       updateRef.current = update
       scene.add(group)
@@ -226,17 +231,22 @@ export function FabricThreePreview({ plan, stale = false }: { plan: FabricDesign
   useLayoutEffect(() => { updateRef.current?.() }, [plan, style])
 
   return <div className="three-preview" aria-label="Fabric 设计预览">
-    <label htmlFor="fabric-preview-style">预览样式</label>
-    <select id="fabric-preview-style" value={style} onChange={(event) => setStyle(event.target.value as FabricPreviewStyle)}>
-      <option value="default">默认实体</option>
-      <option value="high_contrast">高对比 · 白底黑色单元</option>
-      <option value="height_map">高度图 · 颜色仅用于预览</option>
-    </select>
-    <div className="three-preview-toolbar"><button type="button" onClick={() => fitRef.current?.()} disabled={!bounds}>适合窗口</button>
+    <div className="three-preview-toolbar fabric-preview-toolbar">
+      <label htmlFor="fabric-preview-style">样式</label>
+      <select id="fabric-preview-style" aria-label="预览样式" value={style} onChange={(event) => setStyle(event.target.value as FabricPreviewStyle)}>
+        <option value="default">默认实体</option>
+        <option value="high_contrast">高对比 · 白底黑色单元</option>
+        <option value="height_map">高度图 · 颜色仅用于预览</option>
+      </select>
+      <button type="button" onClick={() => fitRef.current?.()} disabled={!bounds}>适合窗口</button>
       <button type="button" onClick={() => resetRef.current?.()} disabled={!bounds}>重置视角</button></div>
     <div className="three-preview-viewport" ref={hostRef}><canvas ref={canvasRef} aria-label="Fabric 设计三维画布" /></div>
-    <div className="three-preview-status" role="status">{stale ? `上次预览，已失效 · ${plan.active_count} 个可见实例` : status}</div>
-    {bounds && <small className="three-preview-bounds">预览 XYZ：{bounds}</small>}
+    <div className="fabric-preview-summary">
+      <span className="three-preview-status" role="status">{stale ? `上次预览，已失效 · ${plan.active_count} 个可见实例` : status}</span>
+      {bounds && <small className="three-preview-bounds">预览 XYZ：{bounds}</small>}
+    </div>
+    {diagnosticsHost && createPortal(<p>Fabric 设计预览 · 浏览器实例更新：{updateMs === null ? '尚未完成' : `${updateMs} ms`}
+      {stale ? ' · 上次结果，已失效' : ''}</p>, diagnosticsHost)}
     {plan.preview_simplified && <p role="note">预览已简化：显示 {plan.count} / {plan.total_count} 个实例，最终设计参数未改变。</p>}
     {plan.skipped_count > 0 && <p role="note">跳过 {plan.skipped_count} 个没有可靠布点坐标的元素。</p>}
     {plan.unmatched_reference_count > 0 && <p role="note">{plan.unmatched_reference_count} 个元素缺少稳定基准尺寸，单元保持原始大小。</p>}

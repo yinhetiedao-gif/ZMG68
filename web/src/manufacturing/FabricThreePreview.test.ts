@@ -14,6 +14,19 @@ const instance: FabricPreviewInstance = {
 }
 
 describe('Fabric instance transform', () => {
+  it('groups styles and framing in one toolbar, keeps warnings and does not add manufacture actions', () => {
+    const plan = { active_count: 9, count: 9, total_count: 100, preview_simplified: true,
+      skipped_count: 2, unmatched_reference_count: 1 } as FabricDesignPreview
+    const html = renderToStaticMarkup(createElement(FabricThreePreview, {plan, stale: true}))
+    const dom = new DOMParser().parseFromString(html, 'text/html')
+    const toolbar = dom.querySelector('.fabric-preview-toolbar')!
+    expect(toolbar.querySelector('[aria-label="预览样式"]')).not.toBeNull()
+    expect([...toolbar.querySelectorAll('button')].map(button => button.textContent)).toEqual(['适合窗口', '重置视角'])
+    expect(dom.querySelectorAll('option')).toHaveLength(3)
+    expect(dom.querySelector('.fabric-preview-summary [role=status]')?.textContent).toContain('上次预览，已失效')
+    expect(html).toContain('显示 9 / 100'); expect(html).toContain('跳过 2'); expect(html).toContain('1 个元素缺少稳定基准尺寸')
+    expect(html).not.toContain('下载'); expect(html).not.toContain('最终制造已通过')
+  })
   it('labels retained stale geometry as an old preview, not ready', () => {
     const plan = { active_count: 4160 } as FabricDesignPreview
     const html = renderToStaticMarkup(createElement(FabricThreePreview, {plan, stale: true}))

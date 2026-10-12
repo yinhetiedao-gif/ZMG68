@@ -1,5 +1,50 @@
 # Gate 状态（2026-10-05）
 
+## P4-C1 最终核验与收口前审核（2026-10-13，仅审核，等待提交授权）
+
+- 用户明确确认新版作品展示和3D预览满意，记录为用户本地试用PASS，不扩大为完整制造/文件/所有浏览器操作PASS。当前仓库`ParametricPatternGenerator`、分支`feature/pattern-library-reuse`、HEAD `106e628727504907242e2a5b88f98cc8920391b3`，暂存区空；本批10个tracked修改＋1个正式新增测试，另32个历史tools原地保留。本轮未改产品或视觉方案，只补真实浏览器缺口、只读差异检查及本审核记录；未暂存、提交、创建备份、推送、部署、修改忽略规则或删除文件，其他worktree未操作。
+- 390×844补验使用上轮同一独立`http://127.0.0.1:8808/`会话与同一生产产物`index-BFHIpsn1.js`；没有清草稿、换样本、重启服务或开启测试导出。当前144元素旋涡鳞纹、revision 1、phase 0.25待应用状态保留。设计抽屉：展开→从scrollTop 988向上滚至0→页头按钮关闭；底部三按钮高40px、bottom 834px（视口844px）、中心命中均为按钮自身。滚动前后main rect均x0/y66/390.29×778px，revision仍1，未应用说明及禁用导出保留。
+- 同会话切换制造仅触发现有轻量设计预览，没有点击最终制造/STL。制造抽屉展开→滚至底部（scrollTop 497.71、clientHeight 635、scrollHeight 1133）→点击实际露出的遮罩区域关闭；末项bottom 747.36px，滚动区bottom 763.14px，按钮top 773.71px/bottom 813.71px，未被遮挡，可见输入/选择/按钮横向越界0。遮罩语义定位器默认点击中心被抽屉覆盖，检查DOM命中后改点可见遮罩x365/y450并确实关闭，未修改产品。两制造按钮因二维效果待应用而保持disabled，是已有保护，不算制造运行PASS。窄屏工具栏可换行、3D画面/144原图摘要/XYZ与设计预览限制均可见；返回设计仍待应用，临时视口已reset。
+- 新真实截图同存`work/p4c1-display-20261012/`：`narrow-audit-open.jpg`、`narrow-audit-bottom.jpg`、`narrow-audit-closed.jpg`、`narrow-audit-manufacture-open.jpg`、`narrow-audit-manufacture-bottom.jpg`、`narrow-audit-three.jpg`。本轮没有浏览器超时；此次390px展开/滚动/关闭/按钮遮挡缺口限定样本PASS。下方上轮BLOCKED记录保留其时间事实，不用本次成功抹掉历史超时或未取得的独立操作证据。
+- 范围核对：6个产品文件只移动提示/诊断与工具栏、统一卡片结构、屏幕虚线节奏及辅助透明度；原回调、参数Schema、renderer生命周期、视角算法、几何TRS、预设参数、制造/Validator、API、请求协调、文档/草稿/Undo和输出规则不变。无新依赖、package/锁文件、部署配置或无关产品差异。测试依赖的linearSizeFixture/phase1aFixture、patternPresets及8个SVG缩略图已跟踪，不依赖截图/手工脚本/临时STL；没有需要额外纳入的fixture。
+- 直接复用上轮最终App 7/7（ui-feedback-verified.json）与其他5文件18/18（ui-final.json相应passed条目）；同一ui-final批次整体为24/25，失败mock修正后的单独7/7另记，不把旧报告改写为全通过，也不累加重叠批次。生产build已PASS，dist生成时间晚于6个产品文件最后修改；本轮未重跑测试或构建，只补Git范围与`git diff --check`，通过，既有LF/CRLF和大bundle warning保留。用户满意、此次窄屏PASS及前次桌面证据只支持本批UI限定范围收口建议。
+- OPEN仍保留：旧预览3项失败、P1/P2五项回归超时及UNKNOWN根因、8套完整独立浏览器矩阵/历史鼠标确认/尺寸与导出等历史边界；没有新SVG/PNG/STL下载、最终制造或文件读回。本批公网/Linux/切片/实物NOT TESTED，不将历史制造通过扩大为本批制造验收。数值更新、未应用输入和Undo刷新边界、混合图形、旧效果堆栈、Arc/Skew/通用曲线/自动毫米映射/历史迁移及几何慢项均不变。自动取景/灯光材质未实施。
+- 建议本地备份名称`backup/web-p4c1-display-local-validated`，只读确认当前不存在，未创建；旧备份不移动。本轮建议11文件白名单如下，必须等待用户另行批准本地提交与备份，不自动收口。
+
+### P4-C1 建议提交白名单（准确11文件，尚未暂存）
+
+```text
+GATE_STATUS.md
+web/src/App.tsx
+web/src/styles.css
+web/src/geometry/Workspace2D.tsx
+web/src/geometry/influenceControls.tsx
+web/src/manufacturing/FabricThreePreview.tsx
+web/src/document/PatternPresetPicker.tsx
+web/src/App.p4b.test.tsx
+web/src/geometry/gradientControls.test.tsx
+web/src/manufacturing/FabricThreePreview.test.ts
+web/src/document/PatternPresetPicker.test.tsx
+```
+
+### P4-C1 排除清单
+
+- 32个历史未跟踪`tools/`文件与本文件下方“P4 本地收口前审核”的逐项32文件排除清单完全一致：全部原地保留，不暂存、不删除，不是本批正式测试依赖。
+- 已忽略的`work/`截图、STL、日志、手工启动/探针脚本、保护副本与运行资产（包括上述新窄屏截图及gate-before-final-audit.md），以及dist、node_modules、虚拟环境：不默认纳入源码提交；没有新增忽略规则。已有实际文件证据不删除，也不将未提交资产称为被Git备份。
+
+## P4-C1 作品展示与视觉干扰优化（2026-10-13，本地未提交；桌面限定验收，窄屏BLOCKED）
+
+- 实际基线`106e628727504907242e2a5b88f98cc8920391b3`，分支`feature/pattern-library-reuse`，开工暂存区/已跟踪差异为空；32个历史未跟踪tools与所有运行资产保留。本轮只改6个展示实现文件、4个定向测试文件（含新增PatternPresetPicker.test.tsx）和本记录；没有改PatternDocument、Field/Modifier、预设配方、请求/求值hook、API、几何、制造/Validator、依赖、环境配置或Git规则。无暂存、提交、备份、推送、部署，不恢复旧补丁。
+- 展示实现：App将原待应用/加载/失败/警告条件与文案移入画布外的状态条，不删除限制；Workspace2D画板虚线改为`4 / zoom`，保持屏幕4px节奏，世界矩形与1px屏幕描边不变；influenceControls仅将非活动/停用透明度降为0.30/0.16，活动仍1，命中与坐标转换不变。FabricThreePreview整合原样式、适合窗口、重置视角为一工具行，原状态/实例数/XYZ合为摘要，实例更新时间移入App已有诊断详情；stale、简化/跳过提示和设计预览不等于制造通过的警告仍保留。八套原SVG资源/配方不变，卡片92px框、contain及统一5px内留白，操作行移至整卡宽度，未增加第二套状态/renderer。方案A配色、双栏和自动取景/灯光/材质算法未改。
+- 本地真实浏览器使用独立origin`http://127.0.0.1:8808/`，同工作区现有FastAPI＋生产dist（`index-BFHIpsn1.js`、`index-CjQu-jB6.css`），测试STL导出开关为false。用户8807会话/草稿未清理或覆盖；未把另一个origin的验收称为用户原页面已刷新。本地启动脚本仅存既有ignored work目录，未修改项目配置。
+- 同一9圆点输入，候选提示从作品上方覆盖框移至canvas之外；实测canvas bottom与feedback top均621.14px、状态条26.86px。真实鼠标方向拖动后面板45.136°，Zoom/Pan后再拖至0.162°，控制柄14×14屏幕px、画板虚线保持4px；元素XY位置未改变。拖动/Reset/Cancel时Undo不增加；Apply→Undo→Redo→Undo各一次，尺寸恢复至原9个圆及既有中心。自动化另验证zoom 0.5/2/10下描边/虚线/控制柄与世界坐标，非活动透明度及pointer入口不变；不是新的参数或场算法验收。
+- 1280×720实际3D可视stage从319px到357.43px（净增加38.43px）；前图无草稿恢复提示，后图有恢复提示，故并非严格同状态高度对照，不据此宣称固定收益。默认实体↔高对比、适合窗口、重置视角实测可用，renderer初始化仍1，9个原图的XYZ仍40×40×2mm；诊断区可见更新时间，设计预览/最终制造限制仍可见。本轮未执行新的最终制造/文件输出。
+- 八张真实SVG实测92×92、object-fit contain，完整列表分四张真实截图保留；1280桌面左栏340px、1024×768左栏320px，后者页面宽1024、可见控件横向越界0。代表性旋涡鳞纹创建144元素、候选phase 0.15→0.25、Apply一次（revision 0→1）与正式场参数一致；没有重做八套完整创建/返回/刷新矩阵，不由组件回调测试推断完整作品流程PASS。
+- 浏览器在随后点击“编辑旋涡鳞纹”时发生`Input.dispatchMouseEvent`超时，已立即停止自动交互；之后仅reset临时视口/标记本地试用页。390×844的新样式抽屉和该次重新进入编辑NOT TESTED/BLOCKED，没有窄屏截图，不用前批390px截图替代本批PASS。已有桌面截图与交互仍有效，等待用户试用或另次浏览器验收授权。
+- 证据目录`work/p4c1-display-20261012/`（名称保留实际创建日期）：二维前后`candidate-before.jpg`/`candidate-after.jpg`，缩放平移`handles-zoom-pan.jpg`，3D前后`three-before.jpg`/`three-after.jpg`与`three-height.json`；八套列表`presets-top-after.jpg`、`presets-middle-a-after.jpg`、`presets-middle-b-after.jpg`、`presets-bottom-after.jpg`；320px左栏`desktop-320-presets.jpg`。截图前后取景/恢复提示状态不完全相同，不能据此推断制造几何改变。截图、服务脚本与日志均ignored运行资产，不默认纳入Git。
+- 定向命令：`npm test -- src/App.p4b.test.tsx src/geometry/gradientControls.test.tsx src/geometry/Workspace2D.wm56.test.tsx src/manufacturing/FabricThreePreview.test.ts src/document/PatternPresetPicker.test.tsx src/App.linearSize.test.tsx --maxWorkers=1`。初批23/23；补两项后24/25，新增错误显示用例最初在render后替换fetch，继而误用了嵌套error格式，分别留下失败报告。核对实际`ErrorDTO.to_dict()`/`evaluateDocument()`的根级code/message协议后只校正测试mock，无产品解析改动；最终单独App 7/7（`ui-feedback-verified.json`），其他5文件18/18引用`ui-final.json`对应passed结果。各重叠批次不累加成全量成绩，旧失败JSON保留。`npm run build`PASS，`git diff --check`PASS；既有大bundle及LF/CRLF warning保留，没有为消除warning升级依赖或改Git配置。
+- 边界：本轮不重跑/改变旧预览3项失败、P1/P2回归5项超时及全部历史OPEN；没有宣称8套完整浏览器矩阵、窄屏、SVG/PNG/STL文件、最终制造、公网、Linux、切片或实物通过。不实施自动取景算法及灯光材质调整。STOP等待用户试用，不自动进入下一项。
+
 ## P4 本地收口前审核（2026-10-12，仅审核，等待提交授权）
 
 - 用户已明确确认方案A深海蓝界面使用正常、视觉方向确定，记录为用户本地试用PASS；不将其扩大为所有自动化、浏览器或文件输出PASS。下方各次实施记录仍保留当时状态。

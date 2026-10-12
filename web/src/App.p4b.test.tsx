@@ -4,7 +4,7 @@ import { App } from './App'
 import { linearCatalog } from './test/linearSizeFixture'
 import type { PatternDocumentDTO } from './model/types'
 
-function backend() {
+function backend(rejectCandidate = false) {
   const requests: PatternDocumentDTO[] = []
   vi.stubGlobal('fetch', vi.fn<typeof fetch>(async (url, init) => {
     const reply = (data: unknown) => new Response(JSON.stringify(data), { status: 200 })
@@ -13,6 +13,9 @@ function backend() {
     expect(String(url)).toMatch(/\/evaluate$/)
     const dto = JSON.parse(String(init?.body)).document as PatternDocumentDTO
     requests.push(dto)
+    if (rejectCandidate && dto.document.modifiers.length) return new Response(JSON.stringify({
+      code: 'invalid_document', message: '候选测试拒绝', recoverable: true, details: {},
+    }), { status: 422 })
     return reply({ schema_version: '1.0', document_id: dto.document_id, document_revision: dto.document_revision,
       geometry: dto.document.elements.map(e => ({ ...e, units: 'mm' })),
       bounds_mm: { min_x: 0, min_y: 0, max_x: 40, max_y: 40, width: 40, height: 40, units: 'mm' }, warnings: [] })
@@ -20,6 +23,19 @@ function backend() {
   return requests
 }
 describe('P4-B single left panel without new document state', () => {
+  it('keeps structured candidate failure text visible in the status strip and preserves the formal design', async () => {
+    backend(true); const view = render(<App />); await screen.findByText('Backend Online')
+    fireEvent.click(screen.getByRole('button', { name: '打开示例：基础圆点阵列' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: '尺寸变化' })).toBeEnabled())
+    fireEvent.click(screen.getByRole('button', { name: '尺寸变化' }))
+    await within(screen.getByLabelText('画布状态')).findByText(/候选测试拒绝/)
+    expect(screen.getByRole('button', { name: '应用效果' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: '撤销' })).toBeDisabled()
+    expect(view.container.querySelectorAll('[data-element-id]')).toHaveLength(9)
+    expect(view.container.querySelector('.canvas-stage')).not.toContainElement(screen.getByLabelText('画布状态'))
+    fireEvent.click(screen.getByRole('button', { name: '取消效果' }))
+    expect(screen.getByLabelText('画布状态')).toBeEmptyDOMElement()
+  })
   it('B2 leaves navigation subgroups folded and keeps size keys ahead of opt-in settings', async () => {
     const requests = backend(); const view = render(<App />); await screen.findByText('Backend Online')
     const menu = screen.getByRole('navigation', { name: '左侧工具栏' })
@@ -33,6 +49,10 @@ describe('P4-B single left panel without new document state', () => {
     fireEvent.click(screen.getByRole('button', { name: '尺寸变化' }))
     await waitFor(() => expect(screen.getByRole('button', { name: '应用效果' })).toBeEnabled())
     const input = screen.getByRole('spinbutton', { name: '最小尺寸比例' })
+    const feedback = screen.getByLabelText('画布状态')
+    expect(feedback).toContainElement(screen.getByText(/未应用的尺寸渐变预览/))
+    expect(view.container.querySelector('.canvas-stage')).not.toContainElement(feedback)
+    expect(screen.getByRole('button', { name: '下载设计SVG' })).toBeDisabled()
     const extra = view.container.querySelector('details.parameter-extra:has(summary)')!
     expect(extra).not.toHaveAttribute('open')
     const count = requests.length, official = requests[0].document_revision

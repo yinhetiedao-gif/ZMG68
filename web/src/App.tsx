@@ -208,6 +208,7 @@ export function App() {
   const [parameterPending, setParameterPending] = useState(false)
   const [cellDraft, setCellDraft] = useState<Record<string, number>>({})
   const [manufacturingActionHost, setManufacturingActionHost] = useState<HTMLDivElement | null>(null)
+  const [previewDiagnosticsHost, setPreviewDiagnosticsHost] = useState<HTMLDivElement | null>(null)
   const [parameterSyncVersion, setParameterSyncVersion] = useState(0)
   const [canvasEditing, setCanvasEditing] = useState(false)
   const onParameterPending = useCallback((id: string, pending: boolean) => {
@@ -1395,6 +1396,7 @@ export function App() {
               {!connected && <p>待验证</p>}
               {project.currentDocument && <p>文档修订：{project.documentRevision}<span className="visually-hidden">revision {project.documentRevision}</span></p>}
               <p>{connection.message}</p>
+              <div ref={setPreviewDiagnosticsHost} hidden={browser.activeMode === 'design'} />
             </details>
           </div>
         </div>
@@ -1493,19 +1495,9 @@ export function App() {
                 ? '临时显示 · 松手提交后校准' : '有未提交参数 · 松手后自动更新'
                 : fabricPreview.status === 'building' ? '正在更新 · 保留上次有效画面' : fabricPreview.status === 'stale' ? '设计已变化 · 等待更新' : fabricPreview.error ?? ''}</span></header>
             {fabricDisplayPlan ? <FabricThreePreview key={project.currentDocument?.document_id} plan={fabricDisplayPlan}
-              stale={fabricPreview.status !== 'ready'} />
+              stale={fabricPreview.status !== 'ready'} diagnosticsHost={previewDiagnosticsHost} />
               : <div className="preview-empty"><p>{noOriginalGeometry ? '当前没有可挤出的原图。请导入图案或在设计中添加图形。' : !hasPreviewShape ? '在左侧选择单元类型，即可查看设计预览。' : fabricPreview.error ?? '正在准备原图或单元设计预览，请稍候。'}</p></div>}
           </section>}
-          {project.evaluateStatus === 'loading' && <div className="viewer-notice" role="status">Python 正在计算最终二维几何…</div>}
-          {linearActive && <div className="viewer-notice" role="status">未应用的尺寸渐变预览 · {!linearCurrent ? '正式设计已变化，请重新打开效果' :
-            linearProposal.error ?? stagedLinear.error ?? (stagedLinear.pending ? '正在计算最新输入 · 保留上次有效画面' : '点击左侧应用，或取消恢复')}</div>}
-          {browser.activeMode === 'design' && project.currentDocument && pendingLayoutFor(project.currentDocument, layoutDraft) &&
-            <div className="viewer-notice" role="status">未应用的布局预览 · {stagedLayout.pending ? '正在计算最新输入' : stagedLayout.error ?? '点击左侧应用，或取消恢复'} </div>}
-          {importing && <div className="viewer-notice" role="status">Python 正在转换图片为可编辑元素…</div>}
-          {project.evaluateError && <div className="viewer-error" role="alert">{project.evaluateError}</div>}
-          {projectError && <div className="viewer-error" role="alert">{projectError}</div>}
-          {browser.activeMode === 'design' && project.warnings.length > 0 &&
-            <div className="viewer-warning" role="note">{project.warnings.join(' ')}</div>}
           {mapping && <div className="mapping-overlay" role="dialog" aria-label="设置毫米映射">
             <div className="mapping-card">
               <h2>项目缺少毫米映射</h2>
@@ -1518,6 +1510,18 @@ export function App() {
                 <button type="button" onClick={confirmMapping}>按此比例打开</button></div>
             </div>
           </div>}
+        </div>
+        <div className="workspace-feedback" aria-label="画布状态">
+          {project.evaluateStatus === 'loading' && <div className="viewer-notice" role="status">Python 正在计算最终二维几何…</div>}
+          {linearActive && <div className="viewer-notice" role="status">未应用的尺寸渐变预览 · {!linearCurrent ? '正式设计已变化，请重新打开效果' :
+            linearProposal.error ?? stagedLinear.error ?? (stagedLinear.pending ? '正在计算最新输入 · 保留上次有效画面' : '点击左侧应用，或取消恢复')}</div>}
+          {browser.activeMode === 'design' && project.currentDocument && pendingLayoutFor(project.currentDocument, layoutDraft) &&
+            <div className="viewer-notice" role="status">未应用的布局预览 · {stagedLayout.pending ? '正在计算最新输入' : stagedLayout.error ?? '点击左侧应用，或取消恢复'}</div>}
+          {importing && <div className="viewer-notice" role="status">Python 正在转换图片为可编辑元素…</div>}
+          {project.evaluateError && <div className="viewer-error" role="alert">{project.evaluateError}</div>}
+          {projectError && <div className="viewer-error" role="alert">{projectError}</div>}
+          {browser.activeMode === 'design' && project.warnings.length > 0 &&
+            <div className="viewer-warning" role="note">{project.warnings.join(' ')}</div>}
         </div>
         <nav className="mode-bar" aria-label="工作模式">
           <div className="mode-label">模式</div>

@@ -249,7 +249,7 @@ export function Workspace2D({
         <g transform={`translate(${view.panX} ${view.panY}) scale(${view.zoom})`}>
           {artboard && <g pointerEvents="none" data-artboard="true">
             <defs><pattern id="design-grid" width="5" height="5" patternUnits="userSpaceOnUse"><path d="M 5 0 L 0 0 0 5" fill="none" stroke="#a4acb3" strokeWidth={.5 / view.zoom} /></pattern></defs>
-            <rect x={artboard.x} y={artboard.y} width={artboard.width} height={artboard.height} fill={artboard.grid ? 'url(#design-grid)' : 'none'} stroke="#98a4ae" strokeDasharray="4 4" strokeWidth={1 / view.zoom} />
+            <rect className="artboard-boundary" x={artboard.x} y={artboard.y} width={artboard.width} height={artboard.height} fill={artboard.grid ? 'url(#design-grid)' : 'none'} stroke="#98a4ae" strokeDasharray={`${4 / view.zoom} ${4 / view.zoom}`} strokeWidth={1 / view.zoom} />
           </g>}
           {referenceLayer?.visible && referenceLayer.url && <image data-reference-layer="true"
             href={referenceLayer.url} x={referenceLayer.x_mm - referenceLayer.width_mm / 2}

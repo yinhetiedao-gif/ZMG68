@@ -39,7 +39,7 @@ export function InfluenceControls({ areas, selected, zoom, onDown }: { areas: In
   onDown: (event: PointerEvent<SVGCircleElement>, area: InfluenceArea, handle: string) => void }) {
   return <g className="gradient-controls" data-influence-controls="true">{areas.map(a => {
     const p = a.parameters, h = areaHandles(a), active = a.id === (selected ?? areas[0]?.id)
-    return <g key={a.id} opacity={a.enabled ? active ? 1 : .5 : .25} data-influence-id={a.id}>
+    return <g key={a.id} opacity={a.enabled ? active ? 1 : .3 : .16} data-influence-id={a.id}>
       {a.type === 'ellipse' ? <ellipse cx={p.x} cy={p.y} rx={p.length / 2} ry={p.width / 2} transform={`rotate(${p.angle} ${p.x} ${p.y})`}
         fill="var(--influence-fill)" vectorEffect="non-scaling-stroke" pointerEvents="none" />
         : <path d={a.type === 'curve' ? `M ${p.x0} ${p.y0} Q ${p.x1} ${p.y1} ${p.x2} ${p.y2}` : `M ${h.start.x} ${h.start.y} L ${h.end.x} ${h.end.y}`}

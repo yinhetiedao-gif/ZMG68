@@ -2,11 +2,39 @@ import { fireEvent, render } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { Workspace2D } from './Workspace2D'
 import { gradientHandleChange, gradientMarkers, type GradientControl } from './gradientControls'
+import { InfluenceControls } from './influenceControls'
 const bounds = { min_x: 10, min_y: 20, max_x: 70, max_y: 60, width: 60, height: 40, units: 'mm' as const }
 const radial: GradientControl = { kind: 'radial', bounds, values: { center_x: 40, center_y: 40, radius: 12 } }
 const props = { geometry: [], bounds: null, mmPerUnit: .5, view: { zoom: 2, panX: 30, panY: 15 },
   onViewChange: vi.fn(), selectedId: null, onSelect: vi.fn(), canDrag: () => true, onDragCommit: vi.fn(), pendingPreview: null, fitToken: 0 }
 describe('gradient editing helpers, not design geometry', () => {
+  it('dims inactive guides without changing their coordinates or pointer handlers', () => {
+    const onDown = vi.fn()
+    const area = { id: 'active', type: 'ellipse' as const, enabled: true,
+      parameters: { x: 40, y: 40, length: 20, width: 10, angle: 30, feather: 2 } }
+    const { container } = render(<svg><InfluenceControls areas={[area, { ...area, id: 'inactive' },
+      { ...area, id: 'disabled', enabled: false }]} selected="active" zoom={2} onDown={onDown} /></svg>)
+    expect(container.querySelector('[data-influence-id="active"]')).toHaveAttribute('opacity', '1')
+    expect(container.querySelector('[data-influence-id="inactive"]')).toHaveAttribute('opacity', '0.3')
+    expect(container.querySelector('[data-influence-id="disabled"]')).toHaveAttribute('opacity', '0.16')
+    const handle = container.querySelector('[data-area-id="inactive"][data-area-handle="center"]')!
+    expect(handle).toHaveAttribute('cx', '40'); expect(handle).toHaveAttribute('cy', '40')
+    fireEvent.pointerDown(handle, { button: 0 })
+    expect(onDown).toHaveBeenCalledOnce()
+  })
+  it('keeps artboard dashes and active handles at screen size without changing world coordinates', () => {
+    const artboard = { x: 10, y: 20, width: 60, height: 40, grid: false }
+    const { container, rerender } = render(<Workspace2D {...props} artboard={artboard} gradientControl={radial} />)
+    for (const zoom of [.5, 2, 10]) {
+      rerender(<Workspace2D {...props} view={{ zoom, panX: 77, panY: -35 }} artboard={artboard} gradientControl={radial} />)
+      const board = container.querySelector('.artboard-boundary')!
+      expect(board).toHaveAttribute('stroke-dasharray', `${4 / zoom} ${4 / zoom}`)
+      expect(board).toHaveAttribute('x', '10'); expect(board).toHaveAttribute('width', '60')
+      const handle = container.querySelector('[data-gradient-handle="center"]')!
+      expect(Number(handle.getAttribute('r')) * zoom).toBeCloseTo(7)
+      expect(handle).toHaveAttribute('cx', '40'); expect(handle).toHaveAttribute('cy', '40')
+    }
+  })
   it('uses positive world-Y/degree convention, with a visual axis only', () => {
     for (const angle of [0, 45, 180]) {
       const control: GradientControl = { kind: 'linear', bounds, values: { angle } }
