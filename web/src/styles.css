@@ -666,6 +666,11 @@ input[type=range], input[type=checkbox], input[type=radio] { accent-color: var(-
 .function-panel .pattern-preset-card { grid-template-columns: 92px minmax(0, 1fr); gap: 8px 10px; }
 .function-panel .pattern-preset-card img { width: 92px; height: 92px; padding: 5px; box-sizing: border-box; object-fit: contain; background: var(--surface); border: 1px solid var(--border); }
 .pattern-preset-copy { min-width: 0; }
+.pattern-preset-index { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin: 8px 0; }
+.function-panel .pattern-preset-index button { display: flex; align-items: center; gap: 6px; min-width: 0; min-height: 56px; padding: 6px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--text); text-align: left; font: inherit; font-size: 13px; cursor: pointer; }
+.function-panel .pattern-preset-index button[aria-pressed=true] { border-color: var(--selected-border); background: var(--selected); color: var(--brand); }
+.pattern-preset-index img { width: 40px; height: 40px; flex: 0 0 40px; object-fit: contain; background: var(--surface); border-radius: 3px; }
+.pattern-preset-index span { min-width: 0; overflow-wrap: anywhere; }
 .function-panel .pattern-preset-copy h4 { margin: 0 0 4px; }
 .function-panel .pattern-preset-copy p { margin: 0 0 4px; line-height: 1.4; }
 .function-panel .pattern-preset-copy .parameter-help { margin: 0; }

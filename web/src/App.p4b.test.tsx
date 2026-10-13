@@ -26,6 +26,7 @@ describe('P4-B single left panel without new document state', () => {
   it('keeps structured candidate failure text visible in the status strip and preserves the formal design', async () => {
     backend(true); const view = render(<App />); await screen.findByText('Backend Online')
     fireEvent.click(screen.getByRole('button', { name: '打开示例：基础圆点阵列' }))
+    fireEvent.click(screen.getByText('尺寸变化与影响区'))
     await waitFor(() => expect(screen.getByRole('button', { name: '尺寸变化' })).toBeEnabled())
     fireEvent.click(screen.getByRole('button', { name: '尺寸变化' }))
     await within(screen.getByLabelText('画布状态')).findByText(/候选测试拒绝/)
@@ -45,6 +46,7 @@ describe('P4-B single left panel without new document state', () => {
     expect([...menu.querySelectorAll(':scope > button.side-item')].every(button =>
       button.lastElementChild?.classList.contains('disclosure-chevron'))).toBe(true)
     fireEvent.click(screen.getByRole('button', { name: '打开示例：基础圆点阵列' }))
+    fireEvent.click(screen.getByText('尺寸变化与影响区'))
     await waitFor(() => expect(screen.getByRole('button', { name: '尺寸变化' })).toBeEnabled())
     fireEvent.click(screen.getByRole('button', { name: '尺寸变化' }))
     await waitFor(() => expect(screen.getByRole('button', { name: '应用效果' })).toBeEnabled())
@@ -66,14 +68,16 @@ describe('P4-B single left panel without new document state', () => {
     fireEvent.click(screen.getByRole('button', { name: '取消效果' }))
     expect(screen.queryByRole('button', { name: '应用效果' })).toBeNull()
   })
-  it('keeps one inspector, eight preset cards and all navigation inside the left panel', async () => {
+  it('keeps one inspector, eight preset choices and all navigation inside the left panel', async () => {
     backend(); const view = render(<App />); await screen.findByText('Backend Online')
     const panel = screen.getByRole('complementary', { name: '功能与参数面板' })
     expect(view.container.querySelectorAll('.inspector')).toHaveLength(1)
     expect(panel).toContainElement(screen.getByLabelText('当前功能参数'))
     expect(screen.getByRole('main')).not.toContainElement(screen.getByLabelText('当前功能参数'))
     fireEvent.click(within(panel).getByRole('button', { name: '图案预设 · 8套' }))
-    expect(within(panel).getAllByRole('button', { name: /^创建/ })).toHaveLength(8)
+    expect(within(panel).getAllByRole('button', { name: /^选择预设：/ })).toHaveLength(8)
+    expect(within(panel).getAllByRole('button', { name: /^创建/ })).toHaveLength(1)
+    expect(panel.querySelector('.function-menu')?.children).toHaveLength(5)
     expect(within(panel).getByRole('button', { name: '图案预设 · 8套' })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.queryByLabelText('右侧检查器')).toBeNull()
   })
@@ -98,6 +102,7 @@ describe('P4-B single left panel without new document state', () => {
   it('hide/show preserves candidate controls and canvas; effect actions stay outside the scrolling content', async () => {
     const requests = backend(); const view = render(<App />); await screen.findByText('Backend Online')
     fireEvent.click(screen.getByRole('button', { name: '打开示例：基础圆点阵列' }))
+    fireEvent.click(screen.getByText('尺寸变化与影响区'))
     await waitFor(() => expect(screen.getByRole('button', { name: '尺寸变化' })).toBeEnabled())
     fireEvent.click(screen.getByRole('button', { name: '尺寸变化' }))
     await waitFor(() => expect(screen.getByRole('button', { name: '应用效果' })).toBeEnabled())
@@ -120,6 +125,7 @@ describe('P4-B single left panel without new document state', () => {
   it('left navigation does not apply or discard a candidate when the existing switch confirmation is rejected', async () => {
     const requests = backend(); render(<App />); await screen.findByText('Backend Online')
     fireEvent.click(screen.getByRole('button', { name: '打开示例：基础圆点阵列' }))
+    fireEvent.click(screen.getByText('尺寸变化与影响区'))
     await waitFor(() => expect(screen.getByRole('button', { name: '尺寸变化' })).toBeEnabled())
     fireEvent.click(screen.getByRole('button', { name: '尺寸变化' }))
     await waitFor(() => expect(screen.getByRole('button', { name: '应用效果' })).toBeEnabled())

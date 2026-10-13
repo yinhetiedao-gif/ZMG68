@@ -33,6 +33,7 @@ describe('pattern presets share the protected project and candidate workflow', (
   it('creates Wave, candidate/Cancel do not commit; Apply once and Undo/Redo preserve full recipe', async () => {
     const requests = backend(); await picker()
     expect(screen.queryByRole('button', { name: '应用精密错列效果' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '选择预设：斜向潮汐' }))
     fireEvent.click(screen.getByRole('button', { name: '创建斜向潮汐' }))
     await waitFor(() => expect(screen.getByRole('spinbutton', { name: '波长 (mm)' })).toHaveValue(23))
     await waitFor(() => expect(within(screen.getByLabelText('待应用效果操作')).getByRole('button', { name: '应用效果' })).toBeEnabled())
@@ -56,6 +57,7 @@ describe('pattern presets share the protected project and candidate workflow', (
   })
   it('save failure does not create a replacement project or apply an effect', async () => {
     const requests = backend(); await picker()
+    fireEvent.click(screen.getByRole('button', { name: '选择预设：光谱渐隐' }))
     fireEvent.click(screen.getByRole('button', { name: '创建光谱渐隐' }))
     await waitFor(() => expect(within(screen.getByLabelText('待应用效果操作')).getByRole('button', { name: '应用效果' })).toBeEnabled())
     fireEvent.click(screen.getByRole('button', { name: '取消效果' }))
@@ -63,6 +65,7 @@ describe('pattern presets share the protected project and candidate workflow', (
     const save = vi.spyOn(drafts, 'saveDraft').mockRejectedValue(new Error('IndexedDB write blocked'))
     fireEvent.click(screen.getByRole('button', { name: `图案预设 · ${patternPresets.length}套` }))
     const count = requests.length, id = requests.at(-1)?.document_id
+    fireEvent.click(screen.getByRole('button', { name: '选择预设：精密错列' }))
     fireEvent.click(screen.getByRole('button', { name: '创建精密错列' }))
     await screen.findByText(/当前作品保存失败，已取消切换/)
     expect(requests.length).toBe(count); expect(requests.at(-1)?.document_id).toBe(id)
@@ -85,18 +88,23 @@ describe('pattern presets share the protected project and candidate workflow', (
     fireEvent.click(await screen.findByRole('button', { name: '恢复上次编辑' }))
     await waitFor(() => expect(requests.at(-1)?.document_id).toBe(original.document_id))
     fireEvent.click(screen.getByRole('button', { name: `图案预设 · ${patternPresets.length}套` }))
+    fireEvent.click(screen.getByRole('button', { name: `选择预设：${preset.title}` }))
     fireEvent.click(screen.getByRole('button', { name: `创建${preset.title}` }))
     await waitFor(() => expect(within(screen.getByLabelText('待应用效果操作')).getByRole('button', { name: '应用效果' })).toBeEnabled())
     const recipe = requests.at(-1)!
     expect(screen.getByRole('button', { name: '← 返回之前作品' })).toBeEnabled()
     expect((await drafts.loadBeforeExampleDraft())?.dto).toEqual(original)
     fireEvent.click(screen.getByRole('button', { name: '高级参数与影响区' }))
-    if (!preset.field) fireEvent.click(screen.getByRole('button', { name: '尺寸变化' }))
+    if (!preset.field) {
+      fireEvent.click(screen.getByText('尺寸变化与影响区'))
+      fireEvent.click(screen.getByRole('button', { name: '尺寸变化' }))
+    }
     fireEvent.change(screen.getByLabelText('变化方式', { exact: true }), { target: { value: 'stripe' } })
     await waitFor(() => expect(within(screen.getByLabelText('待应用效果操作')).getByRole('button', { name: '应用效果' })).toBeEnabled())
     expect(screen.getByRole('button', { name: '← 返回之前作品' })).toBeEnabled()
     fireEvent.click(screen.getByRole('button', { name: '取消效果' }))
     expect(screen.getByRole('button', { name: '← 返回之前作品' })).toBeEnabled()
+    fireEvent.click(screen.getByText('尺寸变化与影响区'))
     fireEvent.click(screen.getByRole('button', { name: '尺寸变化' }))
     fireEvent.change(screen.getByLabelText('变化方式', { exact: true }), { target: { value: 'stripe' } })
     await waitFor(() => expect(within(screen.getByLabelText('待应用效果操作')).getByRole('button', { name: '应用效果' })).toBeEnabled())
@@ -134,6 +142,7 @@ describe('pattern presets share the protected project and candidate workflow', (
     fireEvent.click(await screen.findByRole('button', { name: '恢复上次编辑' }))
     await waitFor(() => expect(requests.at(-1)?.document_id).toBe(original.document_id))
     fireEvent.click(screen.getByRole('button', { name: `图案预设 · ${patternPresets.length}套` }))
+    fireEvent.click(screen.getByRole('button', { name: '选择预设：斜向潮汐' }))
     fireEvent.click(screen.getByRole('button', { name: '创建斜向潮汐' }))
     await waitFor(() => expect(within(screen.getByLabelText('待应用效果操作')).getByRole('button', { name: '应用效果' })).toBeEnabled())
     fireEvent.click(screen.getByRole('button', { name: '取消效果' }))

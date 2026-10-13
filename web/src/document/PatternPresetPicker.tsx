@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { patternPresets, type PatternPresetId } from './patternPresets'
 import precision from './patternPresetThumbnails/precision-stagger.svg'
 import spectrum from './patternPresetThumbnails/spectrum-fade.svg'
@@ -15,10 +16,20 @@ export function PatternPresetPicker({ onCreate, onApply, onEdit, currentId, crea
   onEdit: (id: PatternPresetId) => void; currentId: PatternPresetId | null
   createDisabled: boolean; applyDisabled: boolean
 }) {
+  // Browsing a card is display-only; only the existing callbacks change a design.
+  const [selectedId, setSelectedId] = useState<PatternPresetId>(currentId ?? patternPresets[0].id)
+  useEffect(() => { if (currentId) setSelectedId(currentId) }, [currentId])
+  const preset = patternPresets.find(item => item.id === selectedId)!
   return <section className="pattern-preset-picker" aria-label="图案预设">
     <h3>图案预设</h3>
     <details className="parameter-help"><summary>创建与应用说明</summary><p className="inspector-readonly">创建新图案会先保存当前作品，并保留返回入口。应用效果只修改说明中的受管参数；仍可继续编辑。</p></details>
-    {patternPresets.map(preset => <article key={preset.id} className="pattern-preset-card">
+    <div className="pattern-preset-index" role="group" aria-label="选择图案预设">
+      {patternPresets.map(item => <button key={item.id} type="button" aria-label={`选择预设：${item.title}`}
+        aria-pressed={selectedId === item.id} onClick={() => setSelectedId(item.id)}>
+        <img src={thumbnails[item.id]} alt="" width="40" height="40" /><span>{item.title}</span>
+      </button>)}
+    </div>
+    <article className="pattern-preset-card" aria-label={`${preset.title}方案详情`}>
       <img src={thumbnails[preset.id]} alt={`${preset.title}默认求值结果`} width="92" height="92" />
       <div className="pattern-preset-copy"><h4>{preset.title}</h4><p>{preset.description}</p><details className="parameter-help"><summary>作用范围</summary><small>{preset.scope}</small></details></div>
         <div className="pattern-preset-actions">
@@ -26,6 +37,6 @@ export function PatternPresetPicker({ onCreate, onApply, onEdit, currentId, crea
           {preset.supportsCurrent && <button type="button" disabled={applyDisabled} onClick={() => onApply(preset.id)}>应用{preset.title}效果</button>}
           {currentId === preset.id && <button type="button" disabled={applyDisabled} onClick={() => onEdit(preset.id)}>编辑{preset.title}</button>}
         </div>
-    </article>)}
+    </article>
   </section>
 }

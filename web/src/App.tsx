@@ -1042,7 +1042,7 @@ export function App() {
               })
             }
           }}>
-            <details className={`function-group ${designContext === 'layout' || designContext === 'element' ? 'selected' : ''}`}><summary><PanelIcon name="layout" /><span>布局与基础图形</span></summary><section className="side-group" aria-label="图案逻辑">
+            <details className={`function-group ${designContext === 'layout' || designContext === 'element' || linearActive && linearDraft?.kind === 'linear' && linearDraft.controlsOnly ? 'selected' : ''}`}><summary><PanelIcon name="layout" /><span>布局与基础图形</span></summary><section className="side-group" aria-label="图案逻辑">
           <div className="group-heading"><h2>图案逻辑</h2></div>
           <p className="pattern-analysis-status">当前结构：{patternItems.find((item) => item.id === committedFamily)?.label}</p>
           <div className="side-items">{patternItems.map((item) => {
@@ -1057,7 +1057,9 @@ export function App() {
               {!available && <span className="soon-dot" aria-hidden="true" />}
             </button>
           })}</div>
-          {selectedFamily && <p className="pattern-analysis-status">已选：{patternItems.find((item) => item.id === selectedFamily)?.label}。在本面板调整并应用。</p>}
+        </section><section className="side-group" aria-label="公共图案控制">
+          <button type="button" className={`side-item ${linearActive && linearDraft?.kind === 'linear' && linearDraft.controlsOnly ? 'selected' : ''}`} aria-pressed={Boolean(linearActive && linearDraft?.kind === 'linear' && linearDraft.controlsOnly)} disabled={!canEditDocument || !project.bounds || !groupFor(parameterCatalog, 'design', 'shape')}
+            onClick={() => selectLinearSize('linear', true)} aria-label="图案控制 · 排列/形状/随机/画板" title="排列、形状、随机与画板设置"><PanelIcon name="controls" /><span>图案控制 · 形状/随机/画板</span></button>
         </section><section className="side-group" aria-label="基础图形">
           <div className="group-heading"><h2>基础图形</h2></div>
           <div className="side-items">{([['circle', '圆形'], ['ellipse', '椭圆'], ['rect', '矩形']] as const).map(([type, label]) =>
@@ -1071,8 +1073,7 @@ export function App() {
             <button className={`side-item ${designContext === 'effects' ? 'selected' : ''}`} aria-pressed={designContext === 'effects'} type="button" disabled={!project.currentDocument}
             onClick={() => { setDesignContext('effects'); setBrowser(current => ({ ...current, activeMode: 'design' })) }}><PanelIcon name="fields" /><span>参数场与效果</span><PanelIcon name="chevron" className="disclosure-chevron" /></button>
 
-          <button type="button" className={`side-item ${linearActive && linearDraft?.kind === 'linear' && linearDraft.controlsOnly ? 'selected' : ''}`} aria-pressed={Boolean(linearActive && linearDraft?.kind === 'linear' && linearDraft.controlsOnly)} disabled={!canEditDocument || !project.bounds || !groupFor(parameterCatalog, 'design', 'shape')}
-            onClick={() => selectLinearSize('linear', true)} aria-label="图案控制 · 排列/形状/随机/画板" title="排列、形状、随机与画板设置"><PanelIcon name="controls" /><span>图案控制</span><PanelIcon name="chevron" className="disclosure-chevron" /></button>
+          <details className={`function-group ${linearActive && (linearDraft?.kind === 'radial' || linearDraft?.kind === 'linear' && !linearDraft.controlsOnly) ? 'selected' : ''}`}><summary><PanelIcon name="size" /><span>尺寸变化与影响区</span></summary><section className="side-group" aria-label="尺寸变化入口">
           <button type="button" className={`side-item ${linearActive && linearDraft?.kind === 'linear' && !linearDraft.controlsOnly ? 'selected' : ''}`}
             aria-pressed={Boolean(linearActive && linearDraft?.kind === 'linear' && !linearDraft.controlsOnly)}
             disabled={!canEditDocument || !project.bounds || !linearSizeGroup(parameterCatalog)}
@@ -1081,6 +1082,7 @@ export function App() {
             aria-pressed={Boolean(linearActive && linearDraft?.kind === 'radial')}
             disabled={!canEditDocument || !project.bounds || !project.currentDocument || !radialSizeGroup(parameterCatalog, project.currentDocument)}
             onClick={() => selectLinearSize('radial')}><PanelIcon name="radial" /><span>径向尺寸渐变</span><PanelIcon name="chevron" className="disclosure-chevron" /></button>
+          </section></details>
             <details className={`function-group ${designContext === 'reference' ? 'selected' : ''}`}><summary><PanelIcon name="assets" /><span>素材、示例与底图</span></summary><section className="side-group" aria-label="素材来源">
           <div className="group-heading"><h2>素材来源</h2></div>
           <div className="side-items">
@@ -1373,8 +1375,7 @@ export function App() {
               onBuild={() => { if (canUseInputs()) void manufacturing.build() }} status={manufacturing.status}
               result={manufacturing.result} error={manufacturing.error} projectName={project.fileName}
               isCurrentResult={safeCurrentResult}
-              onBackDesign={() => setBrowser((current) => ({ ...current, activeMode: 'design' }))}
-              onPreview={() => setBrowser((current) => ({ ...current, activeMode: 'manufacture' }))} />
+              diagnosticsHost={previewDiagnosticsHost} />
         </div>
         </div>
 

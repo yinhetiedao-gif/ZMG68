@@ -100,9 +100,12 @@ describe('Unit Cell parameter load and one authoritative selection', () => {
     const p = props()
     p.document = setFabricUnitCellType(p.document!, 'none', p.parameterCatalog)
     render(<ManufacturingPanel {...p} fabricPreviewStatus="ready" />)
+    fireEvent.click(screen.getByText('高级：造型、布点与尺寸说明'))
+    fireEvent.click(screen.getByRole('button', {name: '布点方式'}))
     const area = within(screen.getByRole('region', {name: '单元布点设置'}))
     expect(area.getByText('请先选择形状；暂无可编辑的布点参数。')).toBeVisible()
     expect(screen.queryByText('设计预览已就绪')).toBeNull()
+    fireEvent.click(screen.getByRole('button', {name: '预览与最终制造'}))
     expect(screen.getByRole('button', {name: '生成最终制造网格'})).toBeDisabled()
   })
   it('valid cells retain the placement selector; missing definitions explain unavailable controls', () => {
@@ -110,6 +113,8 @@ describe('Unit Cell parameter load and one authoritative selection', () => {
     ;(p.document!.document.metadata.fabric_config as {placement: {mode: string}}).placement.mode = 'area_fill'
     delete c.definitions.fabric_placement
     const ui = render(<ManufacturingPanel {...p} parameterCatalog={c} />)
+    fireEvent.click(screen.getByText('高级：造型、布点与尺寸说明'))
+    fireEvent.click(screen.getByRole('button', {name: '布点方式'}))
     expect(screen.getByLabelText('布点方式')).toBeEnabled()
     expect(screen.getByText(/后端未提供 regular 布点参数定义/)).toBeVisible()
     ui.rerender(<ManufacturingPanel {...p} parameterCatalog={null} parameterLoad={{status: 'error', error: 'HTTP 503'}} />)

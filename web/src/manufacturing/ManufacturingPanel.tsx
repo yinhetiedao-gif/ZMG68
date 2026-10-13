@@ -24,6 +24,7 @@ import { OutputDimensions } from '../geometry/OutputDimensions'
 
 interface Props {
   actionHost?: HTMLElement | null
+  diagnosticsHost?: HTMLElement | null
   parametersDisabled?: boolean
   onUnitCellDraft?: (key: string, value: ParameterValue | null) => void
   canUseInputs?: () => boolean
@@ -48,7 +49,7 @@ interface Props {
   projectName: string | null
   projectWarnings: string[]
   isCurrentResult: (resultId: string) => boolean
-  onPreview: () => void
+  onPreview?: () => void
   onBackDesign?: () => void
   document: PatternDocumentDTO | null
   designBounds?: BoundsMM | null
@@ -148,6 +149,28 @@ export function ManufacturingPanel(props: Props) {
     ...(geometry?.issues ?? []).map((issue) => issue.message ?? issue.code ?? '二维几何问题'),
     ...(mesh?.issues ?? []).map((issue) => issue.message ?? issue.code ?? '网格问题'),
   ] : []
+  const diagnostics = <section aria-label="制造技术诊断">
+    {shapeReady && props.fabricPreviewStatus === 'ready' && props.fabricPreviewResult && <p>
+      Python evaluate {props.fabricPreviewResult.timings_ms.evaluate.toFixed(1)} ms ·
+      plan {props.fabricPreviewResult.timings_ms.plan_and_prototype.toFixed(1)} ms
+      {props.fabricPreviewResult.client_request_ms !== undefined ? ` · 请求往返 ${props.fabricPreviewResult.client_request_ms.toFixed(1)} ms` : ''}
+      {props.fabricPreviewResult.cache_hit ? ' · 已复用预览缓存' : ''}
+    </p>}
+    {base && <div className="manufacturing-report"><h4>设计预览配置</h4><dl>
+      <div><dt>Cell</dt><dd>{summary.cell}</dd></div>
+      <div><dt>Instances</dt><dd>{summary.instances ?? '待更新'}</dd></div>
+      <div><dt>Height</dt><dd>{summary.height}</dd></div>
+      <div><dt>Scale</dt><dd>{summary.scale}</dd></div>
+      <div><dt>Placement</dt><dd>{summary.placement}</dd></div>
+      <div><dt>Preview</dt><dd>{summary.preview}</dd></div>
+    </dl></div>}
+    {!base && result && <>
+      <small className="manufacturing-result-id">结果编号：{result.manufacturing_result_id}</small>
+      <p>连通性：{result.connectivity_summary.component_count} 个连通组件 · {result.connectivity_summary.isolated_count} 个孤立元素</p>
+      <p>转换：{conversion?.converted_count ?? 0} / {conversion?.input_count ?? 0} 个元素 · 跳过 {conversion?.skipped_count ?? 0}</p>
+      <p>Gate W / Mesh Validator：{mesh?.is_watertight ? 'watertight' : 'not watertight'}</p>
+    </>}
+  </section>
   const standardActions = <div className="manufacturing-output-actions">
     <button type="button" className="ui-primary" onClick={props.onBuild}
       disabled={!props.canBuild || props.computeBusy || status === 'building'}>检查并生成</button>
@@ -160,7 +183,7 @@ export function ManufacturingPanel(props: Props) {
     }}>
     <div className="manufacturing-heading"><span className="eyebrow">{base ? 'FABRIC DESIGN PREVIEW' : 'FINAL MANUFACTURING MESH'}</span><h1>{base ? 'Fabric 设计预览' : '制造检查'}</h1>
       <small>设计预览不代表最终制造通过。</small>
-      <button type="button" className="workflow-back" onClick={props.onBackDesign}>返回设计</button></div>
+      {props.onBackDesign && <button type="button" className="workflow-back" onClick={props.onBackDesign}>返回设计</button>}</div>
     <section className="manufacturing-settings" aria-label="Fabric Base">
       <fieldset disabled={props.recipeSaving || props.parametersDisabled} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
       {(base || original) && <section aria-label="Fabric Unit Cell">
@@ -393,24 +416,8 @@ export function ManufacturingPanel(props: Props) {
       {base ? !shapeReady ? '旧配置未选择形状，请启用原图或选择单元' : ({ idle: '尚未更新设计预览', building: '正在更新3D预览…', ready: '设计预览已就绪',
         stale: '设计已变化，请更新3D预览', error: '设计预览失败' }[props.fabricPreviewStatus]) : labels[status]}</div>
     {base && !props.actionHost && props.fabricPreviewError && <p className="manufacturing-error" role="alert">{props.fabricPreviewError}</p>}
-    {shapeReady && props.fabricPreviewStatus === 'ready' && props.fabricPreviewResult && <><p>可见单元：{props.fabricPreviewResult.active_count} / {props.fabricPreviewResult.total_count}</p>
-      <details className="diagnostic-details"><summary>诊断详情</summary><p>
-        Python evaluate {props.fabricPreviewResult.timings_ms.evaluate.toFixed(1)} ms ·
-        plan {props.fabricPreviewResult.timings_ms.plan_and_prototype.toFixed(1)} ms
-        {props.fabricPreviewResult.client_request_ms !== undefined ? ` · 请求往返 ${props.fabricPreviewResult.client_request_ms.toFixed(1)} ms` : ''}
-        {props.fabricPreviewResult.cache_hit ? ' · 已复用预览缓存' : ''}
-      </p></details></>}
     {base && props.fabricPreviewResult?.preview_simplified && <p role="note">预览已简化，最终设计参数未改变。</p>}
     {base && <section className="manufacturing-report" aria-label="Fabric Preview Summary">
-      <h2>设计预览摘要</h2>
-      <dl>
-        <div><dt>Cell</dt><dd>{summary.cell}</dd></div>
-        <div><dt>Instances</dt><dd>{summary.instances ?? '待更新'}</dd></div>
-        <div><dt>Height</dt><dd>{summary.height}</dd></div>
-        <div><dt>Scale</dt><dd>{summary.scale}</dd></div>
-        <div><dt>Placement</dt><dd>{summary.placement}</dd></div>
-        <div><dt>Preview</dt><dd>{summary.preview}</dd></div>
-      </dl>
       {designWarnings.length > 0 && <div className="manufacturing-notes" role="note">
         <strong>设计提醒（不阻止预览）</strong><ul>{designWarnings.map((warning) => <li key={warning}>{warning}</li>)}</ul>
       </div>}
@@ -430,12 +437,6 @@ export function ManufacturingPanel(props: Props) {
           ? `${formatMm(result.bounds_mm.size_x)} × ${formatMm(result.bounds_mm.size_y)} × ${formatMm(result.bounds_mm.size_z)} mm`
           : '未取得尺寸'}</dd></div>
       </dl>
-      <details className="diagnostic-details"><summary>诊断详情</summary>
-        <small className="manufacturing-result-id">结果编号：{result.manufacturing_result_id}</small>
-        <p>连通性：{result.connectivity_summary.component_count} 个连通组件 · {result.connectivity_summary.isolated_count} 个孤立元素</p>
-        <p>转换：{conversion?.converted_count ?? 0} / {conversion?.input_count ?? 0} 个元素 · 跳过 {conversion?.skipped_count ?? 0}</p>
-        <p>Gate W / Mesh Validator：{mesh?.is_watertight ? 'watertight' : 'not watertight'}</p>
-      </details>
       {props.designBounds && result.bounds_mm &&
         (Math.abs(props.designBounds.width - result.bounds_mm.size_x) > 0.1 ||
           Math.abs(props.designBounds.height - result.bounds_mm.size_y) > 0.1) &&
@@ -446,11 +447,13 @@ export function ManufacturingPanel(props: Props) {
       {props.projectWarnings.join(' ')}
     </div>}
     <div className="manufacturing-output-actions">
-      <button type="button" className="ui-secondary" onClick={props.onPreview} disabled={base ? !props.fabricPreviewResult : !result || !props.isCurrentResult(result.manufacturing_result_id)}>3D 预览</button>
+      {props.onPreview && <button type="button" className="ui-secondary" onClick={props.onPreview} disabled={base ? !props.fabricPreviewResult : !result || !props.isCurrentResult(result.manufacturing_result_id)}>3D 预览</button>}
       {!base && !props.actionHost && <StlExportButton result={result} status={status} projectName={props.projectName}
           isCurrentResult={props.isCurrentResult} />}
     </div>
     </InspectorSection>
+    {props.diagnosticsHost ? createPortal(diagnostics, props.diagnosticsHost) :
+      <details className="diagnostic-details"><summary>诊断详情</summary>{diagnostics}</details>}
     {!base && props.actionHost && createPortal(standardActions, props.actionHost)}
   </section></ParameterInteraction.Provider>
 }

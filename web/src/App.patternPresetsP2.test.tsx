@@ -39,6 +39,7 @@ describe('P2 cards use one candidate/history and protected-return pipeline', () 
     fireEvent.click(await screen.findByRole('button', { name: '恢复上次编辑' }))
     await waitFor(() => expect(requests.at(-1)?.document_id).toBe(original.document_id))
     fireEvent.click(screen.getByRole('button', { name: `图案预设 · ${patternPresets.length}套` }))
+    fireEvent.click(screen.getByRole('button', { name: `选择预设：${title}` }))
     fireEvent.click(screen.getByRole('button', { name: `创建${title}` }))
     const ready = () => waitFor(() => expect(within(screen.getByLabelText('待应用效果操作')).getByRole('button', { name: '应用效果' })).toBeEnabled())
     await ready(); const created = requests.at(-1)!

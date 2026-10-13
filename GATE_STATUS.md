@@ -1,5 +1,86 @@
 # Gate 状态（2026-10-05）
 
+## Web-R2-A 收口前审核与390px补验（2026-10-13；仅审核，等待提交授权）
+
+- 用户明确确认新版界面使用正常、未发现多余或难找功能，记录为“用户试用PASS”，不是独立自动化全功能验收。实际仓库为`ParametricPatternGenerator`，分支`feature/pattern-library-reuse`，HEAD仍`07913fb23f81a52c7fc26b2094f2d8f82f0fb677`；暂存区空，准确11份已跟踪改动（4产品、6测试、本记录），32个历史未跟踪tools保留。本轮只补证据及本记录，不修改界面设计/产品/测试，不提交、备份、推送或部署。
+- 逐项审查4产品/6测试的完整Git差异：产品仅导航归组、当前预设显示状态、诊断Portal/可选导航按钮及索引CSS；计算/提交/请求/Schema/草稿/Undo/导出回调未改。没有PatternDocument、Field、Modifier、几何、制造核心、Validator、API、并发、配置、依赖/锁文件或新功能改动。测试保留业务及安全断言，只适配真实索引选择/展开步骤，新增2个诊断与保护case。测试所需`linearSizeFixture.ts`、`phase1aFixture.ts`、`sizeFieldCatalog.json`、`designCatalog.json`、setup及8张真实SVG缩略图均已跟踪，没有缺失可移植fixture，也不依赖work截图/手工脚本/下载STL。
+- 现有本地浏览器会话`http://127.0.0.1:8812/`，390×844模拟窄屏、340px抽屉，代理既有8808后端；没有清草稿或重启服务，没有新建测试后端、最终制造或下载。先设置视口并重新读取已稳定关闭状态，再明确展开，避免上轮resize后复用旧按钮状态。本次未超时。制造抽屉真实展开→PageDown滚动至底部（scrollTop784/max784）→关闭；滚动内容底部782.29px、固定制造操作栏起点782.29px，按钮高40px、最右327.43px，小于340px面板/390px视口，未遮挡最后诊断内容。
+- 五项导航均可访问：布局与基础图形（Grid/Radial/Curve/Free、公共控制、圆/椭圆/矩形）、图案预设、参数场与效果、尺寸变化与影响区（含径向）、素材/示例/底图。8个索引逐一鼠标选择，对应pressed/详情及创建入口正确；134.71×56px双列按钮均在X24.57–300px内，无横向溢出，document.scrollWidth390px。只浏览索引，正式仍9元素、revision0，不宣称重新验证8套完整创建/制造矩阵。
+- 窄屏候选操作：打开尺寸变化候选（未正式应用），权威轻量预览就绪，SVG入口禁用；底部恢复默认/取消/应用按钮均40px高，最右327.43px、底部834px，滚动区到783.43px与操作栏相接。关闭抽屉后待应用提示保留，重新展开最小比例仍0.6，Cancel恢复正式作品，revision0、Undo仍禁用。没有点击Apply或修改正式几何。制造4组分别展开：形状（原图＋11种真实单元ID、大小/高度）、高度（均匀/方向/波浪/中心及高级绑定）、输出（生成方式、仅单元/带基底、高级布点/尺寸）、预览最终制造。输入最右300px；已有普通9组件有效结果/40×40×2mm与多组件warning仍可见，制造及STL按钮可用，未再次执行制造/下载。
+- 新证据位于忽略目录`work/web-r2a-20261013/`：`audit-narrow-navigation.jpg`、`audit-narrow-presets.jpg`、`audit-narrow-candidate.jpg`、`audit-narrow-closed.jpg`、`audit-narrow-height.jpg`、`audit-narrow-manufacture-open.jpg`、`audit-narrow-manufacture-bottom.jpg`、`audit-narrow-manufacture-final.jpg`。实际DOM边界、滚动值和逐项选择来自本轮工具输出；截图仅佐证布局，非制造证据。此次390px导航/索引/滚动/开关/参数入口/底部遮挡限定样本PASS，补齐上轮对应BLOCKED；下方旧BLOCKED保留发生时的事实，不改写为从未失败。非真机触控/全手机浏览器矩阵，窗口已恢复正常并保留本地试用页。
+- 直接读取复用上轮`ui-second.json`21/21（7＋8＋4＋2）与`manufacturing-ui-final2.json`14/14（5＋9），分批报告不累加称全量。最终生产dist时间2026-10-13T06:46:17Z晚于4产品最后修改，当前仍对应`index-zCGeuIeT.js`/`index-VIWvyrij.css`；本轮没有重跑测试/构建。补`git diff --check`通过，原LF/CRLF与大bundle warning不变。
+- 建议限定UI版本收口，必须等用户另行批准。建议本地备份名`backup/web-r2a-ui-cleanup-local-validated`，仅只读检查当前不存在，未创建；旧备份不动。风险保留：本轮Fabric最终STL、SVG/透明PNG新文件读回NOT TESTED；上轮普通STL限定样本证据可复用，但本轮没有新增制造PASS。历史预览3项失败/P1P2五项超时及未确认根因、服务器长任务占槽原因、Arc/Skew/曲线/自动毫米映射/历史迁移、未应用表单/Undo刷新边界等OPEN不变。公网/Linux/切片/实物未验收，不认定全面可打印；local身份UNKNOWN和测试STL未启用保持原状。
+- 最终只读核对：从下方审核白名单读取11路径，与`git diff --name-only`完全匹配；下方32项排除清单与全部未跟踪文件完全匹配，暂存0，`git diff --check`退出0，建议备份引用不存在。一次附加核对的cmd参数包装使Node在执行前出现SyntaxError，未调用Git/未写文件；恢复已验证的调用方式后，直接git.exe退出码/stdout/stderr分别读取、结果正常序列化，核对退出0。未更改Git配置、Hooks或换行规则，无Git写操作。
+
+### Web-R2-A 建议提交白名单（准确11份，等待授权）
+
+```text
+GATE_STATUS.md
+web/src/App.tsx
+web/src/document/PatternPresetPicker.tsx
+web/src/manufacturing/ManufacturingPanel.tsx
+web/src/styles.css
+web/src/App.p4b.test.tsx
+web/src/App.patternPresets.test.tsx
+web/src/App.patternPresetsP2.test.tsx
+web/src/document/PatternPresetPicker.test.tsx
+web/src/manufacturing/outputClassification.test.tsx
+web/src/manufacturing/unitCellSelection.test.tsx
+```
+
+### Web-R2-A 排除清单（原地保留，不暂存、不删除）
+
+- 全部`work/`证据、截图、报告、测试临时缓存，以及现有dist/build/node_modules/.venv/.runtime等运行产物按现有忽略规则保留；不改.gitignore。上轮下载`F:/GPT下载/基础圆点阵列 (3).stl`也不纳入Git。
+- 当前准确32个未跟踪历史探查脚本如下，不纳入11文件白名单：
+
+```text
+tools/artwork_closeout_diagnose.py
+tools/artwork_closeout_readback.py
+tools/artwork_closeout_smoke.cjs
+tools/field_size_readback.py
+tools/field_size_smoke.cjs
+tools/full_design_readback.py
+tools/full_design_smoke.cjs
+tools/gradient_handles_readback.py
+tools/gradient_handles_smoke.cjs
+tools/linear_size_readback.py
+tools/linear_size_smoke.cjs
+tools/original_shape_readback.py
+tools/original_shape_smoke.cjs
+tools/pattern_presets_readback.py
+tools/pattern_presets_smoke.cjs
+tools/phase1a_cells_only_readback.py
+tools/phase1a_cells_only_smoke.cjs
+tools/phase1a_live_manufacture_readback.py
+tools/phase1a_live_manufacture_smoke.cjs
+tools/phase1a_local_smoke.cjs
+tools/phase1a_readback.py
+tools/svg_final_acceptance_readback.py
+tools/two_step_native_readback.py
+tools/two_step_native_smoke.cjs
+tools/two_step_reference_probe.cjs
+tools/unit_cell_selection_readback.py
+tools/unit_range_readback.py
+tools/unit_range_ui_layout.cjs
+tools/unit_range_ui_smoke.cjs
+tools/unit_shapes_benchmark.py
+tools/wave_recipe_1b_readback.py
+tools/wave_recipe_1b_smoke.cjs
+```
+
+## Web-R2-A 界面减法（2026-10-13，本地未提交；限定桌面验收）
+
+- 实际基线 `07913fb23f81a52c7fc26b2094f2d8f82f0fb677`，分支 `feature/pattern-library-reuse`；没有提交、备份、推送或部署。32个历史未跟踪tools和全部运行产物保留。用户随后粘贴的旧Tk M4任务与当前Web任务不符，用户再次明确选择“继续当前Web-R2-A”，没有进入Tk/M4、变体或项目文件开发。
+- 只改4个产品文件：`App.tsx`归组入口/复用统一诊断host；`PatternPresetPicker.tsx`显示8项真实SVG索引和当前一项详情；`ManufacturingPanel.tsx`折叠技术摘要及移除App中已证实重复/无效果的导航按钮；`styles.css`紧凑索引样式。没有PatternDocument、Field、Modifier、配方、算法、制造链、Validator、API、依赖、锁文件或部署配置改动。
+- 分类与去向：A核心保留（8套可编辑预设、布局/基础图形、参数场/效果、尺寸变化/影响区、底图、制造和SVG/PNG/STL）；B合并（公共图案控制归入“布局与基础图形”，线性/径向归入“尺寸变化与影响区”；制造页“返回设计”使用固定底部①，“3D预览”原回调仅重复设置当前manufacture模式，移除该重复按钮，中央3D不变）；C技术参数/信息（耗时、缓存、预览配置、结果ID、连通性/转换详情放现有“连接状态→诊断详情”）；D无证据失效入口不删除；E保护保留（候选确认、草稿保护、真实尺寸确认、失败/429/stale、制造限制、多组件及网格提醒、下载禁用）。高级Field编辑与尺寸快捷不是同一操作，生成方式与形状类型有原图/已存单元恢复语义，内置示例与8套预设及`/patterns/`入口也不直接判冗余，保留等待用户选择。
+- 实际浏览器：独立本地8812前端生产预览代理到现有8808后端；没有覆盖/清空用户8808草稿，没有重启该后端。前端当前bundle为`index-zCGeuIeT.js`/`index-VIWvyrij.css`；运行身份面板前后端均UNKNOWN、development、Fabric测试STL未启用，不冒充公网或已提交版本。原始前后截图位于`work/web-r2a-20261013/`，未纳入Git。
+- 1280×800、同一基础圆点阵列9元素测量：一级入口7→5；预设区域1391.77→481.57px，完整左栏scrollHeight2268→1267px（可视662px）；制造面板在同一“预览与最终制造”展开、尚无最终结果时761.79→625.36px，scrollHeight918→782px。制作普通预设由原“打开预设→滚动找到→创建”变为“打开预设→点索引→创建”：新增1次选中，换取无需逐卡长距离滚动，并非宣称所有操作点击数都减少。尺寸快捷原1次直接入口，现在展开分组＋选入口2次；参数面板与底部Apply/Cancel不变。没有精确计数所有说明文字/弹窗，安全确认未削减。
+- 桌面实际观察：8项索引逐一选中，对应详情/真实缩略图/创建按钮正常，浏览索引时当前作品仍为9元素原样本；创建光谱渐隐81元素，方向0→45候选，应用后正式场45，Undo恢复0、Redo恢复45；Reset候选回0，Cancel保留正式45，刷新恢复同一已应用光谱作品且旧Undo不恢复（未再独立打开恢复后45°数字控件；完整配置恢复另有测试）。导入既有`qa_grid_no_background.svg`成功；从导入作品创建斜向潮汐后Cancel并返回，确实恢复该原SVG作品。共用面板的候选、共享引用和保存失败保护另由定向测试验证；没有宣称8套全操作独立浏览器矩阵完成。
+- 输出与安全：SVG/透明PNG入口在正式设计就绪时可用、候选存在时禁用；本轮没有重新下载SVG/PNG，不扩大旧文件证据。实际点击普通“检查并生成”、下载`F:/GPT下载/基础圆点阵列 (3).stl`，34284bytes；独立用现有STLExporter重新读取及原MeshValidator验收：Bounds `[10,10,0]`–`[50,50,2]`mm，9个组件各8×8×2mm，中心为14/30/46的3×3组合，水密、有限坐标、一致绕序、各组件正体积、零退化面，0error/1多组件warning。首次直接trimesh.split因本机缺graph engine失败；改用项目已有`_prototype_components`及Validator完成读回，没有安装依赖或修补Mesh。Fabric轻量原图预览9元素40×40×2mm正常；本轮Fabric最终STL NOT TESTED，不修改本地测试导出授权。实际结果编号/耗时可在统一诊断区读取，多组件安全提醒继续在主要结果区显示。
+- 测试分批：`App.p4b`、`App.patternPresets`、`App.patternPresetsP2`、`PatternPresetPicker`最终21/21（`ui-second.json`）；`outputClassification`、`unitCellSelection`最终14/14（`manufacturing-ui-final2.json`）。制造UI新增2项检查诊断Portal、stale/XYZ/安全提醒/导出保护与独立组件回调；本批另有3个制造控件可见性case的展开前提遗漏，已通过真实展开高级/布点/预览区纠正，保留所有原断言（不是历史3项预览失败的关闭记录）；早期14项批次9/14、11/14结果保留，不冒充首轮全通过。最初4suite加载前的ENOENT为沙箱临时worker缓存路径问题，0case执行；仅测试进程TMP/TEMP使用已有work目录后正常，无系统/Git配置变化。不同批次不累加称全量。最终`npm run build`和`git diff --check`PASS，原大bundle与LF/CRLF warning不变。
+- 390px专项仍BLOCKED：设置390×844后曾读取到抽屉内容，随后resize状态已将抽屉关闭，矩形为0；点击“收起功能面板”出现selector deadline/no_matches。停止自动控制，没有重复尝试；保存的`narrow-manufacture.jpg`仅证明关闭状态，不能当展开/滚动/按钮遮挡PASS；窄屏预设与候选底部操作完整验收未完成。已恢复正常viewport，8812页面留供用户试用。此前SVG文件选择操作约90秒、STL下载控制约420秒才返回，也保留为工具/交互性能限制，不据此认定引擎计算耗时。
+- 历史预览3项失败、P1/P2五项超时及未确认根因、所有历史OPEN继续保留，本批成功不自动关闭；Arc/Skew/通用曲线/自动毫米映射/历史迁移、未应用快捷表单及Undo刷新边界不变。公网/Linux/切片/实物NOT TESTED，不宣称全面可打印。未重复公网制造或压力测试；UI清理没有修复服务器长计算占槽根因。
+
 ## Web-R1＋429诊断本地收口：用户确认（2026-10-13）
 
 - 用户已明确确认二维视角往返、保存状态、制造结果失效提示、导出尺寸说明四项实际操作正常，记录为用户本地试用PASS；不是独立自动化/完整视口矩阵验收。下方独立浏览器BLOCKED、历史预览失败/超时及所有OPEN原状保留。
