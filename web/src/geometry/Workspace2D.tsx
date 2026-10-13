@@ -19,6 +19,7 @@ interface Props {
   onDragCommit: (id: string, dxMm: number, dyMm: number) => void
   pendingPreview: { id: string; dx: number; dy: number } | null
   fitToken: number
+  fitHistory?: { current: number | null }
   onEditingChange?: (editing: boolean) => void
   referenceLayer?: (ReferenceLayer & { url: string }) | null
   onSelectReference?: () => void
@@ -38,7 +39,7 @@ type Interaction =
 
 export function Workspace2D({
   geometry, bounds, mmPerUnit, view, onViewChange, selectedId, onSelect,
-  canDrag, onDragCommit, pendingPreview, fitToken, onEditingChange, referenceLayer, onSelectReference, gradientControl, onGradientChange,
+  canDrag, onDragCommit, pendingPreview, fitToken, fitHistory, onEditingChange, referenceLayer, onSelectReference, gradientControl, onGradientChange,
   artboard, influenceAreas, selectedArea, onAreaChange,
 }: Props) {
   const stage = useRef<HTMLDivElement>(null)
@@ -68,9 +69,13 @@ export function Workspace2D({
   }, [])
 
   useEffect(() => {
-    if (bounds && lastFitToken.current !== fitToken) {
-      lastFitToken.current = fitToken
-      onViewChange(fitView(bounds, viewport))
+    // App owns the consumed request across design/manufacture remounts.
+    const consumed = fitHistory ?? lastFitToken
+    if (bounds && consumed.current !== fitToken) {
+      consumed.current = fitToken
+      const rect = stage.current?.getBoundingClientRect()
+      onViewChange(fitView(bounds, rect && rect.width > 0 && rect.height > 0
+        ? { width: rect.width, height: rect.height } : viewport))
     }
     // A new Evaluate response after a drag must NOT re-fit the user's view.
     // eslint-disable-next-line react-hooks/exhaustive-deps

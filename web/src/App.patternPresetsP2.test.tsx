@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { App } from './App'
 import { createExampleDocument } from './examples/catalog'
@@ -40,7 +40,7 @@ describe('P2 cards use one candidate/history and protected-return pipeline', () 
     await waitFor(() => expect(requests.at(-1)?.document_id).toBe(original.document_id))
     fireEvent.click(screen.getByRole('button', { name: `图案预设 · ${patternPresets.length}套` }))
     fireEvent.click(screen.getByRole('button', { name: `创建${title}` }))
-    const ready = () => waitFor(() => expect(screen.getByRole('button', { name: '应用效果' })).toBeEnabled())
+    const ready = () => waitFor(() => expect(within(screen.getByLabelText('待应用效果操作')).getByRole('button', { name: '应用效果' })).toBeEnabled())
     await ready(); const created = requests.at(-1)!
     if (id === 'vortex-scales') {
       expect(screen.getByRole('slider', { name: '相位滑杆' })).toHaveValue('0.15')
@@ -58,7 +58,7 @@ describe('P2 cards use one candidate/history and protected-return pipeline', () 
     const edit = screen.getByRole('spinbutton', { name: label })
     fireEvent.change(edit, { target: { value } }); fireEvent.blur(edit); await ready()
     const count = requests.length
-    fireEvent.click(screen.getByRole('button', { name: '应用效果' }))
+    fireEvent.click(within(screen.getByLabelText('待应用效果操作')).getByRole('button', { name: '应用效果' }))
     await waitFor(() => expect(requests).toHaveLength(count+1))
     const applied = requests.at(-1)!
     expect(applied.document_revision).toBe(1)

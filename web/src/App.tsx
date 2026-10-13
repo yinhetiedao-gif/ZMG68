@@ -31,6 +31,7 @@ import { appendPrimitive, createBlankDesign, type PrimitiveType } from './docume
 import { readReferenceLayer, updateReferenceLayer, type ReferenceLayer } from './document/referenceLayer'
 import { ReferenceLayerPanel } from './document/ReferenceLayerPanel'
 import { useLayoutPreview, useDocumentPreview } from './document/useLayoutPreview'
+import { OutputDimensions } from './geometry/OutputDimensions'
 import { openLinearSize, linearSizeGroup, linearRegionDefaults, linearSizeOwner,
   sizeFieldTypes, sizeFieldGroup, sizeFieldValues, changeSizeFieldParameter, resetLinearSizeDraft, type LinearSizeDraft } from './document/linearSize'
 import { openRadialSize, radialSizeGroup, radialSizeDefaults, type RadialSizeDraft } from './document/radialSize'
@@ -184,6 +185,7 @@ export function App() {
   const [elementDraft, setElementDraft] = useState<Record<string, number>>({})
   useEffect(() => setElementDraft({}), [project.documentRevision, browser.selectedElementIds[0]])
   const [fitToken, setFitToken] = useState(0)
+  const fitHistory = useRef<number | null>(null)
   const historyRef = useRef<{ past: PatternDocumentDTO[]; future: PatternDocumentDTO[] }>({ past: [], future: [] })
   const [historyCount, setHistoryCount] = useState({ past: 0, future: 0 })
   const inputRef = useRef<HTMLInputElement>(null)
@@ -1001,7 +1003,9 @@ export function App() {
         <span>项目</span><strong>{project.fileName ?? 'Untitled'}</strong>
         {project.currentDocument ? <>
           <span className="project-unsaved" aria-live="polite">
-            {draftSaveStatus === 'saved' ? '已保存' : draftSaveStatus === 'error' ? '保存失败' : '正在保存…'}
+            {draftSaveStatus === 'saved' ? geometryInputsPending ? '正式作品已保存 · 有未应用预览' : '已保存'
+              : draftSaveStatus === 'error' ? geometryInputsPending ? '正式作品保存失败 · 有未应用预览' : '保存失败'
+              : draftSaveStatus === 'saving' ? geometryInputsPending ? '正在保存正式作品 · 有未应用预览' : '正在保存…' : '正式作品已更新'}
           </span>
           {pendingLayoutFor(project.currentDocument, layoutDraft) && <span className="project-pending">有未应用修改</span>}
         </> : <span className="project-unsaved">未创建</span>}
@@ -1253,8 +1257,9 @@ export function App() {
         <div className="manufacturing-inspector-form" hidden={browser.activeMode === 'design'}>
             {sizeFormPending && <p className="layout-pending" role="status">二维尺寸效果尚未应用。当前3D仅显示已应用设计；请返回设计应用或取消后再制造／下载。</p>}
             <ManufacturingPanel heightText={manufacturing.heightText} onHeightChange={manufacturing.setHeightText}
+              previousResultRevision={manufacturing.previousResultRevision}
               projectWarnings={project.warnings}
-              document={project.currentDocument} designBounds={project.bounds} parameterCatalog={parameterCatalog}
+              document={project.currentDocument} designBounds={project.evaluateStatus === 'ready' ? project.bounds : null} parameterCatalog={parameterCatalog}
               parameterLoad={parameterLoad} onRetryParameters={reconnect}
               actionHost={manufacturingActionHost} parametersDisabled={!canEditDocument} onUnitCellDraft={onUnitCellDraft} canUseInputs={canUseInputs}
               canEditSize={canEditDocument && project.evaluateStatus === 'ready'}
@@ -1377,6 +1382,7 @@ export function App() {
           </details>
           {browser.activeMode === 'design' && project.currentDocument && <section className="design-export-card" aria-label="当前设计导出">
             <h3>导出当前设计</h3>
+            <OutputDimensions document={project.currentDocument} bounds={project.evaluateStatus === 'ready' ? project.bounds : null} pngWidth={designDisplay.pngWidth} />
             {geometryInputsPending && <p className="parameter-pending">请先应用或取消待确认配置，再导出当前设计。</p>}
             <div className="layout-inspector-actions">
               <button type="button" className="ui-secondary" disabled={geometryInputsPending || project.evaluateStatus !== 'ready' || designExportBusy || !project.finalGeometry.length} onClick={() => void exportDesign('svg')}>下载设计SVG</button>
@@ -1470,7 +1476,7 @@ export function App() {
                 if (valid) setLinearDraft(current => !current ? null : current.kind === 'radial'
                   ? { ...current, values: { ...current.values, ...changes } } : { ...current, values: { ...current.values, ...changes } })
               }}
-              canDrag={item => !linearActive && !pendingLayoutFor(project.currentDocument!, layoutDraft) && sourceCanDrag(item)} onDragCommit={commitDrag} pendingPreview={pendingPreview} fitToken={fitToken}
+              canDrag={item => !linearActive && !pendingLayoutFor(project.currentDocument!, layoutDraft) && sourceCanDrag(item)} onDragCommit={commitDrag} pendingPreview={pendingPreview} fitToken={fitToken} fitHistory={fitHistory}
               onEditingChange={setCanvasEditing} />
           ) : browser.activeMode === 'design' ? (
             <section className="empty-state" aria-label="空白设计工作区">
@@ -1493,10 +1499,19 @@ export function App() {
             <header className="fabric-live-heading"><strong>3D 设计预览</strong><small>设计预览不代表最终制造已通过</small>
               <span role="status">{noOriginalGeometry ? '请先导入图案或在设计中添加图形' : !hasPreviewShape ? '旧作品未选择形状，请在左侧启用保留原图或选择造型' : parameterPending ? Object.keys(cellDraft).length && fabricDisplayPlan !== fabricPreview.displayResult
                 ? '临时显示 · 松手提交后校准' : '有未提交参数 · 松手后自动更新'
-                : fabricPreview.status === 'building' ? '正在更新 · 保留上次有效画面' : fabricPreview.status === 'stale' ? '设计已变化 · 等待更新' : fabricPreview.error ?? ''}</span></header>
+                : fabricPreview.waitingForTask ? '等待本页三维任务结束 · 可返回设计继续编辑'
+                  : fabricPreview.status === 'building' ? '正在生成3D预览 · 保留上次有效画面'
+                    : fabricPreview.serverBusy ? '服务器忙碌 · 可手动重试'
+                      : fabricPreview.error ? '预览失败 · 可重新生成'
+                        : fabricPreview.status === 'stale' ? '上次预览已失效 · 等待更新' : ''}</span></header>
             {fabricDisplayPlan ? <FabricThreePreview key={project.currentDocument?.document_id} plan={fabricDisplayPlan}
               stale={fabricPreview.status !== 'ready'} diagnosticsHost={previewDiagnosticsHost} />
-              : <div className="preview-empty"><p>{noOriginalGeometry ? '当前没有可挤出的原图。请导入图案或在设计中添加图形。' : !hasPreviewShape ? '在左侧选择单元类型，即可查看设计预览。' : fabricPreview.error ?? '正在准备原图或单元设计预览，请稍候。'}</p></div>}
+              : <div className="preview-empty"><p>{noOriginalGeometry ? '当前没有可挤出的原图。请导入图案或在设计中添加图形。' : !hasPreviewShape ? '在左侧选择单元类型，即可查看设计预览。' : fabricPreview.error || fabricPreview.waitingForTask ? '当前作品尚无可用3D预览，可返回设计继续编辑。' : '正在准备原图或单元设计预览，请稍候。'}</p></div>}
+            {fabricPreview.error && <div className="viewer-error" role="alert">
+              <p>{fabricPreview.error}</p>
+              <button type="button" disabled={computeBusy || !canUseInputs()}
+                onClick={() => { if (canUseInputs()) void fabricPreview.update() }}>重试3D预览</button>
+            </div>}
           </section>}
           {mapping && <div className="mapping-overlay" role="dialog" aria-label="设置毫米映射">
             <div className="mapping-card">
@@ -1514,9 +1529,11 @@ export function App() {
         <div className="workspace-feedback" aria-label="画布状态">
           {project.evaluateStatus === 'loading' && <div className="viewer-notice" role="status">Python 正在计算最终二维几何…</div>}
           {linearActive && <div className="viewer-notice" role="status">未应用的尺寸渐变预览 · {!linearCurrent ? '正式设计已变化，请重新打开效果' :
-            linearProposal.error ?? stagedLinear.error ?? (stagedLinear.pending ? '正在计算最新输入 · 保留上次有效画面' : '点击左侧应用，或取消恢复')}</div>}
+            linearProposal.error ?? stagedLinear.error ?? (stagedLinear.pending ? '正在计算最新输入 · 保留上次有效画面' : '点击左侧应用，或取消恢复')}
+            {linearCurrent && !linearProposal.error && stagedLinear.error && <button type="button" onClick={stagedLinear.retry}>重试尺寸预览</button>}</div>}
           {browser.activeMode === 'design' && project.currentDocument && pendingLayoutFor(project.currentDocument, layoutDraft) &&
-            <div className="viewer-notice" role="status">未应用的布局预览 · {stagedLayout.pending ? '正在计算最新输入' : stagedLayout.error ?? '点击左侧应用，或取消恢复'}</div>}
+            <div className="viewer-notice" role="status">未应用的布局预览 · {stagedLayout.pending ? '正在计算最新输入' : stagedLayout.error ?? '点击左侧应用，或取消恢复'}
+              {stagedLayout.error && <button type="button" onClick={stagedLayout.retry}>重试布局预览</button>}</div>}
           {importing && <div className="viewer-notice" role="status">Python 正在转换图片为可编辑元素…</div>}
           {project.evaluateError && <div className="viewer-error" role="alert">{project.evaluateError}</div>}
           {projectError && <div className="viewer-error" role="alert">{projectError}</div>}

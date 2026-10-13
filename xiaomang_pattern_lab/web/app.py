@@ -45,6 +45,7 @@ from .http_errors import (
 from .runtime_store import InMemoryManufacturingResultStore, StoredManufacturingResult
 from .preview_artifact import export_preview_glb
 from .failure_snapshot import save_manufacturing_failure
+from .compute_diagnostics import ComputeDiagnostics
 from xiaomang_pattern_lab.fabric_plan import plan_from_fabric_config
 from xiaomang_pattern_lab.fabric_preview import FabricPreviewCache, build_fabric_preview, build_fabric_design, preview_key
 from xiaomang_pattern_lab.fabric_candidate import build_fabric_candidate
@@ -354,6 +355,7 @@ def create_app(*, asset_resolver: AssetResolver | None = None,
     staging_mode = (os.environ.get("XIAOMANG_STAGING") == "1"
                     or os.environ.get("XIAOMANG_ENV") == "staging")
     expensive_job_slot = threading.BoundedSemaphore(1) if staging_mode else None
+    compute_tasks = ComputeDiagnostics(expensive_job_slot)
     snapshot_dir = (failure_snapshot_dir if failure_snapshot_dir is not None else
                     Path(__file__).resolve().parents[2] / "work" / "manufacturing-failures")
     app = FastAPI(title="Xiaomang Pattern Lab API", version="0.3-alpha", debug=False,
@@ -488,15 +490,16 @@ def create_app(*, asset_resolver: AssetResolver | None = None,
         cached = store.get(result_id)
         if cached is not None:
             return JSONResponse(cached.response)
-        if expensive_job_slot is not None and not expensive_job_slot.acquire(blocking=False):
-            raise WebError("staging_busy", "测试站正在处理另一项三维任务，请稍后重试。")
-        try:
+        with compute_tasks.task("/api/v1/manufacturing/build", dto) as task:
+            task.phase("resolve_assets")
             document = await run_in_threadpool(_resolve_document, dto, resolver)
             try:
+                task.phase("standard_manufacture")
                 result_id, stored = await run_in_threadpool(_build, document, dto, parameters.height_mm)
             except ManufacturingBuildFailure as error:
                 if snapshot_enabled:
                     try:
+                        task.phase("failure_snapshot")
                         path = await run_in_threadpool(
                             save_manufacturing_failure, snapshot_dir, dto, parameters.height_mm,
                             error.code, error.validation_summary)
@@ -507,11 +510,9 @@ def create_app(*, asset_resolver: AssetResolver | None = None,
                             "Manufacturing failure snapshot could not be saved (%s)",
                             type(snapshot_error).__name__)
                 raise
+            task.phase("store_result")
             store.put(result_id, stored)
             return JSONResponse(stored.response)
-        finally:
-            if expensive_job_slot is not None:
-                expensive_job_slot.release()
 
     @app.post("/api/v1/fabric/preview", openapi_extra=JSON_DOCUMENT_BODY)
     async def fabric_design_preview(request: Request) -> JSONResponse:
@@ -526,18 +527,15 @@ def create_app(*, asset_resolver: AssetResolver | None = None,
         cached = fabric_preview_cache.get(key)
         if cached is not None:
             return JSONResponse({**cached, "cache_hit": True}, headers={"Cache-Control": "no-store"})
-        if expensive_job_slot is not None and not expensive_job_slot.acquire(blocking=False):
-            raise WebError("staging_busy", "测试站正在处理另一项三维任务，请稍后重试。")
-        try:
+        with compute_tasks.task("/api/v1/fabric/preview", dto) as task:
             try:
+                task.phase("preview_evaluate_plan_prototype")
                 result = await run_in_threadpool(build_fabric_preview, document, dto)
             except (ValueError, TypeError, KeyError) as error:
                 raise WebError("invalid_fabric_preview", str(error)) from error
+            task.phase("cache_preview", instance_count=result.get("active_count"))
             fabric_preview_cache.put(key, result)
             return JSONResponse(result, headers={"Cache-Control": "no-store"})
-        finally:
-            if expensive_job_slot is not None:
-                expensive_job_slot.release()
 
     @app.post("/api/v1/fabric/candidate", openapi_extra=JSON_DOCUMENT_BODY)
     async def fabric_candidate(request: Request) -> JSONResponse:
@@ -546,23 +544,20 @@ def create_app(*, asset_resolver: AssetResolver | None = None,
         if payload.get("document_revision") != dto.document_revision:
             raise ContractError("stale_revision", "文档已更改，请重新检查可制造性。")
         document = await run_in_threadpool(_resolve_document, dto, resolver)
-        if expensive_job_slot is not None and not expensive_job_slot.acquire(blocking=False):
-            raise WebError("staging_busy", "测试站正在处理另一项三维任务，请稍后重试。")
         def build_report():
+            task.phase("design_and_plan")
             design = build_fabric_design(document, dto, preview_limit=False)
+            task.phase("candidate_geometry", instance_count=sum(item.enabled for item in design.plan.instances) if design.plan else 0)
             candidate = build_fabric_candidate(design.plan, design.config.base,
                 design.design_bounds_mm, document_id=dto.document_id,
                 document_revision=dto.document_revision, output_mode=design.config.output_mode)
             return candidate.report
-        try:
+        with compute_tasks.task("/api/v1/fabric/candidate", dto) as task:
             try:
                 result = await run_in_threadpool(build_report)
             except (ValueError, TypeError, KeyError) as error:
                 raise WebError("invalid_fabric_candidate", str(error)) from error
             return JSONResponse(result, headers={"Cache-Control": "no-store"})
-        finally:
-            if expensive_job_slot is not None:
-                expensive_job_slot.release()
 
     @app.post("/api/v1/fabric/fusion", openapi_extra=JSON_DOCUMENT_BODY)
     async def fabric_fusion(request: Request) -> JSONResponse:
@@ -571,11 +566,11 @@ def create_app(*, asset_resolver: AssetResolver | None = None,
         if payload.get("document_revision") != dto.document_revision:
             raise ContractError("stale_revision", "文档已更改，请重新生成最终制造网格。")
         document = await run_in_threadpool(_resolve_document, dto, resolver)
-        if expensive_job_slot is not None and not expensive_job_slot.acquire(blocking=False):
-            raise WebError("staging_busy", "测试站正在处理另一项三维任务，请稍后重试。")
         def build_report():
             try:
+                task.phase("design_and_plan")
                 design = build_fabric_design(document,dto,preview_limit=False)
+                task.phase("candidate_geometry", instance_count=sum(item.enabled for item in design.plan.instances) if design.plan else 0)
                 candidate = build_fabric_candidate(design.plan,design.config.base,design.design_bounds_mm,
                     document_id=dto.document_id,document_revision=dto.document_revision,
                     output_mode=design.config.output_mode)
@@ -583,18 +578,21 @@ def create_app(*, asset_resolver: AssetResolver | None = None,
                     'document_fingerprint':sha256(canonical_json(dto.to_dict()).encode()).hexdigest()})
             except (ValueError,TypeError,KeyError) as error:
                 raise FabricFusionFailure('candidate',str(error)) from error
+            task.phase("fusion_and_validation")
             return fabric_fusion_service.build(candidate).report
-        try:
+        with compute_tasks.task("/api/v1/fabric/fusion", dto) as task:
             try:
                 result = await run_in_threadpool(build_report)
                 return JSONResponse({**result,'export_available':fabric_stl_testing,
                     'stl_export_mode':'testing' if fabric_stl_testing else 'disabled'},
                     headers={"Cache-Control":"no-store"})
             except FabricFusionFailure as error:
+                task.failed(error)
                 logging.getLogger(__name__).warning('Fabric fusion failure: id=%s stage=%s',
                     error.report['failure_id'],error.report['stage'])
                 if snapshot_enabled:
                     try:
+                        task.phase("failure_snapshot")
                         summary = {**error.report,'fusion_config':{'interface_overlap_mm':0},
                             'instances':error.report.get('instances',[])[:50]}
                         await run_in_threadpool(save_manufacturing_failure,snapshot_dir,dto,
@@ -605,9 +603,6 @@ def create_app(*, asset_resolver: AssetResolver | None = None,
                         logging.getLogger(__name__).warning('Fabric failure snapshot write failed (%s)',type(snapshot_error).__name__)
                 return JSONResponse({'error':{'code':'fabric_fusion_failed','message':str(error)},
                     'fusion_report':error.report},status_code=422,headers={"Cache-Control":"no-store"})
-        finally:
-            if expensive_job_slot is not None:
-                expensive_job_slot.release()
 
     @app.post('/api/v1/fabric/{result_id}/model.stl',openapi_extra=JSON_DOCUMENT_BODY)
     async def download_fabric_stl(result_id: str,request: Request) -> Response:

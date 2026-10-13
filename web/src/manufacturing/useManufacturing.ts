@@ -57,5 +57,6 @@ export function useManufacturing(dto: PatternDocumentDTO | null, fetcher: typeof
   }, [dto, heightMm, key, validHeight, fetcher, isComputeBusy])
 
   return { heightText: base ? String(base.thickness_mm) : heightText, setHeightText, validHeight, status, result, isCurrentResult,
+    previousResultRevision: status === 'stale' ? buildState.result?.document_revision : undefined,
     error: status === 'stale' ? null : buildState.error, build }
 }

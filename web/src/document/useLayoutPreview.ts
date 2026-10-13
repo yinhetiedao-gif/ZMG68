@@ -40,6 +40,12 @@ export function useDocumentPreview(dto: PatternDocumentDTO | null, fetcher: type
     return () => clearTimeout(timer)
   }, [dto, key, fetcher, seed, state.key, drained, session])
   const result = seed?.key === key ? seed.result : state.key === key ? state.result : null
+  const retry = () => {
+    // Explicit failure recovery only. Never cancel/release a running backend slot.
+    if (!key || latest.current !== key || active.current || state.key !== key || !state.error) return
+    pendingSince.current = null
+    setState(previous => ({ ...previous, key: null, result: null, error: null }))
+  }
   return { result, displayResult: result ?? (session && state.session === session ? state.lastResult : null),
-    pending: Boolean(key && !result && state.key !== key), error: key === state.key ? state.error : null }
+    pending: Boolean(key && !result && state.key !== key), error: key === state.key ? state.error : null, retry }
 }

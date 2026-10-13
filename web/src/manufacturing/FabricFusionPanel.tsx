@@ -89,11 +89,16 @@ export function FabricFusionPanel({ document, fetcher = fetch, disabled = false,
     <p>预检 → 实体融合 → 网格检查。{fabricExportNotice(exportEnabled)}</p>
     {!actionHost && buildButton}
     <p role="status">{statusText}</p>
+    {stale && state?.report && <div aria-label="上次制造结果">
+      <p>上次结果 · 已失效 · 结果 revision {state.report.document_revision} / 当前正式 revision {document.document_revision}</p>
+      <p>上次组件：{state.report.connected_component_count} · 上次 XYZ：{state.report.bounds_mm[1].map((v,i)=>(v-state.report!.bounds_mm[0][i]).toFixed(2)).join(' × ')} mm（不可作为当前 STL 尺寸）</p>
+    </div>}
     {!stale && state?.error && <p role="alert">Fabric STL 不可导出：
       {stageLabels[String(state.diagnostics?.stage)] ?? '生成'}阶段 · {state.error}</p>}
     {!stale && state?.diagnostics != null && <details><summary>诊断详情</summary>
       <pre>{JSON.stringify(state.diagnostics, null, 2)}</pre></details>}
     {report && <>
+      <p>结果 revision {report.document_revision} / 当前正式 revision {document.document_revision}</p>
       <p>Components: {report.connected_component_count} · Watertight: Yes</p>
       {report.output_mode === 'cells_only' && <p>仅图案单元，无实体基底。{report.connected_component_count > 1 ? '包含多个独立封闭实体，不是融合为一体的面料。' : '实际校验为一个实体。'}</p>}
       <p>XYZ：{report.bounds_mm[1].map((v,i)=>(v-report.bounds_mm[0][i]).toFixed(2)).join(' × ')} mm</p>

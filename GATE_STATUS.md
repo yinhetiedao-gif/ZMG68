@@ -1,5 +1,31 @@
 # Gate 状态（2026-10-05）
 
+## Web-R1＋429诊断本地收口：用户确认（2026-10-13）
+
+- 用户已明确确认二维视角往返、保存状态、制造结果失效提示、导出尺寸说明四项实际操作正常，记录为用户本地试用PASS；不是独立自动化/完整视口矩阵验收。下方独立浏览器BLOCKED、历史预览失败/超时及所有OPEN原状保留。
+- 公网持续429占槽任务与根因仍UNKNOWN；本地任务诊断日志只提供后续定位能力，不标根因修复PASS。用户批准前次准确24文件（10实现/12测试/2记录）的本地提交与新稳定引用；本轮仅补这两份记录，不修改产品功能、并发、超时、几何、Validator、依赖或部署配置，不重跑全量。32历史tools/运行产物原地保留，不纳入提交；不推送、不部署、不重启Render，旧备份不移动。
+
+## Render 三维计算槽诊断日志（2026-10-13，本地未提交；线上占槽任务 UNKNOWN）
+
+- 用户提供日志摘要确认preview至少4次429、health/import/evaluate200，以及关闭等待未完成任务后新进程启动；不是本轮独立读取完整Render日志，不能识别占槽接口/实例数/耗时或判定OOM/死锁。现有四计算入口仍共享同一staging单槽；finally必须等线程计算返回或抛错才执行，不保证及时返回。Uvicorn的shutdown等待集合包括未完成ASGI请求，不等于已建立任务队列；连接断开不自动杀线程，运行时版本仍需线上核对。
+- 只在`web/app.py`四个既有槽生命周期接入`web/compute_diagnostics.py`，增加start/stage/end/released/busy日志；INFO复用uvicorn.error，不改日志/环境配置。记录随机请求/任务ID、PID、UTC时间、源元素数、已知实例数、粗粒度阶段和高精度耗时；429记录真实占槽任务，拒绝请求无运行任务ID。仅哈希文档ID＋revision用于作品关联，不记录文档内容、个人信息、资产/本地路径、异常文本或凭据。缓存命中仍不取槽，日志故障不改变计算/释放，不增加开发环境并发限制。
+- 新诊断7项＋既有staging3项＋普通STL1项最终11/11 PASS（`work/web-compute-diagnostics-20261013/final-diagnostics.log`），原图Fabric接口/严格STL读回另1PASS、11DESELECTED（`fabric-final.log`）；重叠批次不相加。覆盖四入口、真实忙碌owner、不提前释放、异常/422释放、A/B结果关联、连续小样本、隐私和日志故障、旧可选plan兼容。早期fixture错误和Windows低分辨率计时失败日志保留，未修改业务校验或削弱断言。只改诊断计时为perf_counter。前端未修改，不重复前端build/历史全量；diff检查通过，既有警告不变。
+- 本轮未发现本地真实锁泄漏或明确无限Python循环；原生布尔/三角化/网格检查可能长时间不返回，未在大样本或公网确认。没有队列/进程池/超时/强行解锁/提高并发/自动重试/Validator修改。尚未提交、推送、部署或重启任何现有服务（包括本地8808）；日志只能在后续获授权加载该版本后识别公网任务，不能回溯c9缺失日志。保留全部Web-R1成果、32历史tools和历史OPEN。细节见`WEB_R1_LOCAL_ACCEPTANCE.md`末尾，STOP等待授权。
+
+## Web-R1 HTTP 429 补充（2026-10-13，本地受控验收；Render 长任务原因 OPEN）
+
+- HEAD仍`c9ff2ce9239c27eda4c02c6e3b513c03894dfa2a`，`feature/pattern-library-reuse`，暂存区空。保留前批17文件与32个历史tools；本轮新增差异范围为预览hook、其测试、App.phase1a测试及后端staging测试，另在既有App/ManufacturingPanel与两份记录中补最小接线。没有提交、备份、推送、部署、重启或环境/依赖/几何/Validator修改。
+- 已复现缺口：默认保留原图形状的自动预览429后停止同输入自动请求（不无限重试），但此前没有对应手动预览Retry，画布又重复显示原始错误。补业务码区分、单一详细错误区和当前输入Retry；区分本页旧任务排空等待、3D预览生成、服务器忙碌、预览失败及失效。新作品不展示旧作品3D；保留原latest-only、revision、输入指纹与共享busy保护。没有强行释放计算槽或声称浏览器取消可终止后台计算。
+- 修复前两个新增测试均FAIL，修复后2/2；最终直接相关5文件40/40 PASS（App.phase1a、useFabricPreview、computeRequests、App.webR1、FabricFusionPanel），各重叠批次不累加。受控证明A计算期间B可打开/编辑/保存，旧响应不覆盖B，双击只发一份请求，429后相同参数手动重试恢复且不写revision/Undo；后台4个共享入口故障注入均结束后可制造B，运行中仍429。后端staging＋普通STL测试4/4，原图Fabric小样接口/严格STL读回1/1，现有单元导出授权/stale接口回归1/1；不是浏览器下载或本批全面制造矩阵。build与diff检查PASS，既有大bundle/LF-CRLF/Starlette测试客户端警告保留。
+- 公网仅只读health200，后端身份c9、环境staging，不能证明槽空闲。未取得Render任务日志或任务ID，线上占槽接口/持续时间/长任务是否结束为UNKNOWN；不能认定死锁或宣布公网429已修复。线程池执行中的原生计算无法安全强杀；如证实挂起，进程隔离/队列另行授权，本轮不实施。实际本地浏览器和公网制造NOT TESTED；不重复持续超时浏览器控制，等待用户本地试用与失败时段日志。历史3+5与其他OPEN不变。详见`WEB_R1_LOCAL_ACCEPTANCE.md`末尾。
+
+## Web-R1（2026-10-13，本地最小修复；真实浏览器验收BLOCKED）
+
+- 基线/当前HEAD均`c9ff2ce9239c27eda4c02c6e3b513c03894dfa2a`，分支`feature/pattern-library-reuse`；开工tracked/index空，32个历史tools保留。只修改视角Fit请求生命周期、候选显式Retry、保存/失效/输出尺寸展示及定向测试；没有提交、Git备份分支、推送、部署、配置/依赖/几何/制造/Validator变化。详细证据与逐项诊断见`WEB_R1_LOCAL_ACCEPTANCE.md`。
+- 重挂载视角覆盖与同key失败无Retry有修复前失败日志，修复后组件/集成测试通过。保存官方＋未应用候选、失败提示、失效旧报告revision/统计与实际导出尺寸区分已接通；未增加未应用表单/Undo/view的持久化。
+- 历史旧预览原3项本轮2 FAIL/1未复现，旧断言未改；P1/P2本轮复现4项role查询调度超时，限定实际操作栏查询后两个模块12/12通过，未删断言/跳过/延长timeout。原历史5项完整case映射记录缺失，仍UNKNOWN/OPEN，不宣布历史全部关闭。
+- 主批8文件37/37 PASS，保护另批6文件36/36 PASS；最后变更测试补跑16/18（新增beforeEach误返回Mock导致2个清理超时）→只修测试回调无返回→同3文件18/18 PASS，失败证据保留，不重叠相加。build PASS，既有大bundle/换行warning保留。浏览器绑定30秒超时后停止；桌面/500/390真实鼠标、刷新/返回作品、当前新STL下载读回BLOCKED或NOT TESTED。不拿模拟、旧文件、历史Linux或公网200替代；其余历史OPEN/切片/实物状态保持，STOP等待用户试用。
+
 ## P4-C1 最终核验与收口前审核（2026-10-13，仅审核，等待提交授权）
 
 - 用户明确确认新版作品展示和3D预览满意，记录为用户本地试用PASS，不扩大为完整制造/文件/所有浏览器操作PASS。当前仓库`ParametricPatternGenerator`、分支`feature/pattern-library-reuse`、HEAD `106e628727504907242e2a5b88f98cc8920391b3`，暂存区空；本批10个tracked修改＋1个正式新增测试，另32个历史tools原地保留。本轮未改产品或视觉方案，只补真实浏览器缺口、只读差异检查及本审核记录；未暂存、提交、创建备份、推送、部署、修改忽略规则或删除文件，其他worktree未操作。

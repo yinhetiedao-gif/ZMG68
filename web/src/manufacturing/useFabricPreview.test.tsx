@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { requestFabricPreview, type FabricDesignPreview } from '../api/fabricPreview'
 import type { PatternDocumentDTO } from '../model/types'
 import { useFabricPreview } from './useFabricPreview'
+import { HttpRequestError } from '../api/requestErrors'
 
 vi.mock('../api/fabricPreview', () => ({ requestFabricPreview: vi.fn() }))
 
@@ -18,7 +19,21 @@ function deferred<T>() {
 }
 
 describe('Fabric preview revision lifecycle', () => {
-  beforeEach(() => vi.mocked(requestFabricPreview).mockReset())
+  beforeEach(() => { vi.mocked(requestFabricPreview).mockReset() })
+
+  it('R1 distinguishes server busy, does not loop automatically, and retries the identical input manually', async () => {
+    const document = dto(16)
+    vi.mocked(requestFabricPreview).mockRejectedValueOnce(new HttpRequestError(429, { code: 'staging_busy', message: 'other job' })).mockResolvedValueOnce(preview(16))
+    const hook = renderHook(() => useFabricPreview(document, fetch, () => false, { automatic: true, blocked: false, computeBusy: false }))
+    await waitFor(() => expect(hook.result.current.error).toContain('other job'))
+    expect(hook.result.current.serverBusy).toBe(true)
+    expect(requestFabricPreview).toHaveBeenCalledTimes(1)
+    await act(async () => { await hook.result.current.update() })
+    expect(requestFabricPreview).toHaveBeenCalledTimes(2)
+    expect(vi.mocked(requestFabricPreview).mock.calls[0][0]).toEqual(vi.mocked(requestFabricPreview).mock.calls[1][0])
+    expect(hook.result.current.status).toBe('ready')
+    expect(hook.result.current.serverBusy).toBe(false)
+  })
 
   it('accepts a matching revision 16 response from the current document', async () => {
     vi.mocked(requestFabricPreview).mockResolvedValue(preview(16))
@@ -90,5 +105,31 @@ describe('Fabric preview revision lifecycle', () => {
     expect(result.current.displayResult?.document_revision).toBe(16)
     await act(async () => { next.resolve(preview(17)); await next.promise })
     expect(result.current.displayResult?.document_revision).toBe(17)
+  })
+
+  it('R1 changing works while A drains hides A results and requests only the latest B', async () => {
+    const a = dto(1), b = { ...dto(1), document_id: 'other-b' }
+    const pendingA = deferred<FabricDesignPreview>()
+    vi.mocked(requestFabricPreview).mockResolvedValueOnce(preview(1)).mockReturnValueOnce(pendingA.promise)
+    const hook = renderHook(({ document, busy }) => useFabricPreview(document, fetch, () => busy,
+      { automatic: true, blocked: false, computeBusy: busy }), { initialProps: { document: a, busy: false } })
+    await waitFor(() => expect(hook.result.current.status).toBe('ready'))
+    act(() => { void hook.result.current.update() })
+    hook.rerender({ document: b, busy: true })
+    hook.rerender({ document: { ...b, document_revision: 2 }, busy: true })
+    hook.rerender({ document: { ...b, document_revision: 3 }, busy: true })
+    expect(hook.result.current.displayResult).toBeNull()
+    expect(hook.result.current.waitingForTask).toBe(true)
+    await act(async () => { pendingA.resolve(preview(1)); await pendingA.promise })
+    expect(hook.result.current.result).toBeNull()
+    expect(hook.result.current.displayResult).toBeNull()
+    expect(requestFabricPreview).toHaveBeenCalledTimes(2)
+    vi.mocked(requestFabricPreview).mockResolvedValueOnce({ ...preview(3), document_id: 'other-b' })
+    hook.rerender({ document: { ...b, document_revision: 3 }, busy: false })
+    await waitFor(() => expect(hook.result.current.status).toBe('ready'))
+    expect(requestFabricPreview).toHaveBeenCalledTimes(3)
+    expect(vi.mocked(requestFabricPreview).mock.calls[2][0]).toEqual({ ...b, document_revision: 3 })
+    expect(hook.result.current.result?.document_id).toBe('other-b')
+    expect(hook.result.current.waitingForTask).toBe(false)
   })
 })

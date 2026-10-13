@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { App } from './App'
 import { createExampleDocument } from './examples/catalog'
@@ -35,7 +35,7 @@ describe('pattern presets share the protected project and candidate workflow', (
     expect(screen.queryByRole('button', { name: '应用精密错列效果' })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: '创建斜向潮汐' }))
     await waitFor(() => expect(screen.getByRole('spinbutton', { name: '波长 (mm)' })).toHaveValue(23))
-    await waitFor(() => expect(screen.getByRole('button', { name: '应用效果' })).toBeEnabled())
+    await waitFor(() => expect(within(screen.getByLabelText('待应用效果操作')).getByRole('button', { name: '应用效果' })).toBeEnabled())
     expect(screen.getByRole('button', { name: '撤销' })).toBeDisabled()
     fireEvent.click(screen.getByRole('button', { name: '取消效果' }))
     expect(screen.getByRole('button', { name: '撤销' })).toBeDisabled()
@@ -44,9 +44,9 @@ describe('pattern presets share the protected project and candidate workflow', (
     const wave = await screen.findByRole('spinbutton', { name: '波长 (mm)' })
     fireEvent.change(wave, { target: { value: 31 } }); fireEvent.blur(wave)
     await waitFor(() => expect(requests.at(-1)?.document.fields[0].parameters).toHaveProperty('wavelength', 31))
-    await waitFor(() => expect(screen.getByRole('button', { name: '应用效果' })).toBeEnabled())
+    await waitFor(() => expect(within(screen.getByLabelText('待应用效果操作')).getByRole('button', { name: '应用效果' })).toBeEnabled())
     expect(requests.at(-1)?.document_revision).toBe(0)
-    const count = requests.length; fireEvent.click(screen.getByRole('button', { name: '应用效果' }))
+    const count = requests.length; fireEvent.click(within(screen.getByLabelText('待应用效果操作')).getByRole('button', { name: '应用效果' }))
     await waitFor(() => expect(requests).toHaveLength(count + 1)); expect(requests.at(-1)?.document_revision).toBe(1)
     fireEvent.click(screen.getByRole('button', { name: '撤销' }))
     await waitFor(() => expect(requests.at(-1)?.document.fields[0].parameters).toHaveProperty('wavelength', 23))
@@ -57,7 +57,7 @@ describe('pattern presets share the protected project and candidate workflow', (
   it('save failure does not create a replacement project or apply an effect', async () => {
     const requests = backend(); await picker()
     fireEvent.click(screen.getByRole('button', { name: '创建光谱渐隐' }))
-    await waitFor(() => expect(screen.getByRole('button', { name: '应用效果' })).toBeEnabled())
+    await waitFor(() => expect(within(screen.getByLabelText('待应用效果操作')).getByRole('button', { name: '应用效果' })).toBeEnabled())
     fireEvent.click(screen.getByRole('button', { name: '取消效果' }))
     await waitFor(() => expect(screen.getByRole('button', { name: `图案预设 · ${patternPresets.length}套` })).toBeEnabled())
     const save = vi.spyOn(drafts, 'saveDraft').mockRejectedValue(new Error('IndexedDB write blocked'))
@@ -86,21 +86,21 @@ describe('pattern presets share the protected project and candidate workflow', (
     await waitFor(() => expect(requests.at(-1)?.document_id).toBe(original.document_id))
     fireEvent.click(screen.getByRole('button', { name: `图案预设 · ${patternPresets.length}套` }))
     fireEvent.click(screen.getByRole('button', { name: `创建${preset.title}` }))
-    await waitFor(() => expect(screen.getByRole('button', { name: '应用效果' })).toBeEnabled())
+    await waitFor(() => expect(within(screen.getByLabelText('待应用效果操作')).getByRole('button', { name: '应用效果' })).toBeEnabled())
     const recipe = requests.at(-1)!
     expect(screen.getByRole('button', { name: '← 返回之前作品' })).toBeEnabled()
     expect((await drafts.loadBeforeExampleDraft())?.dto).toEqual(original)
     fireEvent.click(screen.getByRole('button', { name: '高级参数与影响区' }))
     if (!preset.field) fireEvent.click(screen.getByRole('button', { name: '尺寸变化' }))
     fireEvent.change(screen.getByLabelText('变化方式', { exact: true }), { target: { value: 'stripe' } })
-    await waitFor(() => expect(screen.getByRole('button', { name: '应用效果' })).toBeEnabled())
+    await waitFor(() => expect(within(screen.getByLabelText('待应用效果操作')).getByRole('button', { name: '应用效果' })).toBeEnabled())
     expect(screen.getByRole('button', { name: '← 返回之前作品' })).toBeEnabled()
     fireEvent.click(screen.getByRole('button', { name: '取消效果' }))
     expect(screen.getByRole('button', { name: '← 返回之前作品' })).toBeEnabled()
     fireEvent.click(screen.getByRole('button', { name: '尺寸变化' }))
     fireEvent.change(screen.getByLabelText('变化方式', { exact: true }), { target: { value: 'stripe' } })
-    await waitFor(() => expect(screen.getByRole('button', { name: '应用效果' })).toBeEnabled())
-    fireEvent.click(screen.getByRole('button', { name: '应用效果' }))
+    await waitFor(() => expect(within(screen.getByLabelText('待应用效果操作')).getByRole('button', { name: '应用效果' })).toBeEnabled())
+    fireEvent.click(within(screen.getByLabelText('待应用效果操作')).getByRole('button', { name: '应用效果' }))
     await waitFor(() => expect(requests.at(-1)?.document_revision).toBe(recipe.document_revision + 1))
     const custom = requests.at(-1)!
     expect(custom.document.metadata.web_pattern_preset).toBeUndefined()
@@ -135,7 +135,7 @@ describe('pattern presets share the protected project and candidate workflow', (
     await waitFor(() => expect(requests.at(-1)?.document_id).toBe(original.document_id))
     fireEvent.click(screen.getByRole('button', { name: `图案预设 · ${patternPresets.length}套` }))
     fireEvent.click(screen.getByRole('button', { name: '创建斜向潮汐' }))
-    await waitFor(() => expect(screen.getByRole('button', { name: '应用效果' })).toBeEnabled())
+    await waitFor(() => expect(within(screen.getByLabelText('待应用效果操作')).getByRole('button', { name: '应用效果' })).toBeEnabled())
     fireEvent.click(screen.getByRole('button', { name: '取消效果' }))
     const recipe = requests.at(-1)!, count = requests.length
     const save = vi.spyOn(drafts, 'saveExampleReturn').mockRejectedValueOnce(new Error('quota fixture'))

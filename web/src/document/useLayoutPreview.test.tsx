@@ -1,5 +1,5 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useLayoutPreview, useDocumentPreview } from './useLayoutPreview'
 import { createBlankDesign } from './nativeDesign'
 import { evaluateDocument } from '../api/evaluate'
@@ -7,6 +7,22 @@ import type { EvaluateResponse } from '../model/types'
 vi.mock('../api/evaluate', () => ({ evaluateDocument: vi.fn() }))
 
 describe('unapplied Python layout preview', () => {
+  beforeEach(() => { vi.mocked(evaluateDocument).mockReset() })
+  it('explicitly retries an identical failed candidate without committing or losing the last picture', async () => {
+    const dto = createBlankDesign('retry'), result = { geometry: [] } as unknown as EvaluateResponse
+    vi.mocked(evaluateDocument).mockResolvedValueOnce(result).mockRejectedValueOnce(new Error('staging_busy')).mockResolvedValueOnce(result)
+    const hook = renderHook(({ revision }) => useDocumentPreview({ ...dto, document_revision: revision }, fetch), { initialProps: { revision: 0 } })
+    await waitFor(() => expect(hook.result.current.result).toBe(result))
+    hook.rerender({ revision: 1 })
+    await waitFor(() => expect(hook.result.current.error).toBe('staging_busy'))
+    expect(hook.result.current.result).toBeNull()
+    expect(hook.result.current.displayResult).toBe(result)
+    act(() => { hook.result.current.retry(); hook.result.current.retry() })
+    await waitFor(() => expect(evaluateDocument).toHaveBeenCalledTimes(3))
+    await waitFor(() => expect(hook.result.current.result).toBe(result))
+    expect(vi.mocked(evaluateDocument).mock.calls[1][0]).toEqual(vi.mocked(evaluateDocument).mock.calls[2][0])
+    expect(dto.document_revision).toBe(0)
+  })
   it('continuous pointer input cannot postpone authority requests indefinitely; bounded single latest slot', async () => {
     vi.useFakeTimers()
     try {

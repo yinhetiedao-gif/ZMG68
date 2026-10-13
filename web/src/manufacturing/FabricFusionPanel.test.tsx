@@ -29,6 +29,9 @@ describe('F5-B readonly final mesh', () => {
     rerender(<FabricFusionPanel document={dto(2)} fetcher={fetcher} />)
     expect(screen.queryByText('最终网格已通过检查')).toBeNull()
     expect(screen.getByText('结果已失效，请重新生成。')).toBeTruthy()
+    expect(screen.getByText('上次结果 · 已失效 · 结果 revision 1 / 当前正式 revision 2')).toBeInTheDocument()
+    expect(screen.getByText(/上次组件：1.*上次 XYZ/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '下载测试 Fabric STL' })).toBeDisabled()
   })
   it('discards late old results and allows a fresh request', async () => {
     let resolve!: (r: Response) => void
@@ -74,6 +77,10 @@ describe('F5-B readonly final mesh', () => {
     fireEvent.click(screen.getByRole('button', { name: '生成最终制造网格' }))
     await screen.findByText('最终网格已通过检查')
     expect(screen.getByRole('button', { name: '下载测试 Fabric STL' })).toBeEnabled()
+    rerender(<FabricFusionPanel document={dto()} fetcher={fetcher} disabled />)
+    expect(screen.queryByText(/上次结果 · 已失效/)).not.toBeInTheDocument()
+    expect(screen.getByText('最终网格已通过检查')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '下载测试 Fabric STL' })).toBeDisabled()
     rerender(<FabricFusionPanel document={dto(2)} fetcher={fetcher} />)
     expect(screen.getByRole('button', { name: '下载测试 Fabric STL' })).toBeDisabled()
   })

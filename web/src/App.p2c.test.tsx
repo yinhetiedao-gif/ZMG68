@@ -66,7 +66,7 @@ describe('P2-C refresh continuity', () => {
     window.dispatchEvent(unsavedLeave)
     expect(unsavedLeave.defaultPrevented).toBe(true)
     await waitFor(async () => expect((await loadDraft())?.pending_layout?.changed).toBe(true))
-    await screen.findByText('已保存')
+    await screen.findByText('正式作品已保存 · 有未应用预览')
     const savedLeave = new Event('beforeunload', { cancelable: true })
     window.dispatchEvent(savedLeave)
     expect(savedLeave.defaultPrevented).toBe(false)

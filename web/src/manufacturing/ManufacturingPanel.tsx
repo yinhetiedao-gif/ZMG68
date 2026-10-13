@@ -20,6 +20,7 @@ import { formatMm } from '../model/formatMm'
 import { RealSizePanel } from './RealSizePanel'
 import { InspectorSection } from '../document/InspectorSection'
 import { isOriginalShape, originalShape } from '../document/fabricOriginal'
+import { OutputDimensions } from '../geometry/OutputDimensions'
 
 interface Props {
   actionHost?: HTMLElement | null
@@ -42,6 +43,7 @@ interface Props {
   onBuild: () => void
   status: ManufacturingStatus
   result: ManufacturingBuildResult | null
+  previousResultRevision?: number
   error: string | null
   projectName: string | null
   projectWarnings: string[]
@@ -368,6 +370,7 @@ export function ManufacturingPanel(props: Props) {
     </section>
     <InspectorSection title="预览与最终制造" label="预览与最终制造" icon="manufacture" {...sectionProps('preview')}>
     <div className="manufacturing-settings">
+      {props.document && <OutputDimensions document={props.document} bounds={props.designBounds ?? null} />}
       {!base && <><label htmlFor="manufacturing-height">厚度 <span>mm</span></label>
         <input id="manufacturing-height" type="number" min="0.01" step="0.1" value={props.heightText}
           onChange={(event) => props.onHeightChange(event.target.value)} /></>}
@@ -389,7 +392,7 @@ export function ManufacturingPanel(props: Props) {
     <div className={`manufacturing-status ${base ? props.fabricPreviewStatus : status}`} role="status">
       {base ? !shapeReady ? '旧配置未选择形状，请启用原图或选择单元' : ({ idle: '尚未更新设计预览', building: '正在更新3D预览…', ready: '设计预览已就绪',
         stale: '设计已变化，请更新3D预览', error: '设计预览失败' }[props.fabricPreviewStatus]) : labels[status]}</div>
-    {base && props.fabricPreviewError && <p className="manufacturing-error" role="alert">{props.fabricPreviewError}</p>}
+    {base && !props.actionHost && props.fabricPreviewError && <p className="manufacturing-error" role="alert">{props.fabricPreviewError}</p>}
     {shapeReady && props.fabricPreviewStatus === 'ready' && props.fabricPreviewResult && <><p>可见单元：{props.fabricPreviewResult.active_count} / {props.fabricPreviewResult.total_count}</p>
       <details className="diagnostic-details"><summary>诊断详情</summary><p>
         Python evaluate {props.fabricPreviewResult.timings_ms.evaluate.toFixed(1)} ms ·
@@ -416,7 +419,9 @@ export function ManufacturingPanel(props: Props) {
       处理流程：二维几何检查 → 制造几何转换 → 3D 模型生成 → Mesh 检查 · 已用 {elapsedSeconds.toFixed(1)} 秒
     </p>}
     {!base && props.error && <p className="manufacturing-error" role="alert">{props.error}</p>}
+    {!base && status === 'stale' && <p role="status">上次结果 · 已失效 · 结果 revision {props.previousResultRevision ?? '未知'} / 当前正式 revision {props.document?.document_revision ?? '未知'}。旧 STL 不可下载。</p>}
     {!base && result && <div className="manufacturing-report">
+      <p>结果 revision {result.document_revision} / 当前正式 revision {props.document?.document_revision ?? '未知'}</p>
       <dl>
         <div><dt>几何检查</dt><dd>{geometry?.error_count ? `${geometry.error_count} 个错误` : `有效 · ${geometry?.checked_count ?? 0} 个元素`}</dd></div>
         <div><dt>网格检查</dt><dd>{mesh?.is_watertight ? '封闭' : '未封闭'}{mesh ? ` · ${mesh.error_count} 个错误` : ''}</dd></div>

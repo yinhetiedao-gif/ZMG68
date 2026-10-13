@@ -16,7 +16,7 @@ beforeEach(() => {
   drafts.save.mockReset().mockResolvedValue({}); drafts.load.mockResolvedValue(null); drafts.loadBefore.mockResolvedValue(null)
 })
 const reply = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status })
-function startBackend() {
+function startBackend(failFirstPreview = false) {
   const evaluated: PatternDocumentDTO[] = []
   let finish!: (response: Response) => void
   const catalog = structuredClone(phase1aCatalog)
@@ -37,6 +37,7 @@ function startBackend() {
       recommended_family: null, confidence: 0, analysis_status: 'no_match' })
     if (String(url).endsWith('/fusion')) return new Promise<Response>(resolve => { finish = resolve })
     if (String(url).endsWith('/fabric/preview')) {
+      if (failFirstPreview) { failFirstPreview = false; return reply({ code: 'staging_busy', message: '测试站正在处理另一项三维任务，请稍后重试。' }, 429) }
       const dto = body.document, config = dto.document.metadata.fabric_config, original = config.shape_source === 'original'
       const cell = original ? { type: 'original_contour', size_mode: 'follow_pattern', width_mm: 60 * config.original_shape.size_scale,
         depth_mm: 60 * config.original_shape.size_scale, height_mm: config.original_shape.height_mm } : config.unit_cell
@@ -82,6 +83,55 @@ function heightSettings(recipe = false) {
 const manufacture = () => fireEvent.click(screen.getByRole('button', { name: /制造 Manufacture/ }))
 
 describe('Phase 1A real editor connections', () => {
+  it('R1 default original-shape busy preview has one error and an explicit same-input retry', async () => {
+    const backend = startBackend(true), dto = phase1aDocument()
+    delete dto.document.metadata.fabric_config
+    await open(dto); manufacture()
+    const retry = await screen.findByRole('button', { name: '重试3D预览' })
+    expect(screen.getAllByText(/测试站正在处理另一项三维任务/)).toHaveLength(1)
+    const before = backend.evaluated.at(-1)!
+    const count = backend.fetcher.mock.calls.filter(([url]) => String(url).endsWith('/fabric/preview')).length
+    expect(retry).toBeEnabled()
+    act(() => { retry.click(); retry.click() })
+    await screen.findByLabelText('测试共享 Fabric 画面')
+    expect(backend.fetcher.mock.calls.filter(([url]) => String(url).endsWith('/fabric/preview'))).toHaveLength(count + 1)
+    expect(backend.evaluated.at(-1)).toBe(before)
+    expect(screen.getByRole('button', { name: '撤销' })).toBeDisabled()
+    expect(screen.queryByRole('button', { name: '重试3D预览' })).not.toBeInTheDocument()
+  })
+  it('R1 can open and edit B while A manufactures without showing A results or releasing its compute guard', async () => {
+    const backend = startBackend(); await open(); manufacture()
+    await screen.findByLabelText('测试共享 Fabric 画面')
+    const old = backend.evaluated.at(-1)!
+    fireEvent.click(screen.getByRole('button', { name: '生成最终模型' }))
+    expect(backend.fetcher.mock.calls.filter(([url]) => String(url).endsWith('/fusion'))).toHaveLength(1)
+    fireEvent.click(screen.getByRole('button', { name: /设计 Design/ }))
+    const next = phase1aDocument()
+    next.document.elements[0].x = 45
+    const raw = JSON.stringify(next.document), file = new File([raw], 'work-b.pattern.json', { type: 'application/json' })
+    Object.defineProperty(file, 'text', { value: async () => raw })
+    fireEvent.change(screen.getByLabelText('选择 PatternDocument 项目文件'), { target: { files: [file] } })
+    await waitFor(() => expect(backend.evaluated.at(-1)!.document_id).not.toBe(old.document_id))
+    const b = backend.evaluated.at(-1)!
+    expect(screen.queryByLabelText('测试共享 Fabric 画面')).not.toBeInTheDocument()
+    expect(drafts.save).toHaveBeenCalled()
+    manufacture()
+    expect(screen.getByRole('button', { name: '生成最终模型' })).toBeDisabled()
+    heightSettings()
+    fireEvent.change(screen.getByLabelText('高度变化'), { target: { value: 'directional' } })
+    await waitFor(() => expect(backend.evaluated.at(-1)!.document_revision).toBe(b.document_revision + 1))
+    expect(backend.evaluated.at(-1)!.document_id).toBe(b.document_id)
+    expect(screen.getByRole('button', { name: '生成最终模型' })).toBeDisabled()
+    expect(screen.queryByLabelText('测试共享 Fabric 画面')).not.toBeInTheDocument()
+    expect(backend.fetcher.mock.calls.filter(([url]) => String(url).endsWith('/fabric/preview'))).toHaveLength(1)
+    await act(async () => backend.finish(reply({ code: 'staging_busy', message: 'old A response' }, 429)))
+    await screen.findByLabelText('测试共享 Fabric 画面')
+    expect(screen.queryByText(/old A response/)).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '生成最终模型' })).toBeEnabled()
+    const previews = backend.fetcher.mock.calls.filter(([url]) => String(url).endsWith('/fabric/preview'))
+    expect(previews).toHaveLength(2)
+    expect(JSON.parse(String(previews[1][1]?.body)).document.document_id).toBe(b.document_id)
+  })
   it('B2 manufacture groups switch only display state, retain one form, and leave requests/history unchanged', async () => {
     const backend = startBackend(); const view = await open(); manufacture()
     await screen.findByLabelText('测试共享 Fabric 画面')
